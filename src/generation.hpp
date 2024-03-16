@@ -14,6 +14,7 @@ public:
     };
     struct Procedure {
         std::string name;
+        std::vector<std::pair<std::string, DataType>> params;
     };
     struct String {
         std::string value;
@@ -331,6 +332,13 @@ public:
                 gen.m_output << "    cmova edx, ecx\n";
                 gen.m_output << "    push edx\n";
             }
+
+            void operator()(const NodeBinExprArgs* args) const
+            {
+                for(int i = 0;i < (int)args->args.size();++i) {
+                    gen.gen_expr(args->args[i]);
+                }
+            }
         };
         std::string bin_str = "";
         if(std::holds_alternative<NodeBinExprAdd*>(bin_expr->var)) {
@@ -350,8 +358,9 @@ public:
         } else {
             assert(false);
         }
-        typecheck_bin_expr_err(bin_expr, bin_str);
-
+        if(!std::holds_alternative<NodeBinExprArgs*>(bin_expr->var)) {
+            typecheck_bin_expr_err(bin_expr, bin_str);
+        }
         BinExprVisitor visitor { .gen = *this };
         std::visit(visitor, bin_expr->var);
     }
@@ -398,6 +407,18 @@ public:
             gen_stmt(stmt);
         }
         end_scope_fsz(fsz);
+    }
+
+    void create_var(const std::string name, NodeExpr* value, Token where) {
+        std::optional<Var> ivar = var_lookup(name);
+        if(ivar.has_value()) {
+            GeneratorError(where, "name `" + name + "` already in use");
+        }
+        DataType vartype = type_of_expr(value);
+        m_vars.push_back({ .name = name, .stack_loc = (m_vars.size() + 1) * 4 , .type = vartype });
+        gen_expr(value);
+        m_output << "    pop ecx\n";
+        m_output << "    mov dword [ebp-" << m_vars.size() * 4 << "], ecx\n";
     }
 
     void gen_if_pred(const NodeIfPred* pred, const std::string& end_label)
@@ -474,25 +495,12 @@ public:
                 gen.gen_scope_fsz(stmt_proc->scope);
                 gen.m_output << "    pop ebp\n";
                 gen.m_output << "    ret\n\n";
-                gen.m_procs.push_back({ .name = stmt_proc->name });
+                gen.m_procs.push_back({ .name = stmt_proc->name , .params = {}});
             }
 
             void operator()(const NodeStmtLet* stmt_let) const
             {
-                bool finded = false;
-                for(Var var : gen.m_vars) {
-                    if(var.name == stmt_let->ident.value.value()) {
-                        finded = true;
-                    }
-                }
-                if(finded) {
-                    gen.GeneratorError(stmt_let->ident, "name `" + stmt_let->ident.value.value() + "` already in use");
-                }
-                DataType vartype = gen.type_of_expr(stmt_let->expr);
-                gen.m_vars.push_back({ .name = stmt_let->ident.value.value(), .stack_loc = (gen.m_vars.size() + 1) * 4 , .type = vartype });
-                gen.gen_expr(stmt_let->expr);
-                gen.m_output << "    pop ecx\n";
-                gen.m_output << "    mov dword [ebp-" << gen.m_vars.size() * 4 << "], ecx\n";
+                gen.create_var(stmt_let->ident.value.value(), stmt_let->expr, stmt_let->ident);
             }
 
             void operator()(const NodeStmtAssign* stmt_assign) const
@@ -517,7 +525,30 @@ public:
                 if(!proc.has_value()) {
                     gen.GeneratorError(stmt_call->def, "unkown procedure `" + name + "`");
                 }
+                size_t stack_allign = 0;
+                if(stmt_call->args.has_value()) {
+                    if(proc.value().params.size() == 0) {
+                        gen.GeneratorError(stmt_call->def, "procedure `" + name + "` don't excepts any arguments");
+                    }
+                    gen.gen_expr(stmt_call->args.value());
+                    NodeExpr* args = stmt_call->args.value();
+                    if(std::holds_alternative<NodeBinExpr*>(args->var)) {
+                        NodeBinExpr* cexpr = std::get<NodeBinExpr*>(args->var);
+                        if(std::holds_alternative<NodeBinExprArgs*>(cexpr->var)) {
+                            std::vector<NodeExpr*> pargs = get<NodeBinExprArgs*>(cexpr->var)->args;
+                            for(int i = 0;i < (int)pargs.size();++i) {
+                                if(gen.type_of_expr(pargs[i]) != proc.value().params[i].second) {
+                                    gen.GeneratorError(stmt_call->def, "procedure `" + name + "` except type " + dt_to_string(proc.value().params[i].second) + "` at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
+                                }
+                            }
+                            stack_allign += std::get<NodeBinExprArgs*>(cexpr->var)->args.size();
+                        }
+                    } else {
+                        stack_allign++;
+                    }
+                }
                 gen.m_output << "    call " << name << "\n";
+                gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
             }
 
             void operator()(const NodeScope* scope) const
@@ -563,8 +594,8 @@ public:
         }
 
         m_output << "\n\nsection .data\n";
-        m_output << "    numfmt: db \"%d\", 0\n";
-        m_output << "    strfmt: db \"%s\", 0\n";
+        m_output << "    numfmt: db \"%d\", 0xa, 0x0\n";
+        m_output << "    strfmt: db \"%s\", 0x0\n";
         for(int i = 0;i < static_cast<int>(m_strings.size());++i) {
             String& cur_s = m_strings[i];
             m_output << "    str_" << static_cast<int>(cur_s.index) << ": db ";

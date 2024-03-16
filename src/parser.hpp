@@ -79,9 +79,13 @@ struct NodeBinExprEqEq {
     NodeExpr* rhs;
 };
 
+struct NodeBinExprArgs {
+    std::vector<NodeExpr*> args;
+};
+
 struct NodeBinExpr {
     Token def;
-    std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*> var;
+    std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*> var;
 };
 
 struct NodeTerm {
@@ -142,6 +146,7 @@ struct NodeStmtAssign {
 
 struct NodeStmtProc {
     std::string name;
+    std::vector<DataType> args;
     NodeScope* scope {};
 };
 
