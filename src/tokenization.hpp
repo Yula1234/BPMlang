@@ -12,12 +12,14 @@ enum class TokenType {
     close_paren,
     ident,
     let,
+    less,
     eqeq,
     eq,
     plus,
     star,
     minus,
     fslash,
+    above,
     open_curly,
     close_curly,
     if_,
@@ -28,6 +30,9 @@ enum class TokenType {
     in,
     string_lit,
 };
+
+#define BinaryOpsCount 7
+#define StmtsCount 7
 
 std::string tok_to_string(const TokenType type)
 {
@@ -76,6 +81,10 @@ std::string tok_to_string(const TokenType type)
         return "`in`";
     case TokenType::string_lit:
         return "`string literal`";
+    case TokenType::less:
+        return "`<`";
+    case TokenType::above:
+        return "`>`";
     }
     assert(false);
 }
@@ -85,6 +94,8 @@ inline std::optional<int> bin_prec(const TokenType type)
 {
     switch (type) {
     case TokenType::eqeq:
+    case TokenType::less:
+    case TokenType::above:
         return prec_IOTA++;
     case TokenType::minus:
     case TokenType::plus:
@@ -103,6 +114,16 @@ struct Token {
     int col;
     std::optional<std::string> value {};
     std::string file;
+    friend std::ostream& operator<<(std::ostream& out, const Token& tok) {
+        out << "Token(.type = " << tok_to_string(tok.type);
+        out << ", .line = " << tok.line;
+        out << ", .col = " << tok.col;
+        if(tok.value.has_value()) {
+            out << ", .value = " << tok.value.value();
+        }
+        out << ")";
+        return out;
+    }
 };
 
 void putloc(Token tok) {
@@ -114,6 +135,16 @@ std::string loc_of(Token tok) {
     sprintf(buffer, "%s %d:%d", tok.file.c_str(), tok.line, tok.col);
     std::string str(buffer);
     return str;
+}
+
+bool is_valid_id(char c) {
+    switch(c) {
+    case '_':
+        return true;
+    default:
+        return false;
+    }
+    return false;
 }
 
 class Tokenizer {
@@ -129,9 +160,9 @@ public:
         std::string buf;
         int line_count = 1;
         while (peek().has_value()) {
-            if (std::isalpha(peek().value())) {
+            if (std::isalpha(peek().value()) || is_valid_id(peek().value())) {
                 buf.push_back(consume());
-                while (peek().has_value() && std::isalnum(peek().value())) {
+                while (peek().has_value() && (std::isalnum(peek().value()) || is_valid_id(peek().value()))) {
                     buf.push_back(consume());
                 }
                 if (buf == "exit") {
@@ -252,6 +283,14 @@ public:
             else if (peek().value() == '/') {
                 consume();
                 tokens.push_back({ .type = TokenType::fslash, .line = line_count, .col = m_col - 1, .file = file });
+            }
+            else if (peek().value() == '<') {
+                consume();
+                tokens.push_back({ .type = TokenType::less, .line = line_count, .col = m_col - 1, .file = file });
+            }
+            else if (peek().value() == '>') {
+                consume();
+                tokens.push_back({ .type = TokenType::above, .line = line_count, .col = m_col - 1, .file = file });
             }
             else if (peek().value() == '{') {
                 consume();

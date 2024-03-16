@@ -64,6 +64,16 @@ struct NodeBinExprDiv {
     NodeExpr* rhs;
 };
 
+struct NodeBinExprLess {
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
+
+struct NodeBinExprAbove {
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
+
 struct NodeBinExprEqEq {
     NodeExpr* lhs;
     NodeExpr* rhs;
@@ -71,7 +81,7 @@ struct NodeBinExprEqEq {
 
 struct NodeBinExpr {
     Token def;
-    std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*> var;
+    std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*> var;
 };
 
 struct NodeTerm {
@@ -135,11 +145,17 @@ struct NodeStmtProc {
     NodeScope* scope {};
 };
 
+struct NodeStmtCall {
+    Token def;
+    std::string name;
+    std::optional<NodeExpr*> args;
+};
+
 struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtLet*,
                 NodeScope*, NodeStmtIf*,
                 NodeStmtAssign*, NodeStmtPrint*,
-                NodeStmtProc*> var;
+                NodeStmtProc*, NodeStmtCall*> var;
 };
 
 struct NodeProg {
@@ -150,7 +166,7 @@ class Parser {
 public:
     explicit Parser(std::vector<Token> tokens)
         : m_tokens(std::move(tokens))
-        , m_allocator(1024 * 1024 * 4) // 4 mb
+        , m_allocator(1024 * 1024 * 24) // 24 mb
     {
     }
 
@@ -179,6 +195,12 @@ public:
             auto term_str_lit = m_allocator.emplace<NodeTermStrLit>(str_lit.value());
             auto term = m_allocator.emplace<NodeTerm>(term_str_lit);
             return term;
+        }
+        if(peek().has_value() && peek().value().type == TokenType::ident
+            && peek(1).has_value() && peek(1).value().type == TokenType::open_paren) {
+            auto ident = consume(); // fname
+            std::cout << "at parsing function call\n";
+            exit(0);
         }
         if (auto ident = try_consume(TokenType::ident)) {
             auto expr_ident = m_allocator.emplace<NodeTermIdent>(ident.value());
@@ -256,6 +278,18 @@ public:
                 auto eqeq = m_allocator.emplace<NodeBinExprEqEq>(expr_lhs2, expr_rhs.value());
                 expr->def = ctok;
                 expr->var = eqeq;
+            }
+            else if (type == TokenType::less) {
+                expr_lhs2->var = expr_lhs->var;
+                auto less = m_allocator.emplace<NodeBinExprLess>(expr_lhs2, expr_rhs.value());
+                expr->def = ctok;
+                expr->var = less;
+            }
+            else if (type == TokenType::above) {
+                expr_lhs2->var = expr_lhs->var;
+                auto above = m_allocator.emplace<NodeBinExprAbove>(expr_lhs2, expr_rhs.value());
+                expr->def = ctok;
+                expr->var = above;
             }
             else {
                 assert(false); // Unreachable;
@@ -424,6 +458,23 @@ public:
                 ParsingError("after proc name except `{` and `}` after body", -1);
             }
             auto stmt = m_allocator.emplace<NodeStmt>(stmt_proc);
+            return stmt;
+        }
+        if (peek().has_value() && peek().value().type == TokenType::ident &&
+            peek(1).has_value() && peek(1).value().type == TokenType::open_paren) {
+            auto stmt_call = m_allocator.emplace<NodeStmtCall>();
+            Token identif = try_consume_err(TokenType::ident);
+            stmt_call->def = identif;
+            stmt_call->name = identif.value.value();
+            if(peek(1).has_value() && peek(1).value().type == TokenType::close_paren) {
+                consume();
+                consume();
+                stmt_call->args = std::nullopt;
+            } else {
+                stmt_call->args = parse_expr();
+            }
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>(stmt_call);
             return stmt;
         }
         return {};

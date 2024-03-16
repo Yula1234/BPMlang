@@ -12,6 +12,9 @@ public:
         size_t stack_loc;
         DataType type;
     };
+    struct Procedure {
+        std::string name;
+    };
     struct String {
         std::string value;
         size_t index;
@@ -25,6 +28,21 @@ public:
         Var it;
         bool finded = false;
         for(Var var : m_vars) {
+            if(var.name == name) {
+                it = var;
+                finded = true;
+            }
+        }
+        if(finded) {
+            return it;
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Procedure> proc_lookup(std::string name) {
+        Procedure it;
+        bool finded = false;
+        for(Procedure var : m_procs) {
             if(var.name == name) {
                 it = var;
                 finded = true;
@@ -77,6 +95,8 @@ public:
                 return svar.value().type;
             }
         }
+        static_assert(BinaryOpsCount == 7,
+                    "\n     Impl type_of for new binop");
         if(holds_alternative<NodeBinExpr*>(expr->var)) {
             NodeBinExpr* binex = std::get<NodeBinExpr*>(expr->var);
             if(std::holds_alternative<NodeBinExprAdd*>(binex->var)) {
@@ -94,11 +114,19 @@ public:
             if(std::holds_alternative<NodeBinExprEqEq*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprEqEq*>(binex->var)->lhs);
             }
+            if(std::holds_alternative<NodeBinExprLess*>(binex->var)) {
+                return type_of_expr(std::get<NodeBinExprLess*>(binex->var)->lhs);
+            }
+            if(std::holds_alternative<NodeBinExprAbove*>(binex->var)) {
+                return type_of_expr(std::get<NodeBinExprAbove*>(binex->var)->lhs);
+            }
         }
         assert(false);
     }
 
     bool typecheck_bin_expr(const NodeBinExpr* expr) {
+        static_assert(BinaryOpsCount == 7,
+                    "\n     Impl typecheck for new binop");
         if(std::holds_alternative<NodeBinExprAdd*>(expr->var)) {
             NodeBinExprAdd* add = std::get<NodeBinExprAdd*>(expr->var);
             return type_of_expr(add->lhs) == type_of_expr(add->rhs);
@@ -114,12 +142,20 @@ public:
         } else if(std::holds_alternative<NodeBinExprEqEq*>(expr->var)) {
             NodeBinExprEqEq* eqeq = std::get<NodeBinExprEqEq*>(expr->var);
             return type_of_expr(eqeq->lhs) == type_of_expr(eqeq->rhs);
+        } else if(std::holds_alternative<NodeBinExprLess*>(expr->var)) {
+            NodeBinExprLess* less = std::get<NodeBinExprLess*>(expr->var);
+            return type_of_expr(less->lhs) == type_of_expr(less->rhs);
+        } else if(std::holds_alternative<NodeBinExprAbove*>(expr->var)) {
+            NodeBinExprAbove* above = std::get<NodeBinExprAbove*>(expr->var);
+            return type_of_expr(above->lhs) == type_of_expr(above->rhs);
         } else {
             assert(false);
         }
     }
 
     void typecheck_bin_expr_err(const NodeBinExpr* expr, std::string IRexpr) {
+        static_assert(BinaryOpsCount == 7,
+                    "\n     Impl typecheck_err for new binop");
         if(!typecheck_bin_expr(expr)) {
             DataType ltype;
             DataType rtype;
@@ -143,6 +179,14 @@ public:
                 const NodeBinExprEqEq* eqeq = std::get<NodeBinExprEqEq*>(expr->var);
                 ltype = type_of_expr(eqeq->lhs);
                 rtype = type_of_expr(eqeq->rhs);
+            } else if(std::holds_alternative<NodeBinExprLess*>(expr->var)) {
+                const NodeBinExprLess* less = std::get<NodeBinExprLess*>(expr->var);
+                ltype = type_of_expr(less->lhs);
+                rtype = type_of_expr(less->rhs);
+            } else if(std::holds_alternative<NodeBinExprAbove*>(expr->var)) {
+                const NodeBinExprAbove* above = std::get<NodeBinExprAbove*>(expr->var);
+                ltype = type_of_expr(above->lhs);
+                rtype = type_of_expr(above->rhs);
             } else {
                 assert(false);
             }
@@ -259,6 +303,34 @@ public:
                 gen.m_output << "    cmove edx, ecx\n";
                 gen.m_output << "    push edx\n";
             }
+
+            void operator()(const NodeBinExprLess* less) const
+            {
+                gen.gen_expr(less->rhs);
+                gen.gen_expr(less->lhs);
+                gen.m_output << "    mov edx, 0\n";
+                gen.m_output << "    mov ecx, 1\n";
+                gen.m_output << "    pop ebx\n";
+                gen.m_output << "    pop eax\n";
+                gen.m_output << "    cmp eax, ebx\n";
+                gen.m_output << "    cmovae edx, ecx\n";
+                gen.m_output << "    push edx\n";
+            }
+
+            void operator()(const NodeBinExprAbove* above) const
+            {
+                gen.gen_expr(above->lhs);
+                // DON'T COPY PASTE
+                // IN > FIRST GENERATE LEFT OPERAND
+                gen.gen_expr(above->rhs);
+                gen.m_output << "    mov edx, 0\n";
+                gen.m_output << "    mov ecx, 1\n";
+                gen.m_output << "    pop ebx\n";
+                gen.m_output << "    pop eax\n";
+                gen.m_output << "    cmp eax, ebx\n";
+                gen.m_output << "    cmova edx, ecx\n";
+                gen.m_output << "    push edx\n";
+            }
         };
         std::string bin_str = "";
         if(std::holds_alternative<NodeBinExprAdd*>(bin_expr->var)) {
@@ -271,6 +343,12 @@ public:
             bin_str = "/";
         } else if(std::holds_alternative<NodeBinExprEqEq*>(bin_expr->var)) {
             bin_str = "==";
+        } else if(std::holds_alternative<NodeBinExprLess*>(bin_expr->var)) {
+            bin_str = "<";
+        } else if(std::holds_alternative<NodeBinExprAbove*>(bin_expr->var)) {
+            bin_str = ">";
+        } else {
+            assert(false);
         }
         typecheck_bin_expr_err(bin_expr, bin_str);
 
@@ -395,7 +473,8 @@ public:
                 gen.m_output << "    mov ebp, esp\n";
                 gen.gen_scope_fsz(stmt_proc->scope);
                 gen.m_output << "    pop ebp\n";
-                gen.m_output << "    ret\n";
+                gen.m_output << "    ret\n\n";
+                gen.m_procs.push_back({ .name = stmt_proc->name });
             }
 
             void operator()(const NodeStmtLet* stmt_let) const
@@ -429,6 +508,16 @@ public:
                 gen.gen_expr(stmt_assign->expr);
                 gen.pop("ecx");
                 gen.m_output << "    mov [ebp-" << it.value().stack_loc << "], ecx\n";
+            }
+
+            void operator()(const NodeStmtCall* stmt_call) const
+            {
+                const std::string& name = stmt_call->def.value.value();
+                std::optional<Procedure> proc = gen.proc_lookup(name);
+                if(!proc.has_value()) {
+                    gen.GeneratorError(stmt_call->def, "unkown procedure `" + name + "`");
+                }
+                gen.m_output << "    call " << name << "\n";
             }
 
             void operator()(const NodeScope* scope) const
@@ -530,5 +619,6 @@ private:
     std::vector<Var> m_vars {};
     std::vector<String> m_strings {};
     std::vector<size_t> m_scopes {};
+    std::vector<Procedure> m_procs {};
     int m_label_count = 0;
 };
