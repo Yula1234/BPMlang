@@ -60,16 +60,16 @@ public:
     DataType type_of_expr(const NodeExpr* expr) {
         if(holds_alternative<NodeTerm*>(expr->var)) {
             NodeTerm* term = std::get<NodeTerm*>(expr->var);
-            if(holds_alternative<NodeTermIntLit*>(term->var)) {
+            if(std::holds_alternative<NodeTermIntLit*>(term->var)) {
                 return DataType::_int;
             }
-            if(holds_alternative<NodeTermStrLit*>(term->var)) {
+            if(std::holds_alternative<NodeTermStrLit*>(term->var)) {
                 return DataType::string;
             }
-            if(holds_alternative<NodeTermParen*>(term->var)) {
+            if(std::holds_alternative<NodeTermParen*>(term->var)) {
                 return type_of_expr(std::get<NodeTermParen*>(term->var)->expr);
             }
-            if(holds_alternative<NodeTermIdent*>(term->var)) {
+            if(std::holds_alternative<NodeTermIdent*>(term->var)) {
                 std::optional<Var> svar = var_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
                 if(!svar.has_value()) {
                     return DataType::_int;
@@ -79,19 +79,19 @@ public:
         }
         if(holds_alternative<NodeBinExpr*>(expr->var)) {
             NodeBinExpr* binex = std::get<NodeBinExpr*>(expr->var);
-            if(holds_alternative<NodeBinExprAdd*>(binex->var)) {
+            if(std::holds_alternative<NodeBinExprAdd*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprAdd*>(binex->var)->lhs);
             }
-            if(holds_alternative<NodeBinExprMulti*>(binex->var)) {
+            if(std::holds_alternative<NodeBinExprMulti*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprMulti*>(binex->var)->lhs);
             }
-            if(holds_alternative<NodeBinExprSub*>(binex->var)) {
+            if(std::holds_alternative<NodeBinExprSub*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprSub*>(binex->var)->lhs);
             }
-            if(holds_alternative<NodeBinExprDiv*>(binex->var)) {
+            if(std::holds_alternative<NodeBinExprDiv*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprDiv*>(binex->var)->lhs);
             }
-            if(holds_alternative<NodeBinExprEqEq*>(binex->var)) {
+            if(std::holds_alternative<NodeBinExprEqEq*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprEqEq*>(binex->var)->lhs);
             }
         }
@@ -99,13 +99,53 @@ public:
     }
 
     bool typecheck_bin_expr(const NodeBinExpr* expr) {
-        return type_of_expr(std::get<NodeBinExprAdd*>(expr->var)->lhs) == type_of_expr(std::get<NodeBinExprAdd*>(expr->var)->rhs);
+        if(std::holds_alternative<NodeBinExprAdd*>(expr->var)) {
+            NodeBinExprAdd* add = std::get<NodeBinExprAdd*>(expr->var);
+            return type_of_expr(add->lhs) == type_of_expr(add->rhs);
+        } else if(std::holds_alternative<NodeBinExprSub*>(expr->var)) {
+            NodeBinExprSub* sub = std::get<NodeBinExprSub*>(expr->var);
+            return type_of_expr(sub->lhs) == type_of_expr(sub->rhs);
+        } else if(std::holds_alternative<NodeBinExprMulti*>(expr->var)) {
+            NodeBinExprMulti* mul = std::get<NodeBinExprMulti*>(expr->var);
+            return type_of_expr(mul->lhs) == type_of_expr(mul->rhs);
+        } else if(std::holds_alternative<NodeBinExprDiv*>(expr->var)) {
+            NodeBinExprDiv* div = std::get<NodeBinExprDiv*>(expr->var);
+            return type_of_expr(div->lhs) == type_of_expr(div->rhs);
+        } else if(std::holds_alternative<NodeBinExprEqEq*>(expr->var)) {
+            NodeBinExprEqEq* eqeq = std::get<NodeBinExprEqEq*>(expr->var);
+            return type_of_expr(eqeq->lhs) == type_of_expr(eqeq->rhs);
+        } else {
+            assert(false);
+        }
     }
 
     void typecheck_bin_expr_err(const NodeBinExpr* expr, std::string IRexpr) {
         if(!typecheck_bin_expr(expr)) {
-            DataType ltype = type_of_expr(std::get<NodeBinExprAdd*>(expr->var)->lhs);
-            DataType rtype = type_of_expr(std::get<NodeBinExprAdd*>(expr->var)->rhs);
+            DataType ltype;
+            DataType rtype;
+            if(std::holds_alternative<NodeBinExprAdd*>(expr->var)) {
+                const NodeBinExprAdd* add = std::get<NodeBinExprAdd*>(expr->var);
+                ltype = type_of_expr(add->lhs);
+                rtype = type_of_expr(add->rhs);
+            } else if(std::holds_alternative<NodeBinExprSub*>(expr->var)) {
+                const NodeBinExprSub* sub = std::get<NodeBinExprSub*>(expr->var);
+                ltype = type_of_expr(sub->lhs);
+                rtype = type_of_expr(sub->rhs);
+            } else if(std::holds_alternative<NodeBinExprMulti*>(expr->var)) {
+                const NodeBinExprMulti* mul = std::get<NodeBinExprMulti*>(expr->var);
+                ltype = type_of_expr(mul->lhs);
+                rtype = type_of_expr(mul->rhs);
+            } else if(std::holds_alternative<NodeBinExprDiv*>(expr->var)) {
+                const NodeBinExprDiv* div = std::get<NodeBinExprDiv*>(expr->var);
+                ltype = type_of_expr(div->lhs);
+                rtype = type_of_expr(div->rhs);
+            } else if(std::holds_alternative<NodeBinExprEqEq*>(expr->var)) {
+                const NodeBinExprEqEq* eqeq = std::get<NodeBinExprEqEq*>(expr->var);
+                ltype = type_of_expr(eqeq->lhs);
+                rtype = type_of_expr(eqeq->rhs);
+            } else {
+                assert(false);
+            }
             GeneratorError(expr->def, "can't use `" + IRexpr + "` for types " + dt_to_string(ltype) + " and " + dt_to_string(rtype));
         }
     }
@@ -221,15 +261,15 @@ public:
             }
         };
         std::string bin_str = "";
-        if(holds_alternative<NodeBinExprAdd*>(bin_expr->var)) {
+        if(std::holds_alternative<NodeBinExprAdd*>(bin_expr->var)) {
             bin_str = "+";
-        } else if(holds_alternative<NodeBinExprSub*>(bin_expr->var)) {
+        } else if(std::holds_alternative<NodeBinExprSub*>(bin_expr->var)) {
             bin_str = "-";
-        } else if(holds_alternative<NodeBinExprMulti*>(bin_expr->var)) {
+        } else if(std::holds_alternative<NodeBinExprMulti*>(bin_expr->var)) {
             bin_str = "*";
-        } else if(holds_alternative<NodeBinExprDiv*>(bin_expr->var)) {
+        } else if(std::holds_alternative<NodeBinExprDiv*>(bin_expr->var)) {
             bin_str = "/";
-        } else if(holds_alternative<NodeBinExprEqEq*>(bin_expr->var)) {
+        } else if(std::holds_alternative<NodeBinExprEqEq*>(bin_expr->var)) {
             bin_str = "==";
         }
         typecheck_bin_expr_err(bin_expr, bin_str);
@@ -436,12 +476,12 @@ public:
         m_output << "\n\nsection .data\n";
         m_output << "    numfmt: db \"%d\", 0\n";
         m_output << "    strfmt: db \"%s\", 0\n";
-        for(int i = 0;i < (int)m_strings.size();++i) {
+        for(int i = 0;i < static_cast<int>(m_strings.size());++i) {
             String& cur_s = m_strings[i];
-            m_output << "    str_" << (int)cur_s.index << ": db ";
+            m_output << "    str_" << static_cast<int>(cur_s.index) << ": db ";
             std::stringstream hexstr;
-            for(int j = 0;j < cur_s.value.length();++j) {
-                hexstr << "0x" << std::hex << (int)cur_s.value[j] << ", ";
+            for(int j = 0;j < static_cast<int>(cur_s.value.length());++j) {
+                hexstr << "0x" << std::hex << static_cast<int>(cur_s.value[j]) << ", ";
             }
             m_output << hexstr.str();
             hexstr.clear();

@@ -135,35 +135,35 @@ public:
                     buf.push_back(consume());
                 }
                 if (buf == "exit") {
-                    tokens.push_back({ TokenType::exit, line_count, m_col - (int)buf.size(), file });
+                    tokens.push_back({ .type = TokenType::exit, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
                 else if (buf == "let") {
-                    tokens.push_back({ TokenType::let, line_count, m_col - (int)buf.size(), file });
+                    tokens.push_back({ .type = TokenType::let, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
                 else if (buf == "if") {
-                    tokens.push_back({ TokenType::if_, line_count, m_col - (int)buf.size(), file });
+                    tokens.push_back({ .type = TokenType::if_, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
                 else if (buf == "elif") {
-                    tokens.push_back({ TokenType::elif, line_count, m_col - (int)buf.size(), file });
+                    tokens.push_back({ .type = TokenType::elif, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
                 else if (buf == "else") {
-                    tokens.push_back({ TokenType::else_, line_count, m_col - (int)buf.size(), file });
+                    tokens.push_back({ .type = TokenType::else_, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
                 else if (buf == "print") {
-                    tokens.push_back({ TokenType::print, line_count, m_col - (int)buf.size(), file });
+                    tokens.push_back({ .type = TokenType::print, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
                 else if (buf == "proc") {
-                    tokens.push_back({ TokenType::proc, line_count, m_col - (int)buf.size(), file });
+                    tokens.push_back({ .type = TokenType::proc, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
                 else {
-                    tokens.push_back({ TokenType::ident, line_count, m_col - (int)buf.size(), buf, file });
+                    tokens.push_back({ .type = TokenType::ident, .line =  line_count, .col =  m_col - (int)buf.size(), .value = buf, .file = file });
                     buf.clear();
                 }
             }

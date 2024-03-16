@@ -3,19 +3,19 @@
 #include <optional>
 #include <sstream>
 #include <vector>
-#include <ctdio>
+#include <cstdio>
 
 #include "generation.hpp"
 
-void usage(FILE* stream) {
-    fprintf(stream, "Incorrect usage. Correct usage is...\n");
-    fprintf(stream, "bpm <input.bpm>\n");
+void usage(std::ostream& stream) {
+    stream << "Incorrect usage. Correct usage is..." << std::endl;
+    stream << "bpm <input.bpm>" << std::endl;
 }
 
 int main(int argc, char* argv[])
 {
     if (argc != 2) {
-        usage();
+        usage(std::cerr);
         return EXIT_FAILURE;
     }
 
@@ -46,7 +46,6 @@ int main(int argc, char* argv[])
 
     system("nasm --gprefix _ -fwin32 output.asm -o output.o");
     system("gcc -o out.exe output.o -m32");
-    
     system("del output.o");
 
     return EXIT_SUCCESS;
