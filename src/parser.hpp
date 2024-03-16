@@ -158,6 +158,11 @@ struct NodeStmtAssign {
     NodeExpr* expr {};
 };
 
+struct NodeStmtWhile {
+    NodeScope* scope {};
+    NodeExpr* expr {};
+};
+
 struct NodeStmtProc {
     std::string name;
     Token def;
@@ -175,7 +180,8 @@ struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtLet*,
                 NodeScope*, NodeStmtIf*,
                 NodeStmtAssign*, NodeStmtPrint*,
-                NodeStmtProc*, NodeStmtCall*> var;
+                NodeStmtProc*, NodeStmtCall*,
+                NodeStmtWhile*> var;
 };
 
 struct NodeProg {
@@ -494,6 +500,25 @@ public:
             }
             stmt_if->pred = parse_if_pred();
             auto stmt = m_allocator.emplace<NodeStmt>(stmt_if);
+            return stmt;
+        }
+        if (auto while_ = try_consume(TokenType::wwhile)) {
+            try_consume_err(TokenType::open_paren);
+            auto stmt_while = m_allocator.emplace<NodeStmtWhile>();
+            if (const auto expr = parse_expr()) {
+                stmt_while->expr = expr.value();
+            }
+            else {
+                error_expected("expression");
+            }
+            try_consume_err(TokenType::close_paren);
+            if (const auto scope = parse_scope()) {
+                stmt_while->scope = scope.value();
+            }
+            else {
+                ParsingError("after while except `{` and `}` after body", -1);
+            }
+            auto stmt = m_allocator.emplace<NodeStmt>(stmt_while);
             return stmt;
         }
         if (peek().has_value() && peek().value().type == TokenType::proc) {

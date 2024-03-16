@@ -33,6 +33,7 @@ enum class TokenType {
     int_type,
     string_type,
     double_dot,
+    wwhile,
 };
 
 #define BinaryOpsCount 7
@@ -97,6 +98,8 @@ std::string tok_to_string(const TokenType type)
         return "`string`";
     case TokenType::double_dot:
         return "`:`";
+    case TokenType::wwhile:
+        return "`while`";
     }
     assert(false);
 }
@@ -213,6 +216,10 @@ public:
                 }
                 else if (buf == "string") {
                     tokens.push_back({ .type = TokenType::string_type, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "while") {
+                    tokens.push_back({ .type = TokenType::wwhile, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
                 else {

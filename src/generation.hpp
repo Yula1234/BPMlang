@@ -606,6 +606,22 @@ public:
                     gen.m_output << "    " << label << ":\n";
                 }
             }
+
+            void operator()(const NodeStmtWhile* stmt_while) const
+            {
+                auto preiflab = gen.create_label();
+                auto blocklab = gen.create_label();
+                auto breaklab = gen.create_label();
+                gen.m_output << "    " << preiflab << ":\n";
+                gen.gen_expr(stmt_while->expr);
+                gen.m_output << "    pop eax\n";
+                gen.m_output << "    test eax, eax\n";
+                gen.m_output << "    jz " << breaklab << "\n";
+                gen.m_output << "    " << blocklab << ":\n";
+                gen.gen_scope(stmt_while->scope);
+                gen.m_output << "    jmp " << preiflab << "\n";
+                gen.m_output << "    " << breaklab << ":\n";
+            }
         };
 
         StmtVisitor visitor { .gen = *this };
