@@ -1,0 +1,3 @@
+@echo off
+echo Compiling src/main.cpp...
+g++ -std=c++2a src/main.cpp -o bpm.exe
