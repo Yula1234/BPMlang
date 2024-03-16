@@ -1,3 +1,3 @@
 @echo off
 echo Compiling src/main.cpp...
-g++ -std=c++2a src/main.cpp -o bpm.exe -ggdb -Wextra -pedantic
+g++ -std=c++2a -fmax-errors=2 -Wextra -pedantic -Wall -Werror -Wswitch src/main.cpp -o bpm.exe -ggdb
