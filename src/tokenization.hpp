@@ -29,6 +29,10 @@ enum class TokenType {
     proc,
     in,
     string_lit,
+    comma,
+    int_type,
+    string_type,
+    double_dot,
 };
 
 #define BinaryOpsCount 7
@@ -85,6 +89,14 @@ std::string tok_to_string(const TokenType type)
         return "`<`";
     case TokenType::above:
         return "`>`";
+    case TokenType::comma:
+        return "`,`";
+    case TokenType::int_type:
+        return "`int`";
+    case TokenType::string_type:
+        return "`string`";
+    case TokenType::double_dot:
+        return "`:`";
     }
     assert(false);
 }
@@ -93,6 +105,8 @@ int prec_IOTA = 0;
 inline std::optional<int> bin_prec(const TokenType type)
 {
     switch (type) {
+    case TokenType::comma:
+        return prec_IOTA++;
     case TokenType::eqeq:
     case TokenType::less:
     case TokenType::above:
@@ -193,6 +207,14 @@ public:
                     tokens.push_back({ .type = TokenType::proc, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
+                else if (buf == "int") {
+                    tokens.push_back({ .type = TokenType::int_type, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "string") {
+                    tokens.push_back({ .type = TokenType::string_type, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    buf.clear();
+                }
                 else {
                     tokens.push_back({ .type = TokenType::ident, .line =  line_count, .col =  m_col - (int)buf.size(), .value = buf, .file = file });
                     buf.clear();
@@ -279,6 +301,14 @@ public:
             else if (peek().value() == '-') {
                 consume();
                 tokens.push_back({ .type = TokenType::minus, .line = line_count, .col = m_col - 1, .file = file });
+            }
+            else if (peek().value() == ',') {
+                consume();
+                tokens.push_back({ .type = TokenType::comma, .line = line_count, .col = m_col - 1, .file = file });
+            }
+            else if (peek().value() == ':') {
+                consume();
+                tokens.push_back({ .type = TokenType::double_dot, .line = line_count, .col = m_col - 1, .file = file });
             }
             else if (peek().value() == '/') {
                 consume();

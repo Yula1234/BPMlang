@@ -17,8 +17,22 @@ std::string dt_to_string(DataType dt) {
         return "`int`";
     case DataType::string:
         return "`string`";
+    default:
+        break;
     }
     assert(false);
+}
+
+DataType token_to_dt(TokenType tt) {
+    switch(tt) {
+    case TokenType::int_type:
+        return DataType::_int;
+    case TokenType::string_type:
+        return DataType::string;
+    default:
+        break;
+    }
+    assert(false); // unreacheable
 }
 
 std::ostream& operator<<(std::ostream& out, const DataType dt) {
@@ -146,7 +160,8 @@ struct NodeStmtAssign {
 
 struct NodeStmtProc {
     std::string name;
-    std::vector<DataType> args;
+    Token def;
+    std::vector<std::pair<std::string, DataType>> params;
     NodeScope* scope {};
 };
 
@@ -295,6 +310,36 @@ public:
                 auto above = m_allocator.emplace<NodeBinExprAbove>(expr_lhs2, expr_rhs.value());
                 expr->def = ctok;
                 expr->var = above;
+            }
+            else if (type == TokenType::comma) {
+                expr_lhs2->var = expr_lhs->var;
+                NodeExpr* left = expr_lhs2;
+                NodeExpr* right = expr_rhs.value();
+                std::vector<NodeExpr*> args;
+                if(std::holds_alternative<NodeBinExpr*>(left->var)) {
+                    if(std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(left->var)->var)) {
+                        std::vector<NodeExpr*> largs = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(left->var)->var)->args;
+                        for(int i = 0;i < (int)largs.size();++i) {
+                            args.push_back(largs[i]);
+                        }
+                    }
+                } else {
+                    args.push_back(left);
+                }
+                if(std::holds_alternative<NodeBinExpr*>(right->var)) {
+                    if(std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(right->var)->var)) {
+                        std::vector<NodeExpr*> rargs = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(right->var)->var)->args;
+                        for(int i = 0;i < (int)rargs.size();++i) {
+                            args.push_back(rargs[i]);
+                        }
+                    }
+                } else {
+                    args.push_back(right);
+                }
+                auto argsl = m_allocator.emplace<NodeBinExprArgs>();
+                argsl->args = args;
+                expr->def = ctok;
+                expr->var = argsl;
             }
             else {
                 assert(false); // Unreachable;
@@ -455,7 +500,22 @@ public:
             consume();
             auto stmt_proc = m_allocator.emplace<NodeStmtProc>();
             Token identif = try_consume_err(TokenType::ident);
+            std::vector<std::pair<std::string, DataType>> pparams;
+            if(peek().has_value() && peek().value().type != TokenType::open_curly) {
+                for(int i = 0;peek().has_value() && peek().value().type != TokenType::open_curly;++i) {
+                    Token argid = try_consume_err(TokenType::ident);
+                    try_consume_err(TokenType::double_dot);
+                    if(peek().value().type != TokenType::int_type && peek().value().type != TokenType::string_type) {
+                        error_expected("type");
+                    }
+                    Token ttype = consume();
+                    DataType argtype = token_to_dt(ttype.type);
+                    pparams.push_back(std::make_pair(argid.value.value(), argtype));
+                }
+            }
             stmt_proc->name = identif.value.value();
+            stmt_proc->params = pparams;
+            stmt_proc->def = identif;
             if (const auto scope = parse_scope()) {
                 stmt_proc->scope = scope.value();
             }

@@ -41,7 +41,8 @@ int main(int argc, char* argv[])
     {
         Generator generator(prog.value());
         std::fstream file("output.asm", std::ios::out);
-        file << generator.gen_prog();
+        const std::string& generated_asm = generator.gen_prog();
+        file << generated_asm;
     }
 
     system("nasm --gprefix _ -fwin32 output.asm -o output.o");
