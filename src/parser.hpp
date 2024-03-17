@@ -8,7 +8,7 @@
 
 enum class DataType {
     _int,
-    string,
+    ptr,
     _void,
 };
 
@@ -16,8 +16,8 @@ std::string dt_to_string(DataType dt) {
     switch(dt) {
     case DataType::_int:
         return "`int`";
-    case DataType::string:
-        return "`string`";
+    case DataType::ptr:
+        return "`ptr`";
     case DataType::_void:
         return "`void`";
     default:
@@ -30,8 +30,8 @@ DataType token_to_dt(TokenType tt) {
     switch(tt) {
     case TokenType::int_type:
         return DataType::_int;
-    case TokenType::string_type:
-        return DataType::string;
+    case TokenType::ptr_type:
+        return DataType::ptr;
     case TokenType::void_type:
         return DataType::_void;
     default:
@@ -59,6 +59,11 @@ struct NodeTermIdent {
 
 struct NodeExpr;
 
+struct NodeTermAmpersand {
+    Token def;
+    NodeExpr* expr;
+};
+
 struct NodeTermParen {
     NodeExpr* expr;
 };
@@ -67,6 +72,12 @@ struct NodeTermCall {
     Token def; 
     std::string name;
     std::optional<NodeExpr*> args;
+};
+
+struct NodeTermRd {
+    Token def;
+    size_t size;
+    NodeExpr* expr;
 };
 
 struct NodeBinExprAdd {
@@ -114,7 +125,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-    std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*> var;
+    std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*> var;
 };
 
 struct NodeExpr {
@@ -170,7 +181,8 @@ struct NodeStmtIf {
 };
 
 struct NodeStmtAssign {
-    Token ident;
+    Token def;
+    NodeExpr* lvalue {};
     NodeExpr* expr {};
 };
 
@@ -234,9 +246,61 @@ public:
             auto term = m_allocator.emplace<NodeTerm>(term_int_lit);
             return term;
         }
+        if(auto ampersand = try_consume(TokenType::ampersand)) {
+            auto term_amp = m_allocator.emplace<NodeTermAmpersand>();
+            if(auto expr = parse_expr()) {
+                term_amp->expr = expr.value();
+            } else {
+                error_expected("expression");
+            }
+            auto term = m_allocator.emplace<NodeTerm>(term_amp);
+            return term;
+        }
         if (auto str_lit = try_consume(TokenType::string_lit)) {
             auto term_str_lit = m_allocator.emplace<NodeTermStrLit>(str_lit.value());
             auto term = m_allocator.emplace<NodeTerm>(term_str_lit);
+            return term;
+        }
+        if (auto rd8 = try_consume(TokenType::read8)) {
+            auto term_rd8 = m_allocator.emplace<NodeTermRd>();
+            try_consume_err(TokenType::open_paren);
+            term_rd8->def = rd8.value();
+            term_rd8->size = 8U;
+            if(auto expr = parse_expr()) {
+                term_rd8->expr = expr.value();
+            } else {
+                error_expected("expression");
+            }
+            try_consume_err(TokenType::close_paren);
+            auto term = m_allocator.emplace<NodeTerm>(term_rd8);
+            return term;
+        }
+        if (auto rd16 = try_consume(TokenType::read16)) {
+            auto term_rd16 = m_allocator.emplace<NodeTermRd>();
+            term_rd16->def = rd16.value();
+            term_rd16->size = 16U;
+            try_consume_err(TokenType::open_paren);
+            if(auto expr = parse_expr()) {
+                term_rd16->expr = expr.value();
+            } else {
+                error_expected("expression");
+            }
+            try_consume_err(TokenType::close_paren);
+            auto term = m_allocator.emplace<NodeTerm>(term_rd16);
+            return term;
+        }
+        if (auto rd32 = try_consume(TokenType::read32)) {
+            auto term_rd32 = m_allocator.emplace<NodeTermRd>();
+            term_rd32->def = rd32.value();
+            try_consume_err(TokenType::open_paren);
+            term_rd32->size = 32U;
+            if(auto expr = parse_expr()) {
+                term_rd32->expr = expr.value();
+            } else {
+                error_expected("expression");
+            }
+            try_consume_err(TokenType::close_paren);
+            auto term = m_allocator.emplace<NodeTerm>(term_rd32);
             return term;
         }
         if(peek().has_value() && peek().value().type == TokenType::ident
@@ -487,11 +551,15 @@ public:
             stmt->var = stmt_let;
             return stmt;
         }
-        if (peek().has_value() && peek().value().type == TokenType::ident && peek(1).has_value()
+        if (peek(1).has_value()
             && peek(1).value().type == TokenType::eq) {
             const auto assign = m_allocator.emplace<NodeStmtAssign>();
-            assign->ident = consume();
-            consume();
+            if(auto expr = parse_expr()) {
+                assign->lvalue = expr.value();
+            } else {
+                error_expected("lvalue");
+            }
+            assign->def = try_consume_err(TokenType::eq);
             if (const auto expr = parse_expr()) {
                 assign->expr = expr.value();
             }
@@ -557,7 +625,7 @@ public:
                 for(int i = 0;peek().has_value() && peek().value().type != TokenType::arrow;++i) {
                     Token argid = try_consume_err(TokenType::ident);
                     try_consume_err(TokenType::double_dot);
-                    if(peek().value().type != TokenType::int_type && peek().value().type != TokenType::string_type) {
+                    if(peek().value().type != TokenType::int_type && peek().value().type != TokenType::ptr_type) {
                         error_expected("type");
                     }
                     Token ttype = consume();
@@ -566,7 +634,7 @@ public:
                 }
             }
             try_consume_err(TokenType::arrow);
-            if(peek().has_value() && peek().value().type != TokenType::int_type && peek().value().type != TokenType::string_type && peek().value().type != TokenType::void_type) {
+            if(peek().has_value() && peek().value().type != TokenType::int_type && peek().value().type != TokenType::ptr_type && peek().value().type != TokenType::void_type) {
                 error_expected("procedure return type");
             }
             DataType rettype = token_to_dt(consume().type);

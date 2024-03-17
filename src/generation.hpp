@@ -84,10 +84,16 @@ public:
                 return DataType::_int;
             }
             if(std::holds_alternative<NodeTermStrLit*>(term->var)) {
-                return DataType::string;
+                return DataType::ptr;
+            }
+            if(std::holds_alternative<NodeTermRd*>(term->var)) {
+                return DataType::_int;
             }
             if(std::holds_alternative<NodeTermParen*>(term->var)) {
                 return type_of_expr(std::get<NodeTermParen*>(term->var)->expr);
+            }
+            if(std::holds_alternative<NodeTermAmpersand*>(term->var)) {
+                return DataType::ptr;
             }
             if(std::holds_alternative<NodeTermCall*>(term->var)) {
                 NodeTermCall* call = std::get<NodeTermCall*>(term->var);
@@ -205,14 +211,38 @@ public:
         }
     }
 
-    void gen_term(const NodeTerm* term)
+    void gen_term(const NodeTerm* term, bool lvalue = false)
     {
         struct TermVisitor {
             Generator& gen;
+            bool lvalue;
 
             void operator()(const NodeTermIntLit* term_int_lit) const
             {
                 gen.push(term_int_lit->int_lit.value.value());
+            }
+
+            void operator()(const NodeTermRd* term_rd) const
+            {
+                if(term_rd->size == 8) {
+                    gen.gen_expr(term_rd->expr);
+                    gen.m_output << "    pop edx\n";
+                    gen.m_output << "    xor ecx, ecx\n";
+                    gen.m_output << "    mov cl, byte [edx]\n";
+                    gen.m_output << "    push ecx\n";
+                } else if(term_rd->size == 16) {
+                    gen.gen_expr(term_rd->expr);
+                    gen.m_output << "    pop edx\n";
+                    gen.m_output << "    xor ecx, ecx\n";
+                    gen.m_output << "    mov cx, word [edx]\n";
+                    gen.m_output << "    push ecx\n";
+                } else if(term_rd->size == 32) {
+                    gen.gen_expr(term_rd->expr);
+                    gen.m_output << "    pop edx\n";
+                    gen.m_output << "    push dword [edx]\n";
+                } else {
+                    assert(false); // unreacheable
+                }
             }
 
             void operator()(const NodeTermStrLit* term_str_lit) const
@@ -228,6 +258,11 @@ public:
                 gen.m_output << "    push str_" << str.value().index << "\n";
             }
 
+            void operator()(const NodeTermAmpersand* term_amp) const
+            {
+                gen.gen_expr(term_amp->expr, true);
+            }
+
             void operator()(const NodeTermIdent* term_ident) const
             {
                 Var it;
@@ -241,9 +276,15 @@ public:
                 if (!finded) {
                     gen.GeneratorError(term_ident->ident, "unkown word `" + term_ident->ident.value.value() + "`");
                 }
-                std::stringstream offset;
-                offset << "dword [ebp-" << it.stack_loc << "]";
-                gen.push(offset.str());
+                if(lvalue) {
+                    gen.m_output << "    mov edx, ebp\n";
+                    gen.m_output << "    sub edx, " << it.stack_loc << "\n";
+                    gen.m_output << "    push edx\n";
+                } else {
+                    std::stringstream offset;
+                    offset << "dword [ebp-" << it.stack_loc << "]";
+                    gen.push(offset.str());
+                }
             }
 
             void operator()(const NodeTermParen* term_paren) const
@@ -300,7 +341,7 @@ public:
                 gen.m_output << "    push eax\n";
             }
         };
-        TermVisitor visitor({ .gen = *this });
+        TermVisitor visitor({ .gen = *this , .lvalue = lvalue });
         std::visit(visitor, term->var);
     }
 
@@ -422,14 +463,15 @@ public:
         std::visit(visitor, bin_expr->var);
     }
 
-    void gen_expr(const NodeExpr* expr)
+    void gen_expr(const NodeExpr* expr, bool lvalue = false)
     {
         struct ExprVisitor {
             Generator& gen;
+            bool lvalue;
 
             void operator()(const NodeTerm* term) const
             {
-                gen.gen_term(term);
+                gen.gen_term(term, lvalue);
             }
 
             void operator()(const NodeBinExpr* bin_expr) const
@@ -438,7 +480,7 @@ public:
             }
         };
 
-        ExprVisitor visitor { .gen = *this };
+        ExprVisitor visitor { .gen = *this , .lvalue = lvalue };
         std::visit(visitor, expr->var);
     }
 
@@ -535,7 +577,7 @@ public:
             void operator()(const NodeStmtPrint* stmt_print) const
             {
                 DataType etype = gen.type_of_expr(stmt_print->expr);
-                if(etype != DataType::_int && etype != DataType::string) {
+                if(etype != DataType::_int && etype != DataType::ptr) {
                     gen.GeneratorError(stmt_print->def, "`print` except types `int` or `print`\nNOTE: but found " + dt_to_string(etype));
                 }
                 if(etype == DataType::_int) {
@@ -543,7 +585,7 @@ public:
                     gen.m_output << "    push numfmt\n";
                     gen.m_output << "    call printf\n";
                     gen.m_output << "    add esp, 8\n";
-                } else if(etype == DataType::string) {
+                } else if(etype == DataType::ptr) {
                     gen.gen_expr(stmt_print->expr);
                     gen.m_output << "    call printf\n";
                     gen.m_output << "    add esp, 4\n";
@@ -603,17 +645,11 @@ public:
 
             void operator()(const NodeStmtAssign* stmt_assign) const
             {
-                std::optional<Var> it = gen.var_lookup(stmt_assign->ident.value.value());
-                if(!it.has_value()) {
-                    gen.GeneratorError(stmt_assign->ident, "unkown word `" + stmt_assign->ident.value.value() + "`");
-                }
-                DataType etype = gen.type_of_expr(stmt_assign->expr);
-                if(it.value().type != etype) {
-                    gen.GeneratorError(stmt_assign->ident, "missmatch in types\nNOTE: variable `" + stmt_assign->ident.value.value() + "` has type " + dt_to_string(it.value().type) + " but got type " + dt_to_string(etype));
-                }
+                gen.gen_expr(stmt_assign->lvalue, true);
                 gen.gen_expr(stmt_assign->expr);
                 gen.pop("ecx");
-                gen.m_output << "    mov [ebp-" << it.value().stack_loc << "], ecx\n";
+                gen.pop("edx");
+                gen.m_output << "    mov dword [edx], ecx\n";
             }
 
             void operator()(const NodeStmtCall* stmt_call) const
