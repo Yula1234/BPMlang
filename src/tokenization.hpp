@@ -34,6 +34,9 @@ enum class TokenType {
     string_type,
     double_dot,
     wwhile,
+    _return,
+    arrow,
+    void_type,
 };
 
 #define BinaryOpsCount 7
@@ -96,10 +99,16 @@ std::string tok_to_string(const TokenType type)
         return "`int`";
     case TokenType::string_type:
         return "`string`";
+    case TokenType::void_type:
+        return "`void`";
     case TokenType::double_dot:
         return "`:`";
     case TokenType::wwhile:
         return "`while`";
+    case TokenType::_return:
+        return "`return`";
+    case TokenType::arrow:
+        return "`->`";
     }
     assert(false);
 }
@@ -218,8 +227,16 @@ public:
                     tokens.push_back({ .type = TokenType::string_type, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
+                else if (buf == "void") {
+                    tokens.push_back({ .type = TokenType::void_type, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    buf.clear();
+                }
                 else if (buf == "while") {
                     tokens.push_back({ .type = TokenType::wwhile, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "return") {
+                    tokens.push_back({ .type = TokenType::_return, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
                     buf.clear();
                 }
                 else {
@@ -234,6 +251,11 @@ public:
                 }
                 tokens.push_back({ .type = TokenType::int_lit, .line = line_count, .col = m_col - (int)buf.size(), .value = buf, .file = file });
                 buf.clear();
+            }
+            else if (peek().value() == '-' && peek(1).has_value() && peek(1).value() == '>') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::arrow, .line =  line_count, .col = m_col - 2, .file = file });
             }
             else if (peek().value() == '/' && peek(1).has_value() && peek(1).value() == '/') {
                 consume();

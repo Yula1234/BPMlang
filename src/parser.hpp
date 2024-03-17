@@ -9,6 +9,7 @@
 enum class DataType {
     _int,
     string,
+    _void,
 };
 
 std::string dt_to_string(DataType dt) {
@@ -17,6 +18,8 @@ std::string dt_to_string(DataType dt) {
         return "`int`";
     case DataType::string:
         return "`string`";
+    case DataType::_void:
+        return "`void`";
     default:
         break;
     }
@@ -29,6 +32,8 @@ DataType token_to_dt(TokenType tt) {
         return DataType::_int;
     case TokenType::string_type:
         return DataType::string;
+    case TokenType::void_type:
+        return DataType::_void;
     default:
         break;
     }
@@ -56,6 +61,12 @@ struct NodeExpr;
 
 struct NodeTermParen {
     NodeExpr* expr;
+};
+
+struct NodeTermCall {
+    Token def; 
+    std::string name;
+    std::optional<NodeExpr*> args;
 };
 
 struct NodeBinExprAdd {
@@ -103,7 +114,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-    std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*> var;
+    std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*> var;
 };
 
 struct NodeExpr {
@@ -116,6 +127,11 @@ struct NodeStmtExit {
 };
 
 struct NodeStmtPrint {
+    Token def;
+    NodeExpr* expr;
+};
+
+struct NodeStmtReturn {
     Token def;
     NodeExpr* expr;
 };
@@ -166,6 +182,7 @@ struct NodeStmtWhile {
 struct NodeStmtProc {
     std::string name;
     Token def;
+    DataType rettype;
     std::vector<std::pair<std::string, DataType>> params;
     NodeScope* scope {};
 };
@@ -181,7 +198,7 @@ struct NodeStmt {
                 NodeScope*, NodeStmtIf*,
                 NodeStmtAssign*, NodeStmtPrint*,
                 NodeStmtProc*, NodeStmtCall*,
-                NodeStmtWhile*> var;
+                NodeStmtWhile*,NodeStmtReturn*> var;
 };
 
 struct NodeProg {
@@ -224,9 +241,19 @@ public:
         }
         if(peek().has_value() && peek().value().type == TokenType::ident
             && peek(1).has_value() && peek(1).value().type == TokenType::open_paren) {
-            auto ident = consume(); // fname
-            std::cout << "at parsing function call\n";
-            exit(0);
+            auto expr_call = m_allocator.emplace<NodeTermCall>();
+            Token identif = try_consume_err(TokenType::ident);
+            expr_call->def = identif;
+            expr_call->name = identif.value.value();
+            if(peek(1).has_value() && peek(1).value().type == TokenType::close_paren) {
+                consume();
+                consume();
+                expr_call->args = std::nullopt;
+            } else {
+                expr_call->args = parse_expr();
+            }
+            auto stmt = m_allocator.emplace<NodeTerm>(expr_call);
+            return stmt;
         }
         if (auto ident = try_consume(TokenType::ident)) {
             auto expr_ident = m_allocator.emplace<NodeTermIdent>(ident.value());
@@ -526,8 +553,8 @@ public:
             auto stmt_proc = m_allocator.emplace<NodeStmtProc>();
             Token identif = try_consume_err(TokenType::ident);
             std::vector<std::pair<std::string, DataType>> pparams;
-            if(peek().has_value() && peek().value().type != TokenType::open_curly) {
-                for(int i = 0;peek().has_value() && peek().value().type != TokenType::open_curly;++i) {
+            if(peek().has_value() && peek().value().type != TokenType::arrow) {
+                for(int i = 0;peek().has_value() && peek().value().type != TokenType::arrow;++i) {
                     Token argid = try_consume_err(TokenType::ident);
                     try_consume_err(TokenType::double_dot);
                     if(peek().value().type != TokenType::int_type && peek().value().type != TokenType::string_type) {
@@ -538,6 +565,12 @@ public:
                     pparams.push_back(std::make_pair(argid.value.value(), argtype));
                 }
             }
+            try_consume_err(TokenType::arrow);
+            if(peek().has_value() && peek().value().type != TokenType::int_type && peek().value().type != TokenType::string_type && peek().value().type != TokenType::void_type) {
+                error_expected("procedure return type");
+            }
+            DataType rettype = token_to_dt(consume().type);
+            stmt_proc->rettype = rettype;
             stmt_proc->name = identif.value.value();
             stmt_proc->params = pparams;
             stmt_proc->def = identif;
@@ -565,6 +598,21 @@ public:
             }
             try_consume_err(TokenType::semi);
             auto stmt = m_allocator.emplace<NodeStmt>(stmt_call);
+            return stmt;
+        }
+        if(auto ret = try_consume(TokenType::_return)) {
+            Token def = ret.value();
+            auto stmt_return = m_allocator.emplace<NodeStmtReturn>();
+            if (const auto node_expr = parse_expr()) {
+                stmt_return->expr = node_expr.value();
+            }
+            else {
+                error_expected("expression");
+            }
+            stmt_return->def = def;
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_return;
             return stmt;
         }
         return {};
