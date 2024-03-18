@@ -25,7 +25,6 @@ enum class TokenType {
     if_,
     elif,
     else_,
-    print,
     proc,
     in,
     string_lit,
@@ -94,8 +93,6 @@ std::string tok_to_string(const TokenType type)
         return "`elif`";
     case TokenType::else_:
         return "`else`";
-    case TokenType::print:
-        return "`print`";
     case TokenType::proc:
         return "`proc`";
     case TokenType::in:
@@ -251,10 +248,6 @@ public:
                 }
                 else if (buf == "else") {
                     tokens.push_back({ .type = TokenType::else_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
-                    buf.clear();
-                }
-                else if (buf == "print") {
-                    tokens.push_back({ .type = TokenType::print, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "proc") {

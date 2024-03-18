@@ -150,11 +150,6 @@ struct NodeStmtExit {
     NodeExpr* expr;
 };
 
-struct NodeStmtPrint {
-    Token def;
-    NodeExpr* expr;
-};
-
 struct NodeStmtReturn {
     Token def;
     NodeExpr* expr;
@@ -242,11 +237,11 @@ struct NodeStmtAsm {
 struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtLet*,
                 NodeScope*, NodeStmtIf*,
-                NodeStmtAssign*, NodeStmtPrint*,
+                NodeStmtAssign*,NodeStmtAsm*,
                 NodeStmtProc*, NodeStmtCall*,
                 NodeStmtWhile*,NodeStmtReturn*,
                 NodeStmtStore*,NodeStmtBuffer*,
-                NodeStmtCextern*, NodeStmtAsm*> var;
+                NodeStmtCextern*> var;
 };
 
 struct NodeProg {
@@ -564,24 +559,6 @@ public:
             try_consume_err(TokenType::semi);
             auto stmt = m_allocator.emplace<NodeStmt>();
             stmt->var = stmt_exit;
-            return stmt;
-        }
-        if (peek().has_value() && peek().value().type == TokenType::print && peek(1).has_value()
-            && peek(1).value().type == TokenType::open_paren) {
-            consume();
-            Token def = consume();
-            auto stmt_print = m_allocator.emplace<NodeStmtPrint>();
-            if (const auto node_expr = parse_expr()) {
-                stmt_print->expr = node_expr.value();
-            }
-            else {
-                error_expected("expression");
-            }
-            stmt_print->def = def;
-            try_consume_err(TokenType::close_paren);
-            try_consume_err(TokenType::semi);
-            auto stmt = m_allocator.emplace<NodeStmt>();
-            stmt->var = stmt_print;
             return stmt;
         }
         if (peek().has_value() && peek().value().type == TokenType::let && peek(1).has_value()

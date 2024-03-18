@@ -633,26 +633,6 @@ public:
                 gen.m_output << "    call ExitProcess@4\n";
             }
 
-            void operator()(const NodeStmtPrint* stmt_print) const
-            {
-                DataType etype = gen.type_of_expr(stmt_print->expr);
-                if(etype != DataType::_int && etype != DataType::ptr) {
-                    gen.GeneratorError(stmt_print->def, "`print` except types `int` or `print`\nNOTE: but found " + dt_to_string(etype));
-                }
-                if(etype == DataType::_int) {
-                    gen.gen_expr(stmt_print->expr);
-                    gen.m_output << "    push numfmt\n";
-                    gen.m_output << "    call printf\n";
-                    gen.m_output << "    add esp, 8\n";
-                } else if(etype == DataType::ptr) {
-                    gen.gen_expr(stmt_print->expr);
-                    gen.m_output << "    call printf\n";
-                    gen.m_output << "    add esp, 4\n";
-                } else {
-                    assert(false);
-                }
-            }
-
             void operator()(const NodeStmtProc* stmt_proc)
             {
                 std::optional<Procedure> proc = gen.proc_lookup(stmt_proc->name);
@@ -955,7 +935,6 @@ private:
     std::vector<Procedure>   m_procs    {};
     std::optional<Procedure> m_cur_proc {};
     std::vector<std::string> m_cexterns = {
-        "printf",
         "ExitProcess@4"
     };
     size_t m_var_index = 0U;
