@@ -1,0 +1,79 @@
+proc strlen str:ptr -> int {
+	let i = 0;
+	while(rd8(str + i) != 0) {
+		i = i + 1;
+	}
+	return i;
+}
+
+proc memcpy src:ptr dst:ptr size:int -> void {
+	let i = 0;
+	while(i < size) {
+		store8((src+i), (rd8(dst+i)));
+		i = i + 1;
+	}
+}
+
+proc tmp_utos src:ptr number:int -> int {
+	let i = 0;
+	let result = number;
+	buffer bf(256);
+	while(result != 0) {
+		store8(((&bf) + i), ((result % 10) + 48));
+		result = result / 10;
+		i = i + 1;
+	}
+	memcpy(src, (&bf), i);
+	return i;
+}
+
+proc utos src:ptr number:int -> void {
+	let i = 0;
+	let strsize_i = tmp_utos(src, number);
+	let strsize_m = strsize_i - 1;
+	buffer tmpb(128);
+	memcpy((&tmpb), src, strsize_i);
+	store8(((&tmpb) + strsize_i), 0);
+	while(i < strsize_i) {
+		store8((src + i), rd8((&tmpb) + strsize_m));
+		strsize_m = strsize_m - 1;
+		i = i + 1;
+	}
+}
+
+cextern "write";
+
+proc wrapper_write
+	FileDesc:int // file descriptor
+	data:ptr // data to write into file
+	SizeToWrite:int // size to write data into file
+-> int // error code, 0 if success
+{
+	asm "push dword [ebp-12]"; // pushing SizeToWrite
+	asm "push dword [ebp-8]"; // pushing data
+	asm "push dword [ebp-4]"; // pushing FileDesc
+	asm "call write";
+	asm "add esp, 12";
+}
+
+proc fputs
+	fd:int // File Descriptor
+	string:ptr // string to put into a file
+-> void {
+	wrapper_write(fd, string, strlen(string));
+}
+
+proc puts string:ptr -> void {
+	fputs(1, string);
+}
+
+proc putuwnl number:int -> void {
+	buffer tmp(256);
+	utos((&tmp), number);
+	puts(&tmp);
+}
+
+proc putu number:int -> void {
+	putuwnl(number);
+	puts("\n");
+}
