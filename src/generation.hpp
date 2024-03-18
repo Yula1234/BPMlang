@@ -863,6 +863,14 @@ public:
                 gen.m_var_index += (stmt_buf->size / 4) - 1;
                 gen.create_var_va(stmt_buf->name, DataType::ptr, stmt_buf->def);
             }
+
+            void operator()(const NodeStmtAsm* stmt_asm) {
+                gen.m_output << "    " << stmt_asm->code << "\n";
+            }
+
+            void operator()(const NodeStmtCextern* stmt_cextern) {
+                gen.m_output << "extern " << stmt_cextern->name << "\n";
+            }
         };
 
         StmtVisitor visitor { .gen = *this };

@@ -231,13 +231,22 @@ struct NodeStmtBuffer {
     size_t size;
 };
 
+struct NodeStmtCextern {
+    std::string name;
+};
+
+struct NodeStmtAsm {
+    std::string code;
+};
+
 struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtLet*,
                 NodeScope*, NodeStmtIf*,
                 NodeStmtAssign*, NodeStmtPrint*,
                 NodeStmtProc*, NodeStmtCall*,
                 NodeStmtWhile*,NodeStmtReturn*,
-                NodeStmtStore*,NodeStmtBuffer*> var;
+                NodeStmtStore*,NodeStmtBuffer*,
+                NodeStmtCextern*, NodeStmtAsm*> var;
 };
 
 struct NodeProg {
@@ -857,6 +866,26 @@ public:
             try_consume_err(TokenType::semi);
             auto stmt = m_allocator.emplace<NodeStmt>();
             stmt->var = stmt_buf;
+            return stmt;
+        }
+
+        if(auto _asm = try_consume(TokenType::_asm)) {
+            Token def = _asm.value();
+            auto stmt_asm = m_allocator.emplace<NodeStmtAsm>();
+            stmt_asm->code = try_consume_err(TokenType::string_lit).value.value();
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_asm;
+            return stmt;
+        }
+
+        if(auto _cextern = try_consume(TokenType::cextern)) {
+            Token def = _cextern.value();
+            auto stmt_cextern = m_allocator.emplace<NodeStmtCextern>();
+            stmt_cextern->name = try_consume_err(TokenType::string_lit).value.value();
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_cextern;
             return stmt;
         }
 

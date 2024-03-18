@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
     }
 
     system("nasm --gprefix _ -fwin32 output.asm -o output.o");
-    system("gcc -o out.exe output.o -m32");
+    system("ld -o out.exe output.o -l kernel32");
     system("del output.o");
 
     return EXIT_SUCCESS;

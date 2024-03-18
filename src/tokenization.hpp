@@ -48,6 +48,8 @@ enum class TokenType {
     _not_eq,
     buffer,
     mod,
+    _asm,
+    cextern,
 };
 
 #define BinaryOpsCount 7
@@ -142,6 +144,10 @@ std::string tok_to_string(const TokenType type)
         return "`buffer`";
     case TokenType::mod:
         return "`%`";
+    case TokenType::_asm:
+        return "`asm`";
+    case TokenType::cextern:
+        return "`cextern`";
     }
     assert(false);
 }
@@ -305,6 +311,14 @@ public:
                 }
                 else if (buf == "buffer") {
                     tokens.push_back({ .type = TokenType::buffer, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "asm") {
+                    tokens.push_back({ .type = TokenType::_asm, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "cextern") {
+                    tokens.push_back({ .type = TokenType::cextern, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {
