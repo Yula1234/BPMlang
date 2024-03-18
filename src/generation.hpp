@@ -410,15 +410,15 @@ public:
                 gen.pop("eax");
                 gen.pop("ebx");
                 gen.m_output << "    xor edx, edx\n";
-                gen.m_output << "    idiv ebx\n";
+                gen.m_output << "    div ebx\n";
                 gen.push("eax");
                 gen.m_output << "    mov edx, ecx\n";
             }
 
             void operator()(const NodeBinExprMod* md) const
             {
-                gen.gen_expr(md->lhs);
                 gen.gen_expr(md->rhs);
+                gen.gen_expr(md->lhs);
                 gen.pop("eax");
                 gen.pop("ebx");
                 gen.m_output << "    xor edx, edx\n";
@@ -667,16 +667,21 @@ public:
                 gen.m_output << stmt_proc->name << ":\n";
                 gen.m_output << "    push ebp\n";
                 gen.m_output << "    mov ebp, esp\n";
+                size_t scope_size = stmt_proc->params.size() + fsz;
+                if(scope_size != 0) {
+                    gen.m_output << "    sub esp, " << scope_size * 4 << "\n";
+                }
                 if(static_cast<int>(stmt_proc->params.size()) != 0U) {
                     int rev_i = 0;
                     for(int i = static_cast<int>(stmt_proc->params.size()) - 1;i > -1;--i, rev_i++) {
-                        gen.m_output << "    mov edx, dword [esp+" << i * 4 + 8 << "]\n";
+                        gen.m_output << "    mov edx, dword [ebp+" << i * 4 + 8 << "]\n";
                         gen.m_output << "    mov dword [ebp-" << rev_i * 4 + 4 << "], edx\n";
                     }
                 }
                 gen.m_cur_proc = gen.m_procs[gen.m_procs.size() - 1];
-                gen.gen_scope_fsz(stmt_proc->scope, static_cast<int>(stmt_proc->params.size()));
+                gen.gen_scope(stmt_proc->scope);
                 gen.m_cur_proc = std::nullopt;
+                gen.m_output << "    add esp, " << scope_size * 4 << "\n";
                 gen.m_output << "    pop ebp\n";
                 gen.m_output << "    ret\n\n";
                 gen.m_vars.clear();
