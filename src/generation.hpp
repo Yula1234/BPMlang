@@ -862,14 +862,16 @@ public:
         std::stringstream result;
         result << "section .text\n\n";
         result << "global main\n\n";
-        yforeach(m_cexterns) {
-            result << "extern " << m_cexterns[i] << "\n";
-        }
-        result << "\n";
 
         for (const NodeStmt* stmt : m_prog.stmts) {
             gen_stmt(stmt);
         }
+
+        yforeach(m_cexterns) {
+            result << "extern " << m_cexterns[i] << "\n";
+        }
+
+        result << "\n";
 
         m_output << "\nsection .data\n";
         m_output << "    numfmt: db \"%d\", 0xa, 0x0\n";
