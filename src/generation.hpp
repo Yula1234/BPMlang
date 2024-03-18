@@ -129,6 +129,9 @@ public:
             if(std::holds_alternative<NodeBinExprDiv*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprDiv*>(binex->var)->lhs);
             }
+            if(std::holds_alternative<NodeBinExprMod*>(binex->var)) {
+                return type_of_expr(std::get<NodeBinExprMod*>(binex->var)->lhs);
+            }
             if(std::holds_alternative<NodeBinExprEqEq*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprEqEq*>(binex->var)->lhs);
             }
@@ -160,6 +163,9 @@ public:
         } else if(std::holds_alternative<NodeBinExprDiv*>(expr->var)) {
             NodeBinExprDiv* div = std::get<NodeBinExprDiv*>(expr->var);
             return type_of_expr(div->lhs) == type_of_expr(div->rhs);
+        } else if(std::holds_alternative<NodeBinExprMod*>(expr->var)) {
+            NodeBinExprMod* md = std::get<NodeBinExprMod*>(expr->var);
+            return type_of_expr(md->lhs) == type_of_expr(md->rhs);
         } else if(std::holds_alternative<NodeBinExprEqEq*>(expr->var)) {
             NodeBinExprEqEq* eqeq = std::get<NodeBinExprEqEq*>(expr->var);
             return type_of_expr(eqeq->lhs) == type_of_expr(eqeq->rhs);
@@ -199,6 +205,10 @@ public:
                 const NodeBinExprDiv* div = std::get<NodeBinExprDiv*>(expr->var);
                 ltype = type_of_expr(div->lhs);
                 rtype = type_of_expr(div->rhs);
+            } else if(std::holds_alternative<NodeBinExprMod*>(expr->var)) {
+                const NodeBinExprMod* md = std::get<NodeBinExprMod*>(expr->var);
+                ltype = type_of_expr(md->lhs);
+                rtype = type_of_expr(md->rhs);
             } else if(std::holds_alternative<NodeBinExprEqEq*>(expr->var)) {
                 const NodeBinExprEqEq* eqeq = std::get<NodeBinExprEqEq*>(expr->var);
                 ltype = type_of_expr(eqeq->lhs);
@@ -399,10 +409,21 @@ public:
                 gen.gen_expr(div->lhs);
                 gen.pop("eax");
                 gen.pop("ebx");
-                gen.m_output << "    mov edx, 0\n";
+                gen.m_output << "    xor edx, edx\n";
                 gen.m_output << "    idiv ebx\n";
                 gen.push("eax");
                 gen.m_output << "    mov edx, ecx\n";
+            }
+
+            void operator()(const NodeBinExprMod* md) const
+            {
+                gen.gen_expr(md->lhs);
+                gen.gen_expr(md->rhs);
+                gen.pop("eax");
+                gen.pop("ebx");
+                gen.m_output << "    xor edx, edx\n";
+                gen.m_output << "    div ebx\n";
+                gen.push("edx");
             }
 
             void operator()(const NodeBinExprEqEq* eqeq) const
@@ -475,6 +496,8 @@ public:
             bin_str = "*";
         } else if(std::holds_alternative<NodeBinExprDiv*>(bin_expr->var)) {
             bin_str = "/";
+        } else if(std::holds_alternative<NodeBinExprMod*>(bin_expr->var)) {
+            bin_str = "%";
         } else if(std::holds_alternative<NodeBinExprEqEq*>(bin_expr->var)) {
             bin_str = "==";
         } else if(std::holds_alternative<NodeBinExprNotEq*>(bin_expr->var)) {

@@ -47,6 +47,7 @@ enum class TokenType {
     _include,
     _not_eq,
     buffer,
+    mod,
 };
 
 #define BinaryOpsCount 7
@@ -139,6 +140,8 @@ std::string tok_to_string(const TokenType type)
         return "`!=`";
     case TokenType::buffer:
         return "`buffer`";
+    case TokenType::mod:
+        return "`%`";
     }
     assert(false);
 }
@@ -159,6 +162,7 @@ inline std::optional<int> bin_prec(const TokenType type)
         return prec_IOTA++;
     case TokenType::fslash:
     case TokenType::star:
+    case TokenType::mod:
         return prec_IOTA++;
     default:
         return {};
@@ -399,6 +403,10 @@ public:
             else if (peek().value() == '-') {
                 consume();
                 tokens.push_back({ .type = TokenType::minus, .line = line_count, .col = m_col - 1, .file = file });
+            }
+            else if (peek().value() == '%') {
+                consume();
+                tokens.push_back({ .type = TokenType::mod, .line = line_count, .col = m_col - 1, .file = file });
             }
             else if (peek().value() == ',') {
                 consume();

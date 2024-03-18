@@ -123,13 +123,18 @@ struct NodeBinExprNotEq {
     NodeExpr* rhs;
 };
 
+struct NodeBinExprMod {
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
+
 struct NodeBinExprArgs {
     std::vector<NodeExpr*> args;
 };
 
 struct NodeBinExpr {
     Token def;
-    std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*> var;
+    std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*, NodeBinExprMod*> var;
 };
 
 struct NodeTerm {
@@ -414,6 +419,12 @@ public:
                 auto div = m_allocator.emplace<NodeBinExprDiv>(expr_lhs2, expr_rhs.value());
                 expr->def = ctok;
                 expr->var = div;
+            }
+            else if (type == TokenType::mod) {
+                expr_lhs2->var = expr_lhs->var;
+                auto md = m_allocator.emplace<NodeBinExprMod>(expr_lhs2, expr_rhs.value());
+                expr->def = ctok;
+                expr->var = md;
             }
             else if (type == TokenType::eqeq) {
                 expr_lhs2->var = expr_lhs->var;
