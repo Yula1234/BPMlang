@@ -849,7 +849,7 @@ public:
             }
 
             void operator()(const NodeStmtCextern* stmt_cextern) {
-                gen.m_output << "extern " << stmt_cextern->name << "\n";
+                gen.m_cexterns.push_back(stmt_cextern->name);
             }
         };
 
