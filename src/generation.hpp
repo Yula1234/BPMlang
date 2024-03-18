@@ -8,18 +8,19 @@
 class Generator {
 public:
     struct Var {
-        std::string name;
-        size_t stack_loc;
-        DataType type;
+        std::string name {};
+        size_t stack_loc {};
+        DataType type {};
     };
     struct Procedure {
-        std::string name;
-        std::vector<std::pair<std::string, DataType>> params;
-        DataType rettype;
+        std::string name {};
+        std::vector<std::pair<std::string, DataType>> params {};
+        DataType rettype {};
+        size_t stack_allign;
     };
     struct String {
-        std::string value;
-        size_t index;
+        std::string value {};
+        size_t index {};
     };
     explicit Generator(NodeProg prog)
         : m_prog(std::move(prog))
@@ -131,6 +132,9 @@ public:
             if(std::holds_alternative<NodeBinExprEqEq*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprEqEq*>(binex->var)->lhs);
             }
+            if(std::holds_alternative<NodeBinExprNotEq*>(binex->var)) {
+                return type_of_expr(std::get<NodeBinExprNotEq*>(binex->var)->lhs);
+            }
             if(std::holds_alternative<NodeBinExprLess*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprLess*>(binex->var)->lhs);
             }
@@ -159,6 +163,9 @@ public:
         } else if(std::holds_alternative<NodeBinExprEqEq*>(expr->var)) {
             NodeBinExprEqEq* eqeq = std::get<NodeBinExprEqEq*>(expr->var);
             return type_of_expr(eqeq->lhs) == type_of_expr(eqeq->rhs);
+        } else if(std::holds_alternative<NodeBinExprNotEq*>(expr->var)) {
+            NodeBinExprNotEq* nq = std::get<NodeBinExprNotEq*>(expr->var);
+            return type_of_expr(nq->lhs) == type_of_expr(nq->rhs);
         } else if(std::holds_alternative<NodeBinExprLess*>(expr->var)) {
             NodeBinExprLess* less = std::get<NodeBinExprLess*>(expr->var);
             return type_of_expr(less->lhs) == type_of_expr(less->rhs);
@@ -204,10 +211,16 @@ public:
                 const NodeBinExprAbove* above = std::get<NodeBinExprAbove*>(expr->var);
                 ltype = type_of_expr(above->lhs);
                 rtype = type_of_expr(above->rhs);
+            } else if(std::holds_alternative<NodeBinExprNotEq*>(expr->var)) {
+                const NodeBinExprNotEq* nq = std::get<NodeBinExprNotEq*>(expr->var);
+                ltype = type_of_expr(nq->lhs);
+                rtype = type_of_expr(nq->rhs);
             } else {
                 assert(false);
             }
-            GeneratorError(expr->def, "can't use `" + IRexpr + "` for types " + dt_to_string(ltype) + " and " + dt_to_string(rtype));
+            if(!(ltype == DataType::ptr && rtype == DataType::_int)) {
+                GeneratorError(expr->def, "can't use `" + IRexpr + "` for types " + dt_to_string(ltype) + " and " + dt_to_string(rtype));
+            }
         }
     }
 
@@ -313,7 +326,7 @@ public:
                             if(pargs.size() != proc.value().params.size()) {
                                 gen.GeneratorError(term_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got " + std::to_string(pargs.size()));
                             }
-                            for(int i = 0;i < (int)pargs.size();++i) {
+                            for(int i = 0;i < static_cast<int>(pargs.size());++i) {
                                 if(gen.type_of_expr(pargs[i]) != proc.value().params[i].second) {
                                     gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
                                 }
@@ -405,6 +418,19 @@ public:
                 gen.m_output << "    push edx\n";
             }
 
+            void operator()(const NodeBinExprNotEq* nq) const
+            {
+                gen.gen_expr(nq->rhs);
+                gen.gen_expr(nq->lhs);
+                gen.m_output << "    mov edx, 0\n";
+                gen.m_output << "    mov ecx, 1\n";
+                gen.m_output << "    pop ebx\n";
+                gen.m_output << "    pop eax\n";
+                gen.m_output << "    cmp eax, ebx\n";
+                gen.m_output << "    cmovne edx, ecx\n";
+                gen.m_output << "    push edx\n";
+            }
+
             void operator()(const NodeBinExprLess* less) const
             {
                 gen.gen_expr(less->rhs);
@@ -435,7 +461,7 @@ public:
 
             void operator()(const NodeBinExprArgs* args) const
             {
-                for(int i = 0;i < (int)args->args.size();++i) {
+                for(int i = 0;i < static_cast<int>(args->args.size());++i) {
                     gen.gen_expr(args->args[i]);
                 }
             }
@@ -451,6 +477,8 @@ public:
             bin_str = "/";
         } else if(std::holds_alternative<NodeBinExprEqEq*>(bin_expr->var)) {
             bin_str = "==";
+        } else if(std::holds_alternative<NodeBinExprNotEq*>(bin_expr->var)) {
+            bin_str = "!=";
         } else if(std::holds_alternative<NodeBinExprLess*>(bin_expr->var)) {
             bin_str = "<";
         } else if(std::holds_alternative<NodeBinExprAbove*>(bin_expr->var)) {
@@ -600,25 +628,28 @@ public:
                 if(proc.has_value()) {
                     return;
                 }
-                gen.m_procs.push_back({ .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype});
-                for(int i = 0;i < (int)stmt_proc->params.size();++i) {
+                size_t fsz = 0;
+                for (const NodeStmt* stmt : stmt_proc->scope->stmts) {
+                    if(holds_alternative<NodeStmtLet*>(stmt->var)) {
+                        fsz += 1;
+                    }
+                }
+                gen.m_procs.push_back({ .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz});
+                for(int i = 0;i < static_cast<int>(stmt_proc->params.size());++i) {
                     gen.create_var_va(stmt_proc->params[i].first, stmt_proc->params[i].second, stmt_proc->def);
                 }
                 gen.m_output << stmt_proc->name << ":\n";
                 gen.m_output << "    push ebp\n";
                 gen.m_output << "    mov ebp, esp\n";
-                if((int)stmt_proc->params.size() != 0U) {
+                if(static_cast<int>(stmt_proc->params.size()) != 0U) {
                     int rev_i = 0;
-                    for(int i = (int)stmt_proc->params.size() - 1;i > -1;--i, rev_i++) {
+                    for(int i = static_cast<int>(stmt_proc->params.size()) - 1;i > -1;--i, rev_i++) {
                         gen.m_output << "    mov edx, dword [esp+" << i * 4 + 8 << "]\n";
                         gen.m_output << "    mov dword [ebp-" << rev_i * 4 + 4 << "], edx\n";
                     }
                 }
                 gen.m_cur_proc = gen.m_procs[gen.m_procs.size() - 1];
-                gen.gen_scope_fsz(stmt_proc->scope, (int)stmt_proc->params.size());
-                if(gen.m_cur_proc.value().rettype != DataType::_void) {
-                    gen.m_output << "    pop eax\n";
-                }
+                gen.gen_scope_fsz(stmt_proc->scope, static_cast<int>(stmt_proc->params.size()));
                 gen.m_cur_proc = std::nullopt;
                 gen.m_output << "    pop ebp\n";
                 gen.m_output << "    ret\n\n";
@@ -632,10 +663,17 @@ public:
                     gen.GeneratorError(stmt_return->def, "return without procedure");
                 }
                 DataType rettype = cproc.value().rettype;
+                if(rettype == DataType::_void) {
+                    gen.GeneratorError(stmt_return->def, "return from void procedure with value");
+                }
                 if(gen.type_of_expr(stmt_return->expr) != rettype) {
                     gen.GeneratorError(stmt_return->def, "procedure `" + cproc.value().name + "` at return except type " + dt_to_string(rettype) + "\nNOTE: but got type " + dt_to_string(gen.type_of_expr(stmt_return->expr)));
                 }
                 gen.gen_expr(stmt_return->expr);
+                gen.pop("eax");
+                gen.end_scope_fsz(cproc.value().stack_allign);
+                gen.m_output << "    pop ebp\n";
+                gen.m_output << "    ret\n";
             }
 
             void operator()(const NodeStmtLet* stmt_let) const
@@ -645,6 +683,22 @@ public:
 
             void operator()(const NodeStmtAssign* stmt_assign) const
             {
+                NodeExpr* lvalue = stmt_assign->lvalue;
+                if(std::holds_alternative<NodeTerm*>(lvalue->var)) {
+                    NodeTerm* lvterm = std::get<NodeTerm*>(lvalue->var);
+                    if(std::holds_alternative<NodeTermIdent*>(lvterm->var)) {
+                        NodeTermIdent* lvident = std::get<NodeTermIdent*>(lvterm->var);
+                        std::string name = lvident->ident.value.value();
+                        std::optional<Var> var = gen.var_lookup(name);
+                        if(!var.has_value()) {
+                            gen.GeneratorError(stmt_assign->def, "unkown variable `" + name + "` at assignment");
+                        }
+                        gen.gen_expr(stmt_assign->expr);
+                        gen.pop("edx");
+                        gen.m_output << "    mov dword [ebp-" << var.value().stack_loc << "], edx\n";
+                        return;
+                    }
+                }
                 gen.gen_expr(stmt_assign->lvalue, true);
                 gen.gen_expr(stmt_assign->expr);
                 gen.pop("ecx");
@@ -673,7 +727,7 @@ public:
                             if(pargs.size() != proc.value().params.size()) {
                                 gen.GeneratorError(stmt_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got " + std::to_string(pargs.size()));
                             }
-                            for(int i = 0;i < (int)pargs.size();++i) {
+                            for(int i = 0;i < static_cast<int>(pargs.size());++i) {
                                 if(gen.type_of_expr(pargs[i]) != proc.value().params[i].second) {
                                     gen.GeneratorError(stmt_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
                                 }
@@ -737,6 +791,38 @@ public:
                 gen.m_output << "    jmp " << preiflab << "\n";
                 gen.m_output << "    " << breaklab << ":\n";
             }
+
+            void operator()(const NodeStmtStore* stmt_store) const
+            {
+                DataType ptype = gen.type_of_expr(stmt_store->ptr);
+                DataType etype = gen.type_of_expr(stmt_store->expr);
+                if(ptype != DataType::ptr && etype != DataType::_int) {
+                    gen.GeneratorError(stmt_store->def, "store types missmatch\nNOTE: except `ptr`, `int`\nNOTE: but got " + dt_to_string(ptype) + ", " + dt_to_string(etype));
+                }
+                if(stmt_store->size == 8U) {
+                    gen.gen_expr(stmt_store->ptr);
+                    gen.gen_expr(stmt_store->expr);
+                    gen.m_output << "    pop edx\n";
+                    gen.m_output << "    pop ecx\n";
+                    gen.m_output << "    mov byte [ecx], dl\n";
+                }
+                else if(stmt_store->size == 16U) {
+                    gen.gen_expr(stmt_store->ptr);
+                    gen.gen_expr(stmt_store->expr);
+                    gen.m_output << "    pop edx\n";
+                    gen.m_output << "    pop ecx\n";
+                    gen.m_output << "    mov word [ecx], dx\n";
+                }
+                else if(stmt_store->size == 32U) {
+                    gen.gen_expr(stmt_store->ptr);
+                    gen.gen_expr(stmt_store->expr);
+                    gen.m_output << "    pop edx\n";
+                    gen.m_output << "    pop ecx\n";
+                    gen.m_output << "    mov dword [ecx], edx\n";
+                } else {
+                    assert(false); // unreacheable
+                }
+            }
         };
 
         StmtVisitor visitor { .gen = *this };
@@ -748,14 +834,16 @@ public:
         std::stringstream result;
         result << "section .text\n\n";
         result << "global main\n\n";
-        result << "extern printf\n";
-        result << "extern ExitProcess@4\n\n";
+        yforeach(m_cexterns) {
+            result << "extern " << m_cexterns[i] << "\n";
+        }
+        result << "\n";
 
         for (const NodeStmt* stmt : m_prog.stmts) {
             gen_stmt(stmt);
         }
 
-        m_output << "\n\nsection .data\n";
+        m_output << "\nsection .data\n";
         m_output << "    numfmt: db \"%d\", 0xa, 0x0\n";
         m_output << "    strfmt: db \"%s\", 0x0\n";
         for(int i = 0;i < static_cast<int>(m_strings.size());++i) {
@@ -812,11 +900,15 @@ private:
     }
 
     const NodeProg m_prog;
-    std::stringstream m_output;
-    std::vector<Var> m_vars {};
-    std::vector<String> m_strings {};
-    std::vector<size_t> m_scopes {};
-    std::vector<Procedure> m_procs {};
+    std::stringstream        m_output   {};
+    std::vector<Var>         m_vars     {};
+    std::vector<String>      m_strings  {};
+    std::vector<size_t>      m_scopes   {};
+    std::vector<Procedure>   m_procs    {};
     std::optional<Procedure> m_cur_proc {};
+    std::vector<std::string> m_cexterns = {
+        "printf",
+        "ExitProcess@4"
+    };
     int m_label_count = 0;
 };

@@ -44,6 +44,9 @@ enum class TokenType {
     read16,
     read32,
     ampersand,
+    _include,
+    _not_eq,
+    buffer,
 };
 
 #define BinaryOpsCount 7
@@ -130,6 +133,12 @@ std::string tok_to_string(const TokenType type)
         return "`rd32`";
     case TokenType::ampersand:
         return "`&`";
+    case TokenType::_include:
+        return "`include`";
+    case TokenType::_not_eq:
+        return "`!=`";
+    case TokenType::buffer:
+        return "`buffer`";
     }
     assert(false);
 }
@@ -141,6 +150,7 @@ inline std::optional<int> bin_prec(const TokenType type)
     case TokenType::comma:
         return prec_IOTA++;
     case TokenType::eqeq:
+    case TokenType::_not_eq:
     case TokenType::less:
     case TokenType::above:
         return prec_IOTA++;
@@ -153,6 +163,7 @@ inline std::optional<int> bin_prec(const TokenType type)
     default:
         return {};
     }
+    return {};
 }
 
 struct Token {
@@ -213,79 +224,87 @@ public:
                     buf.push_back(consume());
                 }
                 if (buf == "exit") {
-                    tokens.push_back({ .type = TokenType::exit, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::exit, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "let") {
-                    tokens.push_back({ .type = TokenType::let, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::let, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "if") {
-                    tokens.push_back({ .type = TokenType::if_, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::if_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "elif") {
-                    tokens.push_back({ .type = TokenType::elif, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::elif, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "else") {
-                    tokens.push_back({ .type = TokenType::else_, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::else_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "print") {
-                    tokens.push_back({ .type = TokenType::print, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::print, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "proc") {
-                    tokens.push_back({ .type = TokenType::proc, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::proc, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "int") {
-                    tokens.push_back({ .type = TokenType::int_type, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::int_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "void") {
-                    tokens.push_back({ .type = TokenType::void_type, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::void_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "ptr") {
-                    tokens.push_back({ .type = TokenType::ptr_type, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::ptr_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "while") {
-                    tokens.push_back({ .type = TokenType::wwhile, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::wwhile, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "return") {
-                    tokens.push_back({ .type = TokenType::_return, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::_return, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "store8") {
-                    tokens.push_back({ .type = TokenType::store8, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::store8, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "store16") {
-                    tokens.push_back({ .type = TokenType::store16, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::store16, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "store32") {
-                    tokens.push_back({ .type = TokenType::store32, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::store32, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "rd8") {
-                    tokens.push_back({ .type = TokenType::read8, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::read8, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "rd16") {
-                    tokens.push_back({ .type = TokenType::read16, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::read16, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "rd32") {
-                    tokens.push_back({ .type = TokenType::read32, .line =  line_count, .col =  m_col - (int)buf.size(), .file = file });
+                    tokens.push_back({ .type = TokenType::read32, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "include") {
+                    tokens.push_back({ .type = TokenType::_include, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "buffer") {
+                    tokens.push_back({ .type = TokenType::buffer, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {
-                    tokens.push_back({ .type = TokenType::ident, .line =  line_count, .col =  m_col - (int)buf.size(), .value = buf, .file = file });
+                    tokens.push_back({ .type = TokenType::ident, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .value = buf, .file = file });
                     buf.clear();
                 }
             }
@@ -294,7 +313,7 @@ public:
                 while (peek().has_value() && std::isdigit(peek().value())) {
                     buf.push_back(consume());
                 }
-                tokens.push_back({ .type = TokenType::int_lit, .line = line_count, .col = m_col - (int)buf.size(), .value = buf, .file = file });
+                tokens.push_back({ .type = TokenType::int_lit, .line = line_count, .col = m_col - static_cast<int>(buf.size()), .value = buf, .file = file });
                 buf.clear();
             }
             else if (peek().value() == '-' && peek(1).has_value() && peek(1).value() == '>') {
@@ -332,7 +351,7 @@ public:
                     buf.push_back(consume());
                 }
                 consume();
-                for(int i = 0;i < (int)buf.size();++i) {
+                for(int i = 0;i < static_cast<int>(buf.size());++i) {
                     if(buf[i] == '\\') {
                         if(buf[i+1] == 'n') {
                             buf.erase(buf.begin()+i);
@@ -340,7 +359,7 @@ public:
                         }
                     }
                 }
-                tokens.push_back({ .type = TokenType::string_lit, .line = line_count , .col = m_col - (int)buf.size(), .value = buf, .file = file });
+                tokens.push_back({ .type = TokenType::string_lit, .line = line_count , .col = m_col - static_cast<int>(buf.size()), .value = buf, .file = file });
                 buf.clear();
             }
             else if (peek().value() == '(') {
@@ -359,6 +378,11 @@ public:
                 consume();
                 consume();
                 tokens.push_back({ .type = TokenType::eqeq, .line = line_count, .col = m_col - 2, .file = file });
+            }
+            else if (peek().value() == '!' && peek(1).has_value() && peek(1).value() == '=') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::_not_eq, .line = line_count, .col = m_col - 2, .file = file });
             }
             else if (peek().value() == '=') {
                 consume();

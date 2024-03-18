@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <variant>
+#include <filesystem>
 
 #include "arena.hpp"
 #include "tokenization.hpp"
@@ -11,6 +12,8 @@ enum class DataType {
     ptr,
     _void,
 };
+
+#define yforeach(container) for(int i = 0;i < static_cast<int>(container.size());++i)
 
 std::string dt_to_string(DataType dt) {
     switch(dt) {
@@ -115,13 +118,18 @@ struct NodeBinExprEqEq {
     NodeExpr* rhs;
 };
 
+struct NodeBinExprNotEq {
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
+
 struct NodeBinExprArgs {
     std::vector<NodeExpr*> args;
 };
 
 struct NodeBinExpr {
     Token def;
-    std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*> var;
+    std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*> var;
 };
 
 struct NodeTerm {
@@ -205,20 +213,31 @@ struct NodeStmtCall {
     std::optional<NodeExpr*> args;
 };
 
+struct NodeStmtStore {
+    Token def;
+    NodeExpr* expr;
+    NodeExpr* ptr;
+    size_t size;
+};
+
 struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtLet*,
                 NodeScope*, NodeStmtIf*,
                 NodeStmtAssign*, NodeStmtPrint*,
                 NodeStmtProc*, NodeStmtCall*,
-                NodeStmtWhile*,NodeStmtReturn*> var;
+                NodeStmtWhile*,NodeStmtReturn*,
+                NodeStmtStore*> var;
 };
 
 struct NodeProg {
-    std::vector<NodeStmt*> stmts;
+    std::vector<NodeStmt*> stmts {};
 };
 
 class Parser {
 public:
+    struct EvaluatedConstValue {
+        int value;
+    };
     explicit Parser(std::vector<Token> tokens)
         : m_tokens(std::move(tokens))
         , m_allocator(1024 * 1024 * 24) // 24 mb
@@ -396,6 +415,12 @@ public:
                 expr->def = ctok;
                 expr->var = eqeq;
             }
+            else if (type == TokenType::_not_eq) {
+                expr_lhs2->var = expr_lhs->var;
+                auto nq = m_allocator.emplace<NodeBinExprNotEq>(expr_lhs2, expr_rhs.value());
+                expr->def = ctok;
+                expr->var = nq;
+            }
             else if (type == TokenType::less) {
                 expr_lhs2->var = expr_lhs->var;
                 auto less = m_allocator.emplace<NodeBinExprLess>(expr_lhs2, expr_rhs.value());
@@ -416,7 +441,7 @@ public:
                 if(std::holds_alternative<NodeBinExpr*>(left->var)) {
                     if(std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(left->var)->var)) {
                         std::vector<NodeExpr*> largs = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(left->var)->var)->args;
-                        for(int i = 0;i < (int)largs.size();++i) {
+                        for(int i = 0;i < static_cast<int>(largs.size());++i) {
                             args.push_back(largs[i]);
                         }
                     }
@@ -426,7 +451,7 @@ public:
                 if(std::holds_alternative<NodeBinExpr*>(right->var)) {
                     if(std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(right->var)->var)) {
                         std::vector<NodeExpr*> rargs = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(right->var)->var)->args;
-                        for(int i = 0;i < (int)rargs.size();++i) {
+                        for(int i = 0;i < static_cast<int>(rargs.size());++i) {
                             args.push_back(rargs[i]);
                         }
                     }
@@ -683,6 +708,125 @@ public:
             stmt->var = stmt_return;
             return stmt;
         }
+        if(auto store8 = try_consume(TokenType::store8)) {
+            Token def = store8.value();
+            auto stmt_st8 = m_allocator.emplace<NodeStmtStore>();
+            stmt_st8->size = 8U;
+            try_consume_err(TokenType::open_paren);
+            if (const auto node_expr = parse_expr()) {
+                NodeExpr* expr = node_expr.value();
+                if(!std::holds_alternative<NodeBinExpr*>(expr->var)) {
+                    error_expected("ptr, value");
+                }
+                if(!std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var)) {
+                    error_expected("ptr, value");
+                }
+                NodeBinExprArgs* args = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var);
+                std::vector<NodeExpr*> vargs = args->args;
+                if(vargs.size() != 2U) {
+                    error_expected("ptr, value");
+                }
+                stmt_st8->ptr = vargs[0];
+                stmt_st8->expr = vargs[1];
+            }
+            else {
+                error_expected("expression");
+            }
+            stmt_st8->def = def;
+            try_consume_err(TokenType::close_paren);
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_st8;
+            return stmt;
+        }
+        if(auto store16 = try_consume(TokenType::store16)) {
+            Token def = store16.value();
+            auto stmt_st16 = m_allocator.emplace<NodeStmtStore>();
+            stmt_st16->size = 16U;
+            try_consume_err(TokenType::open_paren);
+            if (const auto node_expr = parse_expr()) {
+                NodeExpr* expr = node_expr.value();
+                if(!std::holds_alternative<NodeBinExpr*>(expr->var)) {
+                    error_expected("ptr, value");
+                }
+                if(!std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var)) {
+                    error_expected("ptr, value");
+                }
+                NodeBinExprArgs* args = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var);
+                std::vector<NodeExpr*> vargs = args->args;
+                if(vargs.size() != 2U) {
+                    error_expected("ptr, value");
+                }
+                stmt_st16->ptr = vargs[0];
+                stmt_st16->expr = vargs[1];
+            }
+            else {
+                error_expected("expression");
+            }
+            stmt_st16->def = def;
+            try_consume_err(TokenType::close_paren);
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_st16;
+            return stmt;
+        }
+        if(auto store32 = try_consume(TokenType::store32)) {
+            Token def = store32.value();
+            auto stmt_st32 = m_allocator.emplace<NodeStmtStore>();
+            stmt_st32->size = 32U;
+            try_consume_err(TokenType::open_paren);
+            if (const auto node_expr = parse_expr()) {
+                NodeExpr* expr = node_expr.value();
+                if(!std::holds_alternative<NodeBinExpr*>(expr->var)) {
+                    error_expected("ptr, value");
+                }
+                if(!std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var)) {
+                    error_expected("ptr, value");
+                }
+                NodeBinExprArgs* args = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var);
+                std::vector<NodeExpr*> vargs = args->args;
+                if(vargs.size() != 2U) {
+                    error_expected("ptr, value");
+                }
+                stmt_st32->ptr = vargs[0];
+                stmt_st32->expr = vargs[1];
+            }
+            else {
+                error_expected("expression");
+            }
+            stmt_st32->def = def;
+            try_consume_err(TokenType::close_paren);
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_st32;
+            return stmt;
+        }
+
+        if(auto inc = try_consume(TokenType::_include)) {
+            if(peek().has_value() && peek().value().type != TokenType::string_lit) {
+                error_expected("file path string");
+            }
+            std::string fname = "./lib/" + consume().value.value() + ".bpm";
+            std::string path = std::filesystem::canonical(fname).string();
+            m_proprocessor_stmt = true;
+            if(std::find(m_includes.begin(), m_includes.end(), path) != m_includes.end()) {
+                return {};
+            }
+            std::string contents;
+            {
+                std::stringstream contents_stream;
+                std::fstream input(path, std::ios::in);
+                contents_stream << input.rdbuf();
+                contents = contents_stream.str();
+                input.close();
+            }
+            Tokenizer nlexer(std::move(contents));
+            std::vector<Token> ntokens = nlexer.tokenize(fname);
+            m_includes.push_back(path);
+            m_tokens.insert(m_tokens.begin() + m_index, ntokens.begin(), ntokens.end());
+            return {};
+        }
+
         return {};
     }
 
@@ -694,7 +838,11 @@ public:
                 prog.stmts.push_back(stmt.value());
             }
             else {
-                error_expected("statement");
+                if(m_proprocessor_stmt) {
+                    m_proprocessor_stmt = false;
+                } else {
+                    error_expected("statement");
+                }
             }
         }
         return prog;
@@ -731,7 +879,9 @@ private:
         return {};
     }
 
-    const std::vector<Token> m_tokens;
+    std::vector<Token> m_tokens;
+    std::vector<std::string> m_includes;
+    bool m_proprocessor_stmt = false;
     size_t m_index = 0;
     ArenaAllocator m_allocator;
 };
