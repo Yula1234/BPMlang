@@ -512,6 +512,19 @@ public:
         std::visit(visitor, expr->var);
     }
 
+    size_t collect_alligns(const NodeScope* scope) {
+        size_t fsz = 0U;
+        for (const NodeStmt* stmt : scope->stmts) {
+            if(holds_alternative<NodeStmtLet*>(stmt->var)) {
+                fsz += 1;
+            }
+            else if(std::holds_alternative<NodeStmtBuffer*>(stmt->var)) {
+                fsz += std::get<NodeStmtBuffer*>(stmt->var)->size / 4U;
+            }
+        }
+        return fsz;
+    }
+
     void gen_scope(const NodeScope* scope)
     {
         begin_scope();
@@ -523,17 +536,12 @@ public:
 
     void gen_scope_fsz(const NodeScope* scope, const int psizes = 0)
     {
-        int fsz = 0;
-        for (const NodeStmt* stmt : scope->stmts) {
-            if(holds_alternative<NodeStmtLet*>(stmt->var)) {
-                fsz += 1;
-            }
-        }
-        begin_scope_fsz(fsz + psizes);
+        size_t fsz = collect_alligns(scope);
+        begin_scope_fsz(fsz + static_cast<size_t>(psizes));
         for (const NodeStmt* stmt : scope->stmts) {
             gen_stmt(stmt);
         }
-        end_scope_fsz(fsz + psizes);
+        end_scope_fsz(fsz + static_cast<size_t>(psizes));
     }
 
     void create_var(const std::string name, NodeExpr* value, Token where) {
@@ -542,7 +550,7 @@ public:
             GeneratorError(where, "name `" + name + "` already in use");
         }
         DataType vartype = type_of_expr(value);
-        m_vars.push_back({ .name = name, .stack_loc = (m_vars.size() + 1) * 4 , .type = vartype });
+        m_vars.push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = vartype });
         gen_expr(value);
         m_output << "    pop ecx\n";
         m_output << "    mov dword [ebp-" << m_vars.size() * 4 << "], ecx\n";
@@ -553,7 +561,7 @@ public:
         if(ivar.has_value()) {
             GeneratorError(where, "name `" + name + "` already in use");
         }
-        m_vars.push_back({ .name = name, .stack_loc = (m_vars.size() + 1) * 4 , .type = type });
+        m_vars.push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = type });
     }
 
     void gen_if_pred(const NodeIfPred* pred, const std::string& end_label)
@@ -628,12 +636,7 @@ public:
                 if(proc.has_value()) {
                     return;
                 }
-                size_t fsz = 0;
-                for (const NodeStmt* stmt : stmt_proc->scope->stmts) {
-                    if(holds_alternative<NodeStmtLet*>(stmt->var)) {
-                        fsz += 1;
-                    }
-                }
+                size_t fsz = gen.collect_alligns(stmt_proc->scope);
                 gen.m_procs.push_back({ .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz});
                 for(int i = 0;i < static_cast<int>(stmt_proc->params.size());++i) {
                     gen.create_var_va(stmt_proc->params[i].first, stmt_proc->params[i].second, stmt_proc->def);
@@ -654,6 +657,7 @@ public:
                 gen.m_output << "    pop ebp\n";
                 gen.m_output << "    ret\n\n";
                 gen.m_vars.clear();
+                gen.m_var_index = 0U;
             }
 
             void operator()(const NodeStmtReturn* stmt_return) const
@@ -823,6 +827,14 @@ public:
                     assert(false); // unreacheable
                 }
             }
+
+            void operator()(const NodeStmtBuffer* stmt_buf) {
+                if(stmt_buf->size % 2 != 0) {
+                    gen.GeneratorError(stmt_buf->def, "size of buffer must be a even number");
+                }
+                gen.m_var_index += (stmt_buf->size / 4) - 1;
+                gen.create_var_va(stmt_buf->name, DataType::ptr, stmt_buf->def);
+            }
         };
 
         StmtVisitor visitor { .gen = *this };
@@ -910,5 +922,6 @@ private:
         "printf",
         "ExitProcess@4"
     };
-    int m_label_count = 0;
+    size_t m_var_index = 0U;
+    size_t m_label_count = 0U;
 };

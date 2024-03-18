@@ -220,13 +220,19 @@ struct NodeStmtStore {
     size_t size;
 };
 
+struct NodeStmtBuffer {
+    Token def;
+    std::string name;
+    size_t size;
+};
+
 struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtLet*,
                 NodeScope*, NodeStmtIf*,
                 NodeStmtAssign*, NodeStmtPrint*,
                 NodeStmtProc*, NodeStmtCall*,
                 NodeStmtWhile*,NodeStmtReturn*,
-                NodeStmtStore*> var;
+                NodeStmtStore*,NodeStmtBuffer*> var;
 };
 
 struct NodeProg {
@@ -825,6 +831,22 @@ public:
             m_includes.push_back(path);
             m_tokens.insert(m_tokens.begin() + m_index, ntokens.begin(), ntokens.end());
             return {};
+        }
+
+        if(auto buffer = try_consume(TokenType::buffer)) {
+            Token def = buffer.value();
+            auto stmt_buf = m_allocator.emplace<NodeStmtBuffer>();
+            Token identif = try_consume_err(TokenType::ident);
+            try_consume_err(TokenType::open_paren);
+            Token bufsz = try_consume_err(TokenType::int_lit);
+            stmt_buf->def = def;
+            stmt_buf->name = identif.value.value();
+            stmt_buf->size = static_cast<size_t>(std::stoi(bufsz.value.value()));
+            try_consume_err(TokenType::close_paren);
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_buf;
+            return stmt;
         }
 
         return {};
