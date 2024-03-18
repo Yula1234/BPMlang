@@ -273,6 +273,37 @@ public:
         exit(EXIT_FAILURE);
     }
 
+    int eval_int_value(NodeExpr* expr) {
+        int result = 0;
+        if(std::holds_alternative<NodeTerm*>(expr->var)) {
+            NodeTerm* nterm = std::get<NodeTerm*>(expr->var);
+            if(std::holds_alternative<NodeTermIntLit*>(nterm->var)) {
+                return std::stoi(std::get<NodeTermIntLit*>(nterm->var)->int_lit.value.value());
+            }
+        }
+        if(std::holds_alternative<NodeBinExpr*>(expr->var)) {
+            NodeBinExpr* nbin = std::get<NodeBinExpr*>(expr->var);
+            if(std::holds_alternative<NodeBinExprAdd*>(nbin->var)) {
+                NodeBinExprAdd* nadd = std::get<NodeBinExprAdd*>(nbin->var);
+                return eval_int_value(nadd->lhs) + eval_int_value(nadd->rhs);
+            }
+            if(std::holds_alternative<NodeBinExprSub*>(nbin->var)) {
+                NodeBinExprSub* nsub = std::get<NodeBinExprSub*>(nbin->var);
+                return eval_int_value(nsub->lhs) - eval_int_value(nsub->rhs);
+            }
+            if(std::holds_alternative<NodeBinExprMulti*>(nbin->var)) {
+                NodeBinExprMulti* nmul = std::get<NodeBinExprMulti*>(nbin->var);
+                return eval_int_value(nmul->lhs) * eval_int_value(nmul->rhs);
+            }
+            if(std::holds_alternative<NodeBinExprDiv*>(nbin->var)) {
+                NodeBinExprDiv* ndiv = std::get<NodeBinExprDiv*>(nbin->var);
+                return eval_int_value(ndiv->lhs) / eval_int_value(ndiv->rhs);
+            }
+        }
+        ParsingError("not constant provided");
+        return result;
+    }
+
     std::optional<NodeTerm*> parse_term() // NOLINT(*-no-recursion)
     {
         if (auto int_lit = try_consume(TokenType::int_lit)) {
@@ -835,10 +866,13 @@ public:
             auto stmt_buf = m_allocator.emplace<NodeStmtBuffer>();
             Token identif = try_consume_err(TokenType::ident);
             try_consume_err(TokenType::open_paren);
-            Token bufsz = try_consume_err(TokenType::int_lit);
             stmt_buf->def = def;
             stmt_buf->name = identif.value.value();
-            stmt_buf->size = static_cast<size_t>(std::stoi(bufsz.value.value()));
+            if(auto expr = parse_expr()) {
+                stmt_buf->size = static_cast<size_t>(eval_int_value(expr.value()));
+            } else {
+                error_expected("constant expression");
+            }
             try_consume_err(TokenType::close_paren);
             try_consume_err(TokenType::semi);
             auto stmt = m_allocator.emplace<NodeStmt>();
