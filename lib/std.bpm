@@ -67,13 +67,23 @@ proc puts string:ptr -> void {
 	fputs(1, string);
 }
 
-proc putuwnl number:int -> void {
+proc fputuwnl fd:int number:int -> void {
 	buffer tmp(256);
 	utos((&tmp), number);
-	puts(&tmp);
+	fputs(fd, &tmp);
+}
+
+proc fputu fd:int number:int -> void {
+	buffer tmp(256);
+	utos((&tmp), number);
+	fputs(fd, &tmp);
+	fputs(fd, "\n");
+}
+
+proc putuwnl number:int -> void {
+	fputuwnl(1, number);
 }
 
 proc putu number:int -> void {
-	putuwnl(number);
-	puts("\n");
+	fputu(1, number);
 }
