@@ -344,6 +344,9 @@ public:
                             stack_allign += pargs.size();
                         }
                     } else {
+                        if(gen.type_of_expr(args) != proc.value().params[0].second) {
+                            gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[0].second) + " at 0 argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(args)));
+                        }
                         stack_allign++;
                     }
                 } else {
@@ -661,7 +664,9 @@ public:
                 gen.m_cur_proc = gen.m_procs[gen.m_procs.size() - 1];
                 gen.gen_scope(stmt_proc->scope);
                 gen.m_cur_proc = std::nullopt;
-                gen.m_output << "    add esp, " << scope_size * 4 << "\n";
+                if(scope_size != 0) {
+                    gen.m_output << "    add esp, " << scope_size * 4 << "\n";
+                }
                 gen.m_output << "    pop ebp\n";
                 gen.m_output << "    ret\n\n";
                 gen.m_vars.clear();
@@ -747,6 +752,9 @@ public:
                             stack_allign += pargs.size();
                         }
                     } else {
+                        if(gen.type_of_expr(args) != proc.value().params[0].second) {
+                            gen.GeneratorError(stmt_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[0].second) + " at 0 argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(args)));
+                        }
                         stack_allign++;
                     }
                 } else {
