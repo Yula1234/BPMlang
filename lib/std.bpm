@@ -40,18 +40,20 @@ proc utos src:ptr number:int -> void {
 	if(number == 0) {
 		store8(src, 48);
 		store8((src + 1), 0);
-	} else {
-		let i = 0;
-		let strsize_i = tmp_utos(src, number);
-		let strsize_m = strsize_i - 1;
-		buffer tmpb(128);
-		memcpy(&tmpb, src, strsize_i);
-		store8((&tmpb + strsize_i), 0);
-		while(i < strsize_i) {
-			store8((src + i), rd8(&tmpb + strsize_m));
-			strsize_m = strsize_m - 1;
-			i = i + 1;
-		}
+		asm "add esp, 148";
+		asm "pop ebp";
+		asm "ret";
+	}
+	let i = 0;
+	let strsize_i = tmp_utos(src, number);
+	let strsize_m = strsize_i - 1;
+	buffer tmpb(128);
+	memcpy(&tmpb, src, strsize_i);
+	store8((&tmpb + strsize_i), 0);
+	while(i < strsize_i) {
+		store8((src + i), rd8(&tmpb + strsize_m));
+		strsize_m = strsize_m - 1;
+		i = i + 1;
 	}
 }
 
@@ -105,11 +107,4 @@ proc putuwnl number:int -> void {
 
 proc putu number:int -> void {
 	fputu(stdout, number);
-}
-
-proc streq str1:ptr str2:ptr -> int {
-	if((strlen(str1)) != (strlen(str2))) {
-		return false;
-	}
-	return true;
 }
