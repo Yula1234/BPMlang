@@ -276,10 +276,10 @@ public:
                 if(!str.has_value()) {
                     size_t index = gen.m_strings.size();
                     gen.m_strings.push_back({ .value = value, .index = index});
-                    gen.m_output << "    push str_" << index << "\n";
+                    gen.m_output << "    push s_" << index << "\n";
                     return;
                 }
-                gen.m_output << "    push str_" << str.value().index << "\n";
+                gen.m_output << "    push s_" << str.value().index << "\n";
             }
 
             void operator()(const NodeTermAmpersand* term_amp) const
@@ -347,6 +347,9 @@ public:
                     } else {
                         if(gen.type_of_expr(args) != proc.value().params[0].second) {
                             gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[0].second) + " at 0 argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(args)));
+                        }
+                        if(proc.value().params.size() != 1U) {
+                            gen.GeneratorError(term_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got 0");
                         }
                         stack_allign++;
                     }
@@ -607,7 +610,7 @@ public:
                 gen.gen_scope(elif->scope);
                 gen.m_output << "    jmp " << end_label << "\n";
                 if (elif->pred.has_value()) {
-                    gen.m_output << label << ":\n";
+                    gen.m_output << "    " << label << ":\n";
                     gen.gen_if_pred(elif->pred.value(), end_label);
                 }
             }
@@ -772,6 +775,9 @@ public:
                         if(gen.type_of_expr(args) != proc.value().params[0].second) {
                             gen.GeneratorError(stmt_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[0].second) + " at 0 argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(args)));
                         }
+                        if(proc.value().params.size() != 1U) {
+                            gen.GeneratorError(stmt_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got 0");
+                        }
                         stack_allign++;
                     }
                 } else {
@@ -903,7 +909,7 @@ public:
         m_output << "    strfmt: db \"%s\", 0x0\n";
         for(int i = 0;i < static_cast<int>(m_strings.size());++i) {
             String& cur_s = m_strings[i];
-            m_output << "    str_" << static_cast<int>(cur_s.index) << ": db ";
+            m_output << "    s_" << static_cast<int>(cur_s.index) << ": db ";
             std::stringstream hexstr;
             for(int j = 0;j < static_cast<int>(cur_s.value.length());++j) {
                 hexstr << "0x" << std::hex << static_cast<int>(cur_s.value[j]) << ", ";
