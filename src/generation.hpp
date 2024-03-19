@@ -652,11 +652,17 @@ public:
                     gen.create_var_va(stmt_proc->params[i].first, stmt_proc->params[i].second, stmt_proc->def);
                 }
                 std::vector<ProcAttr> attrs = stmt_proc->attrs; 
+                bool noprolog = std::find(attrs.begin(), attrs.end(), ProcAttr::noprolog) != attrs.end();
                 gen.m_output << stmt_proc->name << ":\n";
-                gen.m_output << "    push ebp\n";
-                gen.m_output << "    mov ebp, esp\n";
+                if(!noprolog) {
+                    gen.m_output << "    push ebp\n";
+                    gen.m_output << "    mov ebp, esp\n";
+                }
                 size_t scope_size = stmt_proc->params.size() + fsz;
                 bool nostdargs = std::find(attrs.begin(), attrs.end(), ProcAttr::nostdargs) != attrs.end();
+                if(noprolog && !nostdargs) {
+                    gen.GeneratorError(stmt_proc->def, "attribute noprolog without nostdargs\nNOTE: it should cause a error in runtime");
+                }
                 if(nostdargs) {
                     scope_size -= stmt_proc->params.size();
                 }
@@ -676,7 +682,9 @@ public:
                 if(scope_size != 0) {
                     gen.m_output << "    add esp, " << scope_size * 4 << "\n";
                 }
-                gen.m_output << "    pop ebp\n";
+                if(!noprolog) {
+                    gen.m_output << "    pop ebp\n";
+                }
                 gen.m_output << "    ret\n\n";
                 gen.m_vars.clear();
                 gen.m_var_index = 0U;
