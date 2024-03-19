@@ -266,13 +266,25 @@ struct NodeProg {
 
 class Parser {
 public:
-    struct EvaluatedConstValue {
+    struct Constant {
+        std::string name;
         int value;
     };
+
     explicit Parser(std::vector<Token> tokens)
         : m_tokens(std::move(tokens))
         , m_allocator(1024 * 1024 * 24) // 24 mb
     {
+    }
+
+    std::optional<Constant> const_lookup(std::string name) {
+        Constant it;
+        yforeach(m_consts) {
+            if(m_consts[i].name == name) {
+                return m_consts[i];
+            }
+        }
+        return std::nullopt;
     }
 
     void ParsingError(const std::string& msg, const int pos = 0) const
@@ -422,9 +434,19 @@ public:
             return stmt;
         }
         if (auto ident = try_consume(TokenType::ident)) {
-            auto expr_ident = m_allocator.emplace<NodeTermIdent>(ident.value());
-            auto term = m_allocator.emplace<NodeTerm>(expr_ident);
-            return term;
+            std::string tname = ident.value().value.value();
+            auto expr_ident = m_allocator.emplace<NodeTermIdent>();
+            std::optional<Constant> cns = const_lookup(tname);
+            if(!cns.has_value()) {
+                expr_ident->ident = ident.value();
+                auto term = m_allocator.emplace<NodeTerm>(expr_ident);
+                return term;
+            } else {
+                auto CnsTerm = m_allocator.emplace<NodeTermIntLit>();
+                CnsTerm->int_lit = { .type = TokenType::int_lit, .line = 0, .col = 0, .value = std::to_string(cns.value().value), .file = ""};
+                auto term = m_allocator.emplace<NodeTerm>(CnsTerm);
+                return term;
+            }
         }
         if (const auto open_paren = try_consume(TokenType::open_paren)) {
             auto expr = parse_expr();
@@ -951,6 +973,19 @@ public:
             return stmt;
         }
 
+        if(auto _cns = try_consume(TokenType::_const)) {
+            m_proprocessor_stmt = true;
+            Token name = try_consume_err(TokenType::ident);
+            if(auto expr = parse_expr()) {
+                int _value = eval_int_value(expr.value());
+                m_consts.push_back({ .name = name.value.value(), .value = _value});
+            } else {
+                error_expected("constant expression");
+            }
+            try_consume_err(TokenType::semi);
+            return {};
+        }
+
         return {};
     }
 
@@ -1009,6 +1044,7 @@ private:
 
     std::vector<Token> m_tokens;
     std::vector<std::string> m_includes;
+    std::vector<Constant> m_consts;
     std::vector<std::string> m_used_procedures {
         "main"
     };

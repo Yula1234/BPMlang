@@ -51,6 +51,7 @@ enum class TokenType {
     cextern,
     open_bracket,
     close_bracket,
+    _const,
 };
 
 #define BinaryOpsCount 7
@@ -151,6 +152,8 @@ std::string tok_to_string(const TokenType type)
         return "`[`";
     case TokenType::close_bracket:
         return "`]`";
+    case TokenType::_const:
+        return "`const`";
     }
     assert(false);
 }
@@ -318,6 +321,10 @@ public:
                 }
                 else if (buf == "cextern") {
                     tokens.push_back({ .type = TokenType::cextern, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "const") {
+                    tokens.push_back({ .type = TokenType::_const, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {
