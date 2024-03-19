@@ -1,0 +1,57 @@
+include "std"
+
+cextern "fopen";
+cextern "fclose";
+cextern "fileno";
+cextern "fgetc";
+
+const EOF 4294967295;
+
+proc openf FilePath:ptr Mode:ptr -> ptr
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "push dword [ebp+12]";
+	asm "call fopen";
+	asm "add esp, 8";
+}
+
+proc closef File:ptr -> int
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "call fclose";
+	asm "add esp, 4";
+}
+
+proc filedesc File:ptr -> int
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "call fileno";
+	asm "add esp, 4";
+}
+
+proc openf FilePath:ptr Mode:ptr -> ptr
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "push dword [ebp-12]";
+	asm "call fopen";
+	asm "add esp, 8";
+}
+
+proc getcf File:ptr -> int
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "call fgetc";
+	asm "add esp, 4";
+}
+
+proc read_file File:ptr buf:ptr -> int {
+	let ch = 0;
+	let i = 0;
+	while(ch != EOF) {
+		ch = getcf(File);
+		store8((buf + i), ch);
+		i = i + 1;
+	}
+	store8((buf + i), 0);
+	return i;
+}
