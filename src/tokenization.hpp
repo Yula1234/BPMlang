@@ -49,6 +49,8 @@ enum class TokenType {
     mod,
     _asm,
     cextern,
+    open_bracket,
+    close_bracket,
 };
 
 #define BinaryOpsCount 7
@@ -145,6 +147,10 @@ std::string tok_to_string(const TokenType type)
         return "`asm`";
     case TokenType::cextern:
         return "`cextern`";
+    case TokenType::open_bracket:
+        return "`[`";
+    case TokenType::close_bracket:
+        return "`]`";
     }
     assert(false);
 }
@@ -380,6 +386,14 @@ public:
             else if (peek().value() == ')') {
                 consume();
                 tokens.push_back({ .type = TokenType::close_paren, .line =  line_count, .col = m_col - 1, .file = file });
+            }
+            else if (peek().value() == '[') {
+                consume();
+                tokens.push_back({ .type = TokenType::open_bracket, .line =  line_count, .col = m_col - 1, .file = file });
+            }
+            else if (peek().value() == ']') {
+                consume();
+                tokens.push_back({ .type = TokenType::close_bracket, .line =  line_count, .col = m_col - 1, .file = file });
             }
             else if (peek().value() == ';') {
                 consume();

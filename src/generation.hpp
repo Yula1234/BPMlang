@@ -17,6 +17,7 @@ public:
         std::vector<std::pair<std::string, DataType>> params {};
         DataType rettype {};
         size_t stack_allign;
+        std::vector<ProcAttr> attrs;
     };
     struct String {
         std::string value {};
@@ -643,21 +644,26 @@ public:
                 }
                 std::optional<Procedure> proc = gen.proc_lookup(stmt_proc->name);
                 if(proc.has_value()) {
-                    return;
+                    return; // TODO: add a error procedure redefinition
                 }
                 size_t fsz = gen.collect_alligns(stmt_proc->scope);
-                gen.m_procs.push_back({ .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz});
+                gen.m_procs.push_back({ .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs });
                 for(int i = 0;i < static_cast<int>(stmt_proc->params.size());++i) {
                     gen.create_var_va(stmt_proc->params[i].first, stmt_proc->params[i].second, stmt_proc->def);
                 }
+                std::vector<ProcAttr> attrs = stmt_proc->attrs; 
                 gen.m_output << stmt_proc->name << ":\n";
                 gen.m_output << "    push ebp\n";
                 gen.m_output << "    mov ebp, esp\n";
                 size_t scope_size = stmt_proc->params.size() + fsz;
+                bool nostdargs = std::find(attrs.begin(), attrs.end(), ProcAttr::nostdargs) != attrs.end();
+                if(nostdargs) {
+                    scope_size -= stmt_proc->params.size();
+                }
                 if(scope_size != 0) {
                     gen.m_output << "    sub esp, " << scope_size * 4 << "\n";
                 }
-                if(static_cast<int>(stmt_proc->params.size()) != 0U) {
+                if(static_cast<int>(stmt_proc->params.size()) != 0U && !nostdargs) {
                     int rev_i = 0;
                     for(int i = static_cast<int>(stmt_proc->params.size()) - 1;i > -1;--i, rev_i++) {
                         gen.m_output << "    mov edx, dword [ebp+" << i * 4 + 8 << "]\n";

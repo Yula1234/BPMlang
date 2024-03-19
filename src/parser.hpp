@@ -48,6 +48,17 @@ std::ostream& operator<<(std::ostream& out, const DataType dt) {
     return out;
 }
 
+enum class ProcAttr {
+    nostdargs,
+};
+
+std::optional<ProcAttr> string_to_PA(std::string str) {
+    if(str == "nostdargs") {
+        return ProcAttr::nostdargs;
+    }
+    return std::nullopt;
+}
+
 struct NodeTermIntLit {
     Token int_lit;
 };
@@ -203,6 +214,7 @@ struct NodeStmtProc {
     std::string name;
     Token def;
     DataType rettype;
+    std::vector<ProcAttr> attrs;
     std::vector<std::pair<std::string, DataType>> params;
     NodeScope* scope {};
 };
@@ -722,6 +734,17 @@ public:
             stmt_proc->name = identif.value.value();
             stmt_proc->params = pparams;
             stmt_proc->def = identif;
+            if(auto open_b = try_consume(TokenType::open_bracket)) {
+                while(peek().has_value() && peek().value().type != TokenType::close_bracket) {
+                    std::string attr_name = try_consume_err(TokenType::ident).value.value();
+                    std::optional<ProcAttr> cur_attr = string_to_PA(attr_name);
+                    if(!cur_attr.has_value()) {
+                        ParsingError("unkown Procedure Attribute `" + attr_name + "`");
+                    }
+                    stmt_proc->attrs.push_back(cur_attr.value());
+                }
+                try_consume_err(TokenType::close_bracket);
+            }
             if (const auto scope = parse_scope()) {
                 stmt_proc->scope = scope.value();
             }
