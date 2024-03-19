@@ -129,3 +129,20 @@ proc streq str1:ptr str2:ptr -> int {
 	asm ".true:";
 	return true;
 }
+
+cextern "malloc";
+cextern "free";
+
+proc memalloc Size:int -> ptr 
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "call malloc";
+	asm "add esp, 4";
+}
+
+proc memfree Mem:ptr -> void 
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "call free";
+	asm "add esp, 4";
+}
