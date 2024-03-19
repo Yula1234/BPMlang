@@ -40,6 +40,7 @@ int main(int argc, char* argv[])
 
     {
         Generator generator(prog.value());
+        generator.get_props_from_parser(parser);
         std::fstream file("output.asm", std::ios::out);
         const std::string& generated_asm = generator.gen_prog();
         file << generated_asm;

@@ -392,6 +392,9 @@ public:
             Token identif = try_consume_err(TokenType::ident);
             expr_call->def = identif;
             expr_call->name = identif.value.value();
+            if(std::find(m_used_procedures.begin(), m_used_procedures.end(), expr_call->name) == m_used_procedures.end()) {
+                m_used_procedures.push_back(expr_call->name);
+            }
             if(peek(1).has_value() && peek(1).value().type == TokenType::close_paren) {
                 consume();
                 consume();
@@ -734,6 +737,9 @@ public:
             Token identif = try_consume_err(TokenType::ident);
             stmt_call->def = identif;
             stmt_call->name = identif.value.value();
+            if(std::find(m_used_procedures.begin(), m_used_procedures.end(), stmt_call->name) == m_used_procedures.end()) {
+                m_used_procedures.push_back(stmt_call->name);
+            }
             if(peek(1).has_value() && peek(1).value().type == TokenType::close_paren) {
                 consume();
                 consume();
@@ -939,6 +945,10 @@ public:
         return prog;
     }
 
+    std::vector<std::string>& get_used() {
+        return m_used_procedures;
+    }
+
 private:
     [[nodiscard]] std::optional<Token> peek(const int offset = 0) const
     {
@@ -972,6 +982,9 @@ private:
 
     std::vector<Token> m_tokens;
     std::vector<std::string> m_includes;
+    std::vector<std::string> m_used_procedures {
+        "main"
+    };
     bool m_proprocessor_stmt = false;
     size_t m_index = 0;
     ArenaAllocator m_allocator;
