@@ -1,3 +1,8 @@
+// standarts streams
+const stdin 0;
+const stdout 1;
+const stderr 2;
+
 proc strlen str:ptr -> int {
 	let i = 0;
 	while(rd8(str + i) != 0) {
@@ -69,7 +74,7 @@ proc fputs
 }
 
 proc puts string:ptr -> void {
-	fputs(1, string);
+	fputs(stdout, string);
 }
 
 proc fputuwnl fd:int number:int -> void {
@@ -86,9 +91,9 @@ proc fputu fd:int number:int -> void {
 }
 
 proc putuwnl number:int -> void {
-	fputuwnl(1, number);
+	fputuwnl(stdout, number);
 }
 
 proc putu number:int -> void {
-	fputu(1, number);
+	fputu(stdout, number);
 }
