@@ -19,11 +19,11 @@ proc tmp_utos src:ptr number:int -> int {
 	let result = number;
 	buffer bf(256);
 	while(result != 0) {
-		store8(((&bf) + i), ((result % 10) + 48));
+		store8((&bf + i), ((result % 10) + 48));
 		result = result / 10;
 		i = i + 1;
 	}
-	memcpy(src, (&bf), i);
+	memcpy(src, &bf, i);
 	return i;
 }
 
@@ -32,10 +32,10 @@ proc utos src:ptr number:int -> void {
 	let strsize_i = tmp_utos(src, number);
 	let strsize_m = strsize_i - 1;
 	buffer tmpb(128);
-	memcpy((&tmpb), src, strsize_i);
-	store8(((&tmpb) + strsize_i), 0);
+	memcpy(&tmpb, src, strsize_i);
+	store8((&tmpb + strsize_i), 0);
 	while(i < strsize_i) {
-		store8((src + i), rd8((&tmpb) + strsize_m));
+		store8((src + i), rd8(&tmpb + strsize_m));
 		strsize_m = strsize_m - 1;
 		i = i + 1;
 	}
@@ -47,7 +47,7 @@ proc wrapper_write
 	FileDesc:int // file descriptor
 	data:ptr // data to write into file
 	SizeToWrite:int // size to write data into file
--> void // error code, 0 if success
+-> int // error code, 0 if success
 {
 	asm "push dword [ebp-12]"; // pushing SizeToWrite
 	asm "push dword [ebp-8]"; // pushing data
@@ -69,13 +69,13 @@ proc puts string:ptr -> void {
 
 proc fputuwnl fd:int number:int -> void {
 	buffer tmp(256);
-	utos((&tmp), number);
+	utos(&tmp, number);
 	fputs(fd, &tmp);
 }
 
 proc fputu fd:int number:int -> void {
 	buffer tmp(256);
-	utos((&tmp), number);
+	utos(&tmp, number);
 	fputs(fd, &tmp);
 	fputs(fd, "\n");
 }
