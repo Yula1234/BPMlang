@@ -307,6 +307,14 @@ public:
                 NodeBinExprNotEq* nnoteq = std::get<NodeBinExprNotEq*>(nbin->var);
                 return eval_int_value(nnoteq->lhs) != eval_int_value(nnoteq->rhs);
             }
+            if(std::holds_alternative<NodeBinExprLess*>(nbin->var)) {
+                NodeBinExprLess* nless = std::get<NodeBinExprLess*>(nbin->var);
+                return eval_int_value(nless->lhs) < eval_int_value(nless->rhs);
+            }
+            if(std::holds_alternative<NodeBinExprAbove*>(nbin->var)) {
+                NodeBinExprAbove* nabove = std::get<NodeBinExprAbove*>(nbin->var);
+                return eval_int_value(nabove->lhs) > eval_int_value(nabove->rhs);
+            }
         }
         ParsingError("not constant provided");
         return result;
