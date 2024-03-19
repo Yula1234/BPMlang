@@ -48,11 +48,16 @@ proc wrapper_write
 	data:ptr // data to write into file
 	SizeToWrite:int // size to write data into file
 -> int // error code, 0 if success
+[
+	nostdargs // nostdargs is a say
+			  // to a compiller dont generate arguments
+] // procedure attributes
 {
-	asm "push dword [ebp-12]"; // pushing SizeToWrite
-	asm "push dword [ebp-8]"; // pushing data
-	asm "push dword [ebp-4]"; // pushing FileDesc
-	asm "call write";
+	asm "push dword [ebp+8]"; // pushing SizeToWrite
+	asm "push dword [ebp+12]"; // pushing data
+	asm "push dword [ebp+16]"; // pushing FileDesc
+	asm "call write"; // error code stored in eax
+	// if procedure uses as expr eax returned
 	asm "add esp, 12";
 }
 
