@@ -306,7 +306,7 @@ public:
         if(std::holds_alternative<NodeTerm*>(expr->var)) {
             NodeTerm* nterm = std::get<NodeTerm*>(expr->var);
             if(std::holds_alternative<NodeTermIntLit*>(nterm->var)) {
-                return std::stoi(std::get<NodeTermIntLit*>(nterm->var)->int_lit.value.value());
+                return std::stoul(std::get<NodeTermIntLit*>(nterm->var)->int_lit.value.value());
             }
         }
         if(std::holds_alternative<NodeBinExpr*>(expr->var)) {
