@@ -313,8 +313,10 @@ public:
         }
         if(auto ampersand = try_consume(TokenType::ampersand)) {
             auto term_amp = m_allocator.emplace<NodeTermAmpersand>();
-            if(auto expr = parse_expr()) {
-                term_amp->expr = expr.value();
+            if(auto term = parse_term()) {
+                auto expr = m_allocator.emplace<NodeExpr>();
+                expr->var = term.value();
+                term_amp->expr = expr;
             } else {
                 error_expected("expression");
             }
