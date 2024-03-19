@@ -299,6 +299,14 @@ public:
                 NodeBinExprDiv* ndiv = std::get<NodeBinExprDiv*>(nbin->var);
                 return eval_int_value(ndiv->lhs) / eval_int_value(ndiv->rhs);
             }
+            if(std::holds_alternative<NodeBinExprEqEq*>(nbin->var)) {
+                NodeBinExprEqEq* neqeq = std::get<NodeBinExprEqEq*>(nbin->var);
+                return eval_int_value(neqeq->lhs) == eval_int_value(neqeq->rhs);
+            }
+            if(std::holds_alternative<NodeBinExprNotEq*>(nbin->var)) {
+                NodeBinExprNotEq* nnoteq = std::get<NodeBinExprNotEq*>(nbin->var);
+                return eval_int_value(nnoteq->lhs) != eval_int_value(nnoteq->rhs);
+            }
         }
         ParsingError("not constant provided");
         return result;
