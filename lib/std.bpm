@@ -78,7 +78,7 @@ proc fputu fd:int number:int -> void {
 	buffer tmp(FPUTU_BUFFER_CAPACITY);
 	utos(&tmp, number);
 	fputs(fd, &tmp);
-	fputc(fd, '\n');
+	fputc(fd, NEWLINE);
 }
 
 proc putuwnl number:int -> void {

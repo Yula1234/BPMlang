@@ -3,6 +3,9 @@ const stdin 0;
 const stdout 1;
 const stderr 2;
 
+// characters
+const NEWLINE 10;
+
 // booleans constants
 const true 1;
 const false 0;
