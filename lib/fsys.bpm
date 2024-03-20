@@ -49,9 +49,9 @@ proc read_file File:ptr buf:ptr -> int {
 	let i = 0;
 	while(ch != EOF) {
 		ch = getcf(File);
-		store8((buf + i), ch);
+		store8(buf + i, ch);
 		i = i + 1;
 	}
-	store8((buf + (i - 1)), 0);
+	store8(buf + (i - 1), 0);
 	return i;
 }
