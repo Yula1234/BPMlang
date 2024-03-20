@@ -384,6 +384,24 @@ public:
                 tokens.push_back({ .type = TokenType::string_lit, .line = line_count , .col = m_col - static_cast<int>(buf.size()), .value = buf, .file = file });
                 buf.clear();
             }
+            else if(peek().value() == '\'') {
+                consume();
+                buf.clear();
+                while(peek().has_value() && peek().value() != '\'') {
+                    buf.push_back(consume());
+                }
+                consume();
+                for(int i = 0;i < static_cast<int>(buf.size());++i) {
+                    if(buf[i] == '\\') {
+                        if(buf[i+1] == 'n') {
+                            buf.erase(buf.begin()+i);
+                            buf[i] = '\n';
+                        }
+                    }
+                }
+                tokens.push_back({ .type = TokenType::int_lit, .line = line_count , .col = m_col - static_cast<int>(buf.size()), .value = std::to_string(static_cast<int>(buf[0])), .file = file });
+                buf.clear();
+            }
             else if (peek().value() == '(') {
                 consume();
                 tokens.push_back({ .type = TokenType::open_paren, .line =  line_count, .col = m_col - 1, .file = file });
