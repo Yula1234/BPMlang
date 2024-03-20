@@ -55,6 +55,17 @@ proc puts string:ptr -> void {
 	fputs(stdout, string);
 }
 
+proc fputc fd:int chr:int -> void {
+	buffer bf(2);
+	store8(&bf, chr);
+	store8(&bf + 1, 0);
+	wrapper_write(fd, &bf, 1);
+}
+
+proc putc chr:int -> void {
+	fputc(stdout, chr);
+}
+
 const FPUTU_BUFFER_CAPACITY 128;
 
 proc fputuwnl fd:int number:int -> void {
@@ -67,7 +78,7 @@ proc fputu fd:int number:int -> void {
 	buffer tmp(FPUTU_BUFFER_CAPACITY);
 	utos(&tmp, number);
 	fputs(fd, &tmp);
-	fputs(fd, "\n");
+	fputc(fd, '\n');
 }
 
 proc putuwnl number:int -> void {
@@ -111,17 +122,6 @@ proc nth_arg_ptr frame:int nth:int -> ptr
 	asm "imul edx, 4";
 	asm "add edx, 8";
 	asm "mov eax, dword [ecx+edx]";
-}
-
-proc fputc fd:int chr:int -> void {
-	buffer bf(2);
-	store8(&bf, chr);
-	store8(&bf + 1, 0);
-	wrapper_write(fd, &bf, 1);
-}
-
-proc putc chr:int -> void {
-	fputc(stdout, chr);
 }
 
 proc format_fprint fd:int format_str:ptr -> void
