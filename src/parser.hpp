@@ -102,6 +102,12 @@ struct NodeTermRd {
     NodeExpr* expr;
 };
 
+struct NodeTermCast {
+    Token def;
+    DataType type;
+    NodeExpr* expr;
+};
+
 struct NodeBinExprAdd {
     NodeExpr* lhs;
     NodeExpr* rhs;
@@ -157,7 +163,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-    std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*> var;
+    std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*> var;
 };
 
 struct NodeExpr {
@@ -416,6 +422,26 @@ public:
             }
             try_consume_err(TokenType::close_paren);
             auto term = m_allocator.emplace<NodeTerm>(term_rd8);
+            return term;
+        }
+        if (auto cast = try_consume(TokenType::cast)) {
+            auto term_cast = m_allocator.emplace<NodeTermCast>();
+            try_consume_err(TokenType::open_paren);
+            term_cast->def = cast.value();
+            if(peek().has_value() && (peek().value().type != TokenType::int_type && peek().value().type != TokenType::ptr_type)) {
+                error_expected("type name");
+            }
+            Token type = consume();
+            DataType dtype = token_to_dt(type.type);
+            try_consume_err(TokenType::comma);
+            term_cast->type = dtype;
+            if(auto expr = parse_expr()) {
+                term_cast->expr = expr.value();
+            } else {
+                error_expected("expression");
+            }
+            try_consume_err(TokenType::close_paren);
+            auto term = m_allocator.emplace<NodeTerm>(term_cast);
             return term;
         }
         if (auto rd16 = try_consume(TokenType::read16)) {

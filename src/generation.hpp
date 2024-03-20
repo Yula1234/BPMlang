@@ -88,6 +88,9 @@ public:
             if(std::holds_alternative<NodeTermStrLit*>(term->var)) {
                 return DataType::ptr;
             }
+            if(std::holds_alternative<NodeTermCast*>(term->var)) {
+                return std::get<NodeTermCast*>(term->var)->type;
+            }
             if(std::holds_alternative<NodeTermRd*>(term->var)) {
                 return DataType::_int;
             }
@@ -267,6 +270,11 @@ public:
                 } else {
                     assert(false); // unreacheable
                 }
+            }
+
+            void operator()(const NodeTermCast* term_cast) const
+            {
+                gen.gen_expr(term_cast->expr);
             }
 
             void operator()(const NodeTermStrLit* term_str_lit) const
