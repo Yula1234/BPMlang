@@ -451,13 +451,14 @@ public:
             if(std::find(m_used_procedures.begin(), m_used_procedures.end(), expr_call->name) == m_used_procedures.end()) {
                 m_used_procedures.push_back(expr_call->name);
             }
-            if(peek(1).has_value() && peek(1).value().type == TokenType::close_paren) {
-                consume();
-                consume();
+            try_consume_err(TokenType::open_paren);
+            if(peek().has_value() && peek().value().type == TokenType::close_paren) {
                 expr_call->args = std::nullopt;
             } else {
-                expr_call->args = parse_expr();
+                std::pair<NodeExpr*, size_t> pargs = parse_args();
+                expr_call->args = pargs.first;
             }
+            try_consume_err(TokenType::close_paren);
             auto stmt = m_allocator.emplace<NodeTerm>(expr_call);
             return stmt;
         }
@@ -788,16 +789,11 @@ public:
             if(std::find(m_used_procedures.begin(), m_used_procedures.end(), stmt_call->name) == m_used_procedures.end()) {
                 m_used_procedures.push_back(stmt_call->name);
             }
-            size_t argssize;
             if(peek().has_value() && peek().value().type == TokenType::close_paren) {
-                consume();
-                consume();
                 stmt_call->args = std::nullopt;
             } else {
                 std::pair<NodeExpr*, size_t> pargs = parse_args();
                 stmt_call->args = pargs.first;
-                argssize = pargs.second;
-                std::cout << argssize << std::endl;
             }
             try_consume_err(TokenType::close_paren);
             try_consume_err(TokenType::semi);
