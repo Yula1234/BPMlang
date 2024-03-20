@@ -23,6 +23,10 @@ public:
         std::string value {};
         size_t index {};
     };
+    struct Struct {
+        std::string name;
+        std::vector<std::pair<std::string, DataType>> fields;
+    };
     explicit Generator(NodeProg prog)
         : m_prog(std::move(prog))
     {
@@ -47,6 +51,21 @@ public:
         Procedure it;
         bool finded = false;
         for(Procedure var : m_procs) {
+            if(var.name == name) {
+                it = var;
+                finded = true;
+            }
+        }
+        if(finded) {
+            return it;
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Struct> struct_lookup(std::string name) {
+        Struct it;
+        bool finded = false;
+        for(Struct var : m_structs) {
             if(var.name == name) {
                 it = var;
                 finded = true;
@@ -111,10 +130,15 @@ public:
             }
             if(std::holds_alternative<NodeTermIdent*>(term->var)) {
                 std::optional<Var> svar = var_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
-                if(!svar.has_value()) {
-                    return make_int_type();
+                if(svar.has_value()) {
+                    return svar.value().type;
                 }
-                return svar.value().type;
+                std::optional<Struct> sstruct = struct_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
+                if(sstruct.has_value()) {
+                    DataType dt = std::get<NodeTermIdent*>(term->var)->ident.value.value();
+                    return dt;
+                }
+                GeneratorError(std::get<NodeTermIdent*>(term->var)->ident, "unkown word `" + std::get<NodeTermIdent*>(term->var)->ident.value.value() + "`");
             }
         }
         static_assert(BinaryOpsCount == 7,
@@ -297,26 +321,33 @@ public:
 
             void operator()(const NodeTermIdent* term_ident) const
             {
-                Var it;
-                bool finded = false;
-                for(Var var : gen.m_vars) {
-                    if(var.name == term_ident->ident.value.value()) {
-                        it = var;
-                        finded = true;
+                std::optional<Var> it = gen.var_lookup(term_ident->ident.value.value());
+                if(it.has_value()) {
+                    if(lvalue) {
+                        gen.m_output << "    mov edx, ebp\n";
+                        gen.m_output << "    sub edx, " << it.value().stack_loc << "\n";
+                        gen.m_output << "    push edx\n";
+                    } else {
+                        std::stringstream offset;
+                        offset << "dword [ebp-" << it.value().stack_loc << "]";
+                        gen.push(offset.str());
                     }
+                    return;
                 }
-                if (!finded) {
-                    gen.GeneratorError(term_ident->ident, "unkown word `" + term_ident->ident.value.value() + "`");
+                std::optional<Struct> st = gen.struct_lookup(term_ident->ident.value.value());
+                if(st.has_value()) {
+                    size_t objectSize = st.value().fields.size();
+                    if(objectSize == 0U) {
+                        gen.m_output << "    push dword 0\n";
+                        return;
+                    }
+                    gen.m_output << "    push dword " << objectSize * 4U << "\n";
+                    gen.m_output << "    call malloc\n";
+                    gen.m_output << "    add esp, 4\n";
+                    gen.m_output << "    push eax\n";
+                    return;
                 }
-                if(lvalue) {
-                    gen.m_output << "    mov edx, ebp\n";
-                    gen.m_output << "    sub edx, " << it.stack_loc << "\n";
-                    gen.m_output << "    push edx\n";
-                } else {
-                    std::stringstream offset;
-                    offset << "dword [ebp-" << it.stack_loc << "]";
-                    gen.push(offset.str());
-                }
+                gen.GeneratorError(term_ident->ident, "unkown word `" + term_ident->ident.value.value() + "`");
             }
 
             void operator()(const NodeTermParen* term_paren) const
@@ -901,7 +932,24 @@ public:
             }
 
             void operator()(const NodeStmtCextern* stmt_cextern) {
+                if(std::find(gen.m_cexterns.begin(), gen.m_cexterns.end(), stmt_cextern->name) != gen.m_cexterns.end()) {
+                    return; // already in externs
+                }
                 gen.m_cexterns.push_back(stmt_cextern->name);
+            }
+
+            void operator()(const NodeStmtStruct* stmt_struct) {
+                gen.m_structs.push_back({ .name = stmt_struct->name, .fields = stmt_struct->fields });
+            }
+
+            void operator()(const NodeStmtDelete* stmt_delete) {
+                bool is_object_expr = gen.type_of_expr(stmt_delete->expr).is_object;
+                if(!is_object_expr) {
+                    gen.GeneratorError(stmt_delete->def, "`delete` except object\nNOTE: but got " + gen.type_of_expr(stmt_delete->expr).to_string());
+                }
+                gen.gen_expr(stmt_delete->expr);
+                gen.m_output << "    call free\n";
+                gen.m_output << "    add esp, 4\n";
             }
         };
 
@@ -991,9 +1039,12 @@ private:
     std::vector<String>      m_strings  {};
     std::vector<size_t>      m_scopes   {};
     std::vector<Procedure>   m_procs    {};
+    std::vector<Struct> m_structs       {};
     std::optional<Procedure> m_cur_proc {};
     std::vector<std::string> m_cexterns = {
-        "ExitProcess@4"
+        "ExitProcess@4",
+        "malloc",
+        "free"
     };
     std::vector<std::string> m_used_procs;
     size_t m_var_index = 0U;

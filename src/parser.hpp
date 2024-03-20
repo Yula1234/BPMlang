@@ -17,7 +17,7 @@ struct DataType {
     bool is_object = false;
     std::variant<SimpleDataType, std::string> type;
     bool is_simple() const {
-        return std::holds_alternative<SimpleDataType>(this->type);
+        return !is_object;
     }
     SimpleDataType getsimpletype() const {
         return std::get<SimpleDataType>(this->type);
@@ -39,7 +39,7 @@ struct DataType {
             }
             assert(false);
         } else {
-            return "object[" + this->getobjectname() + "]";
+            return "`object<" + this->getobjectname() + ">`";
         }
     }
     bool eq(const DataType& two) const {
@@ -68,7 +68,7 @@ struct DataType {
     }
     DataType(const DataType& other) {
         this->type = other.type;
-        this->is_object = false;
+        this->is_object = other.is_object;
     }
     DataType(std::string objname) {
         this->type = objname;
@@ -80,7 +80,7 @@ struct DataType {
     }
     void operator=(const DataType& other) {
         type = other.type;
-        is_object = false;
+        is_object = other.is_object;
     }
     void operator=(std::string objname) {
         type = objname;
@@ -363,6 +363,11 @@ struct NodeStmtStruct {
     std::vector<std::pair<std::string, DataType>> fields;
 };
 
+struct NodeStmtDelete {
+    Token def;
+    NodeExpr* expr;
+};
+
 struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtLet*,
                 NodeScope*, NodeStmtIf*,
@@ -370,7 +375,8 @@ struct NodeStmt {
                 NodeStmtProc*, NodeStmtCall*,
                 NodeStmtWhile*,NodeStmtReturn*,
                 NodeStmtStore*,NodeStmtBuffer*,
-                NodeStmtCextern*,NodeStmtStruct*> var;
+                NodeStmtCextern*,NodeStmtStruct*,
+                NodeStmtDelete*> var;
 };
 
 struct NodeProg {
@@ -1094,6 +1100,22 @@ public:
             try_consume_err(TokenType::close_curly);
             auto stmt = m_allocator.emplace<NodeStmt>();
             stmt->var = stmt_struct;
+            return stmt;
+        }
+
+        if(auto del = try_consume(TokenType::_delete)) {
+            Token def = del.value();
+            auto stmt_delete = m_allocator.emplace<NodeStmtDelete>();
+            if (const auto node_expr = parse_expr()) {
+                stmt_delete->expr = node_expr.value();
+            }
+            else {
+                error_expected("expression");
+            }
+            stmt_delete->def = def;
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_delete;
             return stmt;
         }
 
