@@ -820,25 +820,13 @@ public:
             auto stmt_st8 = m_allocator.emplace<NodeStmtStore>();
             stmt_st8->size = 8U;
             try_consume_err(TokenType::open_paren);
-            if (const auto node_expr = parse_expr()) {
-                NodeExpr* expr = node_expr.value();
-                if(!std::holds_alternative<NodeBinExpr*>(expr->var)) {
-                    error_expected("ptr, value");
-                }
-                if(!std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var)) {
-                    error_expected("ptr, value");
-                }
-                NodeBinExprArgs* args = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var);
-                std::vector<NodeExpr*> vargs = args->args;
-                if(vargs.size() != 2U) {
-                    error_expected("ptr, value");
-                }
-                stmt_st8->ptr = vargs[0];
-                stmt_st8->expr = vargs[1];
+            std::pair<NodeExpr*, size_t> pargs = parse_args();
+            if(pargs.second != 2U) {
+                ParsingError("ptr, value");
             }
-            else {
-                error_expected("expression");
-            }
+            NodeBinExprArgs* args = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(pargs.first->var)->var);
+            stmt_st8->ptr = args->args[0];
+            stmt_st8->expr = args->args[1];
             stmt_st8->def = def;
             try_consume_err(TokenType::close_paren);
             try_consume_err(TokenType::semi);
@@ -851,25 +839,13 @@ public:
             auto stmt_st16 = m_allocator.emplace<NodeStmtStore>();
             stmt_st16->size = 16U;
             try_consume_err(TokenType::open_paren);
-            if (const auto node_expr = parse_expr()) {
-                NodeExpr* expr = node_expr.value();
-                if(!std::holds_alternative<NodeBinExpr*>(expr->var)) {
-                    error_expected("ptr, value");
-                }
-                if(!std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var)) {
-                    error_expected("ptr, value");
-                }
-                NodeBinExprArgs* args = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var);
-                std::vector<NodeExpr*> vargs = args->args;
-                if(vargs.size() != 2U) {
-                    error_expected("ptr, value");
-                }
-                stmt_st16->ptr = vargs[0];
-                stmt_st16->expr = vargs[1];
+            std::pair<NodeExpr*, size_t> pargs = parse_args();
+            if(pargs.second != 2U) {
+                ParsingError("ptr, value");
             }
-            else {
-                error_expected("expression");
-            }
+            NodeBinExprArgs* args = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(pargs.first->var)->var);
+            stmt_st16->ptr = args->args[0];
+            stmt_st16->expr = args->args[1];
             stmt_st16->def = def;
             try_consume_err(TokenType::close_paren);
             try_consume_err(TokenType::semi);
@@ -882,25 +858,13 @@ public:
             auto stmt_st32 = m_allocator.emplace<NodeStmtStore>();
             stmt_st32->size = 32U;
             try_consume_err(TokenType::open_paren);
-            if (const auto node_expr = parse_expr()) {
-                NodeExpr* expr = node_expr.value();
-                if(!std::holds_alternative<NodeBinExpr*>(expr->var)) {
-                    error_expected("ptr, value");
-                }
-                if(!std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var)) {
-                    error_expected("ptr, value");
-                }
-                NodeBinExprArgs* args = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(expr->var)->var);
-                std::vector<NodeExpr*> vargs = args->args;
-                if(vargs.size() != 2U) {
-                    error_expected("ptr, value");
-                }
-                stmt_st32->ptr = vargs[0];
-                stmt_st32->expr = vargs[1];
+            std::pair<NodeExpr*, size_t> pargs = parse_args();
+            if(pargs.second != 2U) {
+                ParsingError("ptr, value");
             }
-            else {
-                error_expected("expression");
-            }
+            NodeBinExprArgs* args = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(pargs.first->var)->var);
+            stmt_st32->ptr = args->args[0];
+            stmt_st32->expr = args->args[1];
             stmt_st32->def = def;
             try_consume_err(TokenType::close_paren);
             try_consume_err(TokenType::semi);
