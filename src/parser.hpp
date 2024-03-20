@@ -127,6 +127,19 @@ DataType token_to_dt(TokenType tt) {
     assert(false); // unreacheable
 }
 
+DataType uni_token_to_dt(Token tok) {
+    if(tok.type == TokenType::ident) {
+        DataType dt;
+        dt = tok.value.value();
+        return dt;
+    }
+    return token_to_dt(tok.type);
+}
+
+bool is_type_token(TokenType tp) {
+    return (tp == TokenType::int_type || tp == TokenType::ptr_type || tp == TokenType::void_type || tp == TokenType::ident);
+}
+
 std::ostream& operator<<(std::ostream& out, const DataType dt) {
     std::cout << dt_to_string(dt); 
     return out;
@@ -344,6 +357,12 @@ struct NodeStmtAsm {
     std::string code;
 };
 
+struct NodeStmtStruct {
+    Token def;
+    std::string name;
+    std::vector<std::pair<std::string, DataType>> fields;
+};
+
 struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtLet*,
                 NodeScope*, NodeStmtIf*,
@@ -351,7 +370,7 @@ struct NodeStmt {
                 NodeStmtProc*, NodeStmtCall*,
                 NodeStmtWhile*,NodeStmtReturn*,
                 NodeStmtStore*,NodeStmtBuffer*,
-                NodeStmtCextern*> var;
+                NodeStmtCextern*,NodeStmtStruct*> var;
 };
 
 struct NodeProg {
@@ -1047,6 +1066,35 @@ public:
             }
             try_consume_err(TokenType::semi);
             return {};
+        }
+
+        if(auto _struct = try_consume(TokenType::_struct)) {
+            Token def = _struct.value();
+            auto stmt_struct = m_allocator.emplace<NodeStmtStruct>();
+            stmt_struct->name = try_consume_err(TokenType::ident).value.value();
+            stmt_struct->def = def;
+            try_consume_err(TokenType::open_curly);
+            while(peek().has_value() && peek().value().type != TokenType::close_curly) {
+                Token ident = try_consume_err(TokenType::ident);
+                try_consume_err(TokenType::double_dot);
+                if(!peek().has_value()) {
+                    error_expected("field type");
+                }
+                DataType dtype;
+                if(!is_type_token(peek().value().type)) {
+                    error_expected("field type");
+                }
+                Token type = consume();
+                dtype = uni_token_to_dt(type);
+                stmt_struct->fields.push_back(std::make_pair(ident.value.value(), dtype));
+                if(peek().has_value() && peek().value().type != TokenType::close_curly) {
+                    try_consume_err(TokenType::comma);
+                }
+            }
+            try_consume_err(TokenType::close_curly);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_struct;
+            return stmt;
         }
 
         if(auto lvalue = parse_expr()) {
