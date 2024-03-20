@@ -1,0 +1,8 @@
+// standarts streams
+const stdin 0;
+const stdout 1;
+const stderr 2;
+
+// booleans constants
+const true 1;
+const false 0;
