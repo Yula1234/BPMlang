@@ -10,12 +10,12 @@ public:
     struct Var {
         std::string name {};
         size_t stack_loc {};
-        DataType type {};
+        DataType type;
     };
     struct Procedure {
         std::string name {};
         std::vector<std::pair<std::string, DataType>> params {};
-        DataType rettype {};
+        DataType rettype;
         size_t stack_allign;
         std::vector<ProcAttr> attrs;
     };
@@ -83,36 +83,36 @@ public:
         if(holds_alternative<NodeTerm*>(expr->var)) {
             NodeTerm* term = std::get<NodeTerm*>(expr->var);
             if(std::holds_alternative<NodeTermIntLit*>(term->var)) {
-                return DataType::_int;
+                return make_int_type();
             }
             if(std::holds_alternative<NodeTermStrLit*>(term->var)) {
-                return DataType::ptr;
+                return make_ptr_type();
             }
             if(std::holds_alternative<NodeTermCast*>(term->var)) {
                 return std::get<NodeTermCast*>(term->var)->type;
             }
             if(std::holds_alternative<NodeTermRd*>(term->var)) {
-                return DataType::_int;
+                return make_int_type();
             }
             if(std::holds_alternative<NodeTermParen*>(term->var)) {
                 return type_of_expr(std::get<NodeTermParen*>(term->var)->expr);
             }
             if(std::holds_alternative<NodeTermAmpersand*>(term->var)) {
-                return DataType::ptr;
+                return make_ptr_type();
             }
             if(std::holds_alternative<NodeTermCall*>(term->var)) {
                 NodeTermCall* call = std::get<NodeTermCall*>(term->var);
                 std::string name = call->name;
                 std::optional<Procedure> proc = proc_lookup(name);
                 if(!proc.has_value()) {
-                    return DataType::_void;
+                    return make_void_type();
                 }
                 return proc.value().rettype;
             }
             if(std::holds_alternative<NodeTermIdent*>(term->var)) {
                 std::optional<Var> svar = var_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
                 if(!svar.has_value()) {
-                    return DataType::_int;
+                    return make_int_type();
                 }
                 return svar.value().type;
             }
@@ -232,7 +232,7 @@ public:
             } else {
                 assert(false);
             }
-            if(!(ltype == DataType::ptr && rtype == DataType::_int)) {
+            if(!(ltype == DataTypePtr && rtype == DataTypeInt)) {
                 GeneratorError(expr->def, "can't use `" + IRexpr + "` for types " + dt_to_string(ltype) + " and " + dt_to_string(rtype));
             }
         }
@@ -372,7 +372,7 @@ public:
                 if(stack_allign != 0) {
                     gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
                 }
-                if(proc.value().rettype == DataType::_void) {
+                if(proc.value().rettype == DataTypeVoid) {
                     gen.GeneratorError(term_call->def, "using void function as expression");
                 }
                 gen.m_output << "    push eax\n";
@@ -648,7 +648,7 @@ public:
             void operator()(const NodeStmtExit* stmt_exit) const
             {
                 DataType etype = gen.type_of_expr(stmt_exit->expr);
-                if(etype != DataType::_int) {
+                if(etype != DataTypeInt) {
                     gen.GeneratorError(stmt_exit->def, "`exit` except type `int`\nNOTE: but got type " + dt_to_string(etype));
                 }
                 gen.gen_expr(stmt_exit->expr);
@@ -718,7 +718,7 @@ public:
                     gen.GeneratorError(stmt_return->def, "return without procedure");
                 }
                 DataType rettype = cproc.value().rettype;
-                if(rettype == DataType::_void) {
+                if(rettype == DataTypeVoid) {
                     gen.GeneratorError(stmt_return->def, "return from void procedure with value");
                 }
                 if(gen.type_of_expr(stmt_return->expr) != rettype) {
@@ -860,7 +860,7 @@ public:
             {
                 DataType ptype = gen.type_of_expr(stmt_store->ptr);
                 DataType etype = gen.type_of_expr(stmt_store->expr);
-                if(ptype != DataType::ptr && etype != DataType::_int) {
+                if(ptype != DataTypePtr && etype != DataTypeInt) {
                     gen.GeneratorError(stmt_store->def, "store types missmatch\nNOTE: except `ptr`, `int`\nNOTE: but got " + dt_to_string(ptype) + ", " + dt_to_string(etype));
                 }
                 if(stmt_store->size == 8U) {
@@ -893,7 +893,7 @@ public:
                     gen.GeneratorError(stmt_buf->def, "size of buffer must be a even number");
                 }
                 gen.m_var_index += (stmt_buf->size / 4);
-                gen.create_var_va_wid(stmt_buf->name, DataType::ptr, stmt_buf->def);
+                gen.create_var_va_wid(stmt_buf->name, DataTypePtr, stmt_buf->def);
             }
 
             void operator()(const NodeStmtAsm* stmt_asm) {

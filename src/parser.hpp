@@ -7,36 +7,120 @@
 #include "arena.hpp"
 #include "tokenization.hpp"
 
-enum class DataType {
+enum class SimpleDataType {
     _int,
     ptr,
     _void,
 };
 
+struct DataType {
+    bool is_object = false;
+    std::variant<SimpleDataType, std::string> type;
+    bool is_simple() const {
+        return std::holds_alternative<SimpleDataType>(this->type);
+    }
+    SimpleDataType getsimpletype() const {
+        return std::get<SimpleDataType>(this->type);
+    }
+    std::string getobjectname() const {
+        return std::get<std::string>(this->type);
+    }
+    std::string to_string() const {
+        if(!this->is_object) {
+            switch(this->getsimpletype()) {
+            case SimpleDataType::_int:
+                return "`int`";
+            case SimpleDataType::ptr:
+                return "`ptr`";
+            case SimpleDataType::_void:
+                return "`void`";
+            default:
+                break;
+            }
+            assert(false);
+        } else {
+            return "object[" + this->getobjectname() + "]";
+        }
+    }
+    bool eq(const DataType& two) const {
+        if((this->is_object && !two.is_object) || (!this->is_object && two.is_object)) {
+            return false;
+        }
+        if(this->is_object && two.is_object) {
+            return this->getobjectname() == two.getobjectname();
+        }
+        else if(!this->is_object && !two.is_object) {
+            return this->getsimpletype() == two.getsimpletype();
+        } else {
+            assert(false); // maybe bug
+        }
+    }
+    bool operator==(const DataType& two) const {
+        return this->eq(two);
+    }
+    bool operator!=(const DataType& two) const {
+        return !this->eq(two);
+    }
+    DataType() {}
+    DataType(SimpleDataType other) {
+        this->type = other;
+        this->is_object = false;
+    }
+    DataType(const DataType& other) {
+        this->type = other.type;
+        this->is_object = false;
+    }
+    DataType(std::string objname) {
+        this->type = objname;
+        this->is_object = true;
+    }
+    void operator=(SimpleDataType other) {
+        type = other;
+        is_object = false;
+    }
+    void operator=(const DataType& other) {
+        type = other.type;
+        is_object = false;
+    }
+    void operator=(std::string objname) {
+        type = objname;
+        is_object = true;
+    }
+};
+
+DataType make_int_type() {
+    DataType tp = SimpleDataType::_int;
+    return tp;
+}
+
+DataType make_ptr_type() {
+    DataType tp = SimpleDataType::ptr;
+    return tp;
+}
+
+DataType make_void_type() {
+    DataType tp = SimpleDataType::_void;
+    return tp;
+}
+
+DataType DataTypeInt = make_int_type();
+DataType DataTypePtr = make_ptr_type();
+DataType DataTypeVoid = make_void_type();
+
 #define yforeach(container) for(int i = 0;i < static_cast<int>(container.size());++i)
 
 std::string dt_to_string(DataType dt) {
-    switch(dt) {
-    case DataType::_int:
-        return "`int`";
-    case DataType::ptr:
-        return "`ptr`";
-    case DataType::_void:
-        return "`void`";
-    default:
-        break;
-    }
-    assert(false);
+    return dt.to_string();
 }
 
 DataType token_to_dt(TokenType tt) {
     switch(tt) {
     case TokenType::int_type:
-        return DataType::_int;
+        return DataTypeInt;
     case TokenType::ptr_type:
-        return DataType::ptr;
+        return DataTypePtr;
     case TokenType::void_type:
-        return DataType::_void;
+        return DataTypeVoid;
     default:
         break;
     }
