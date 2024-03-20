@@ -689,6 +689,9 @@ public:
                 gen.m_cur_proc = gen.m_procs[gen.m_procs.size() - 1];
                 gen.gen_scope(stmt_proc->scope);
                 gen.m_cur_proc = std::nullopt;
+                if(stmt_proc->name == "main") {
+                    gen.m_output << "    xor eax, eax\n";
+                }
                 if(scope_size != 0) {
                     gen.m_output << "    add esp, " << scope_size * 4 << "\n";
                 }
