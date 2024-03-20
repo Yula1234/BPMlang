@@ -786,25 +786,6 @@ public:
             stmt->var = stmt_let;
             return stmt;
         }
-        if (peek(1).has_value()
-            && peek(1).value().type == TokenType::eq) {
-            const auto assign = m_allocator.emplace<NodeStmtAssign>();
-            if(auto expr = parse_expr()) {
-                assign->lvalue = expr.value();
-            } else {
-                error_expected("lvalue");
-            }
-            assign->def = try_consume_err(TokenType::eq);
-            if (const auto expr = parse_expr()) {
-                assign->expr = expr.value();
-            }
-            else {
-                error_expected("expression");
-            }
-            try_consume_err(TokenType::semi);
-            auto stmt = m_allocator.emplace<NodeStmt>(assign);
-            return stmt;
-        }
         if (peek().has_value() && peek().value().type == TokenType::open_curly) {
             if (auto scope = parse_scope()) {
                 auto stmt = m_allocator.emplace<NodeStmt>(scope.value());
@@ -1066,6 +1047,35 @@ public:
             }
             try_consume_err(TokenType::semi);
             return {};
+        }
+
+        if(auto lvalue = parse_expr()) {
+            if(!peek().has_value()) {
+                error_expected("statement");
+            }
+            Token curtok = peek().value();
+            if(curtok.type != TokenType::eq) {
+                error_expected("statement");
+            }           
+            if(!lvalue.has_value()) {
+                error_expected("lvalue");
+            }
+            if(curtok.type == TokenType::eq) {
+                const auto stmt_assign = m_allocator.emplace<NodeStmtAssign>();
+                stmt_assign->lvalue = lvalue.value();
+                stmt_assign->def = consume();
+                if (const auto expr = parse_expr()) {
+                    stmt_assign->expr = expr.value();
+                }
+                else {
+                    error_expected("expression");
+                }
+                try_consume_err(TokenType::semi);
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
+                return stmt;
+            } else {
+                error_expected("statement");
+            }
         }
 
         return {};
