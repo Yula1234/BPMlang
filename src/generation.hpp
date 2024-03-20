@@ -593,6 +593,14 @@ public:
         m_vars.push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = type });
     }
 
+    void create_var_va_wid(const std::string name, DataType type, Token where) {
+        std::optional<Var> ivar = var_lookup(name);
+        if(ivar.has_value()) {
+            GeneratorError(where, "name `" + name + "` already in use");
+        }
+        m_vars.push_back({ .name = name, .stack_loc = m_var_index * 4 , .type = type });
+    }
+
     void gen_if_pred(const NodeIfPred* pred, const std::string& end_label)
     {
         struct PredVisitor {
@@ -873,8 +881,8 @@ public:
                 if(stmt_buf->size % 2 != 0) {
                     gen.GeneratorError(stmt_buf->def, "size of buffer must be a even number");
                 }
-                gen.m_var_index += (stmt_buf->size / 4) - 1;
-                gen.create_var_va(stmt_buf->name, DataType::ptr, stmt_buf->def);
+                gen.m_var_index += (stmt_buf->size / 4);
+                gen.create_var_va_wid(stmt_buf->name, DataType::ptr, stmt_buf->def);
             }
 
             void operator()(const NodeStmtAsm* stmt_asm) {
