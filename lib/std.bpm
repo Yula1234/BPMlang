@@ -242,3 +242,21 @@ proc format_print format_str:ptr -> void
 	asm "mov dword [ebp-8], ebp";
 	format_fprint_frame(stdout, frame, format_str);
 }
+
+cextern "scanf";
+
+proc input_number addr:ptr -> void
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "push numfmt";
+	asm "call scanf";
+	asm "add esp, 8";
+}
+
+proc input_string addr:ptr -> void
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "push strfmt";
+	asm "call scanf";
+	asm "add esp, 8";
+}
