@@ -348,6 +348,34 @@ public:
         return result;
     }
 
+    std::pair<NodeExpr*, size_t> parse_args() {
+        NodeBinExprArgs* args = m_allocator.emplace<NodeBinExprArgs>();
+        size_t size = 0;
+        while(peek().has_value() && (peek().value().type != TokenType::close_paren && peek().value().type != TokenType::semi)) {
+            auto expr = parse_expr();
+            if(!expr.has_value()) {
+                error_expected("expression");
+            }
+            if(peek().has_value() && (peek().value().type != TokenType::comma && peek().value().type != TokenType::semi && peek().value().type != TokenType::close_paren)) {
+                error_expected(",");
+            }
+            if(peek().value().type == TokenType::close_paren) {
+                args->args.push_back(expr.value());
+                size += 1;
+                break;
+            }
+            consume();
+            args->args.push_back(expr.value());
+            size += 1;
+        }
+        NodeBinExpr* bexpr = m_allocator.emplace<NodeBinExpr>();
+        bexpr->var = args;
+        NodeExpr* fexpr = m_allocator.emplace<NodeExpr>();
+        fexpr->var = bexpr;
+        std::pair<NodeExpr*, size_t> res = std::make_pair(fexpr, size);
+        return res;
+    }
+
     std::optional<NodeTerm*> parse_term() // NOLINT(*-no-recursion)
     {
         if (auto int_lit = try_consume(TokenType::int_lit)) {
@@ -543,36 +571,6 @@ public:
                 auto above = m_allocator.emplace<NodeBinExprAbove>(expr_lhs2, expr_rhs.value());
                 expr->def = ctok;
                 expr->var = above;
-            }
-            else if (type == TokenType::comma) {
-                expr_lhs2->var = expr_lhs->var;
-                NodeExpr* left = expr_lhs2;
-                NodeExpr* right = expr_rhs.value();
-                std::vector<NodeExpr*> args;
-                if(std::holds_alternative<NodeBinExpr*>(left->var)) {
-                    if(std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(left->var)->var)) {
-                        std::vector<NodeExpr*> largs = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(left->var)->var)->args;
-                        for(int i = 0;i < static_cast<int>(largs.size());++i) {
-                            args.push_back(largs[i]);
-                        }
-                    }
-                } else {
-                    args.push_back(left);
-                }
-                if(std::holds_alternative<NodeBinExpr*>(right->var)) {
-                    if(std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(right->var)->var)) {
-                        std::vector<NodeExpr*> rargs = std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(right->var)->var)->args;
-                        for(int i = 0;i < static_cast<int>(rargs.size());++i) {
-                            args.push_back(rargs[i]);
-                        }
-                    }
-                } else {
-                    args.push_back(right);
-                }
-                auto argsl = m_allocator.emplace<NodeBinExprArgs>();
-                argsl->args = args;
-                expr->def = ctok;
-                expr->var = argsl;
             }
             else {
                 assert(false); // Unreachable;
@@ -786,16 +784,22 @@ public:
             Token identif = try_consume_err(TokenType::ident);
             stmt_call->def = identif;
             stmt_call->name = identif.value.value();
+            try_consume_err(TokenType::open_paren);
             if(std::find(m_used_procedures.begin(), m_used_procedures.end(), stmt_call->name) == m_used_procedures.end()) {
                 m_used_procedures.push_back(stmt_call->name);
             }
-            if(peek(1).has_value() && peek(1).value().type == TokenType::close_paren) {
+            size_t argssize;
+            if(peek().has_value() && peek().value().type == TokenType::close_paren) {
                 consume();
                 consume();
                 stmt_call->args = std::nullopt;
             } else {
-                stmt_call->args = parse_expr();
+                std::pair<NodeExpr*, size_t> pargs = parse_args();
+                stmt_call->args = pargs.first;
+                argssize = pargs.second;
+                std::cout << argssize << std::endl;
             }
+            try_consume_err(TokenType::close_paren);
             try_consume_err(TokenType::semi);
             auto stmt = m_allocator.emplace<NodeStmt>(stmt_call);
             return stmt;

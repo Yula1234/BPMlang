@@ -162,8 +162,6 @@ int prec_IOTA = 0;
 inline std::optional<int> bin_prec(const TokenType type)
 {
     switch (type) {
-    case TokenType::comma:
-        return prec_IOTA++;
     case TokenType::eqeq:
     case TokenType::_not_eq:
     case TokenType::less:

@@ -755,8 +755,7 @@ public:
                     if(proc.value().params.size() == 0) {
                         gen.GeneratorError(stmt_call->def, "procedure `" + name + "` don't excepts any arguments");
                     }
-                    NodeExpr* targs = stmt_call->args.value();
-                    NodeExpr* args = std::get<NodeTermParen*>(std::get<NodeTerm*>(targs->var)->var)->expr;
+                    NodeExpr* args = stmt_call->args.value();
                     if(std::holds_alternative<NodeBinExpr*>(args->var)) {
                         NodeBinExpr* cexpr = std::get<NodeBinExpr*>(args->var);
                         if(std::holds_alternative<NodeBinExprArgs*>(cexpr->var)) {
