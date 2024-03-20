@@ -582,7 +582,7 @@ public:
         m_vars.push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = vartype });
         gen_expr(value);
         m_output << "    pop ecx\n";
-        m_output << "    mov dword [ebp-" << m_var_index * 4 * 4 << "], ecx\n";
+        m_output << "    mov dword [ebp-" << m_var_index * 4 << "], ecx\n";
     }
 
     void create_var_va(const std::string name, DataType type, Token where) {
