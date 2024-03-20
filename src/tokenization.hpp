@@ -53,6 +53,7 @@ enum class TokenType {
     close_bracket,
     _const,
     cast,
+    _struct,
 };
 
 #define BinaryOpsCount 7
@@ -157,6 +158,8 @@ std::string tok_to_string(const TokenType type)
         return "`const`";
     case TokenType::cast:
         return "`cast`";
+    case TokenType::_struct:
+        return "`struct`";
     }
     assert(false);
 }
@@ -330,6 +333,10 @@ public:
                 }
                 else if (buf == "cast") {
                     tokens.push_back({ .type = TokenType::cast, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "struct") {
+                    tokens.push_back({ .type = TokenType::_struct, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {
