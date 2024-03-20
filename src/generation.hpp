@@ -488,7 +488,7 @@ public:
 
             void operator()(const NodeBinExprArgs* args) const
             {
-                for(int i = 0;i < static_cast<int>(args->args.size());++i) {
+                for(int i = static_cast<int>(args->args.size()) - 1;i > -1;--i) {
                     gen.gen_expr(args->args[i]);
                 }
             }
@@ -674,7 +674,7 @@ public:
                 if(static_cast<int>(stmt_proc->params.size()) != 0U && !nostdargs) {
                     int rev_i = 0;
                     for(int i = static_cast<int>(stmt_proc->params.size()) - 1;i > -1;--i, rev_i++) {
-                        gen.m_output << "    mov edx, dword [ebp+" << i * 4 + 8 << "]\n";
+                        gen.m_output << "    mov edx, dword [ebp+" << rev_i * 4 + 8 << "]\n";
                         gen.m_output << "    mov dword [ebp-" << rev_i * 4 + 4 << "], edx\n";
                     }
                 }
@@ -754,15 +754,19 @@ public:
                     if(proc.value().params.size() == 0) {
                         gen.GeneratorError(stmt_call->def, "procedure `" + name + "` don't excepts any arguments");
                     }
+                    bool nosizedargs = std::find(proc.value().attrs.begin(), proc.value().attrs.end(), ProcAttr::nosizedargs) != proc.value().attrs.end();
                     NodeExpr* args = stmt_call->args.value();
                     if(std::holds_alternative<NodeBinExpr*>(args->var)) {
                         NodeBinExpr* cexpr = std::get<NodeBinExpr*>(args->var);
                         if(std::holds_alternative<NodeBinExprArgs*>(cexpr->var)) {
                             std::vector<NodeExpr*> pargs = get<NodeBinExprArgs*>(cexpr->var)->args;
-                            if(pargs.size() != proc.value().params.size()) {
+                            if(pargs.size() != proc.value().params.size() && !nosizedargs) {
                                 gen.GeneratorError(stmt_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got " + std::to_string(pargs.size()));
                             }
-                            for(int i = 0;i < static_cast<int>(pargs.size());++i) {
+                            if(pargs.size() < proc.value().params.size() && nosizedargs) {
+                                gen.GeneratorError(stmt_call->def, "procedure `" + name + "` excepts minimum" + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got " + std::to_string(pargs.size()));
+                            }
+                            for(int i = 0;i < static_cast<int>(proc.value().params.size());++i) {
                                 if(gen.type_of_expr(pargs[i]) != proc.value().params[i].second) {
                                     gen.GeneratorError(stmt_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
                                 }
@@ -773,7 +777,7 @@ public:
                         if(gen.type_of_expr(args) != proc.value().params[0].second) {
                             gen.GeneratorError(stmt_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[0].second) + " at 0 argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(args)));
                         }
-                        if(proc.value().params.size() != 1U) {
+                        if(proc.value().params.size() != 1U && !nosizedargs) {
                             gen.GeneratorError(stmt_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got 0");
                         }
                         stack_allign++;

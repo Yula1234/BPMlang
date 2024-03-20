@@ -51,6 +51,7 @@ std::ostream& operator<<(std::ostream& out, const DataType dt) {
 enum class ProcAttr {
     nostdargs,
     noprolog,
+    nosizedargs
 };
 
 std::optional<ProcAttr> string_to_PA(std::string str) {
@@ -59,6 +60,9 @@ std::optional<ProcAttr> string_to_PA(std::string str) {
     }
     if(str == "noprolog") {
         return ProcAttr::noprolog;
+    }
+    if(str == "nosizedargs") {
+        return ProcAttr::nosizedargs;
     }
     return std::nullopt;
 }
