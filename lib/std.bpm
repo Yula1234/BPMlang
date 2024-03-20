@@ -23,10 +23,12 @@ proc memcpy src:ptr dst:ptr size:int -> void {
 	}
 }
 
+const UTOS_BUFFER_CAPACITY 128;
+
 proc tmp_utos src:ptr number:int -> int {
 	let i = 0;
 	let result = number;
-	buffer bf(256);
+	buffer bf(UTOS_BUFFER_CAPACITY);
 	while(result != 0) {
 		store8(&bf + i, (result % 10) + '0');
 		result = result / 10;
@@ -47,7 +49,7 @@ proc utos src:ptr number:int -> void {
 	let i = 0;
 	let strsize_i = tmp_utos(src, number);
 	let strsize_m = strsize_i - 1;
-	buffer tmpb(128);
+	buffer tmpb(UTOS_BUFFER_CAPACITY);
 	memcpy(&tmpb, src, strsize_i);
 	store8(&tmpb + strsize_i, 0);
 	while(i < strsize_i) {
@@ -88,14 +90,16 @@ proc puts string:ptr -> void {
 	fputs(stdout, string);
 }
 
+const FPUTU_BUFFER_CAPACITY 128;
+
 proc fputuwnl fd:int number:int -> void {
-	buffer tmp(256);
+	buffer tmp(FPUTU_BUFFER_CAPACITY);
 	utos(&tmp, number);
 	fputs(fd, &tmp);
 }
 
 proc fputu fd:int number:int -> void {
-	buffer tmp(256);
+	buffer tmp(FPUTU_BUFFER_CAPACITY);
 	utos(&tmp, number);
 	fputs(fd, &tmp);
 	fputs(fd, "\n");
