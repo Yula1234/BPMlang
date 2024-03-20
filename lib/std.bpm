@@ -69,9 +69,9 @@ proc wrapper_write
 			  // to a compiller dont generate arguments
 ] // procedure attributes
 {
-	asm "push dword [ebp+8]"; // pushing SizeToWrite
+	asm "push dword [ebp+16]"; // pushing SizeToWrite
 	asm "push dword [ebp+12]"; // pushing data
-	asm "push dword [ebp+16]"; // pushing FileDesc
+	asm "push dword [ebp+8]"; // pushing FileDesc
 	asm "call write"; // error code stored in eax
 	// if procedure uses as expr eax returned
 	asm "add esp, 12";
