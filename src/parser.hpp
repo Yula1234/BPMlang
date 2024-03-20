@@ -391,7 +391,11 @@ public:
     void error_expected(const std::string& msg) const
     {
         putloc(peek(-1).value());
-        std::cout << " ERROR: excepted " << msg << ", but got " << tok_to_string(peek().value().type) << "\n";
+        if(peek().has_value()) {
+            std::cout << " ERROR: excepted " << msg << ", but got " << tok_to_string(peek().value().type) << "\n";
+        } else {
+            std::cout << " ERROR: excepted " << msg << ", but got nothing\n";
+        }
         exit(EXIT_FAILURE);
     }
 
