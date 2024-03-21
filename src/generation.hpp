@@ -444,7 +444,46 @@ public:
                     gen.m_output << "    push dword " << objectSize * 4U << "\n";
                     gen.m_output << "    call malloc\n";
                     gen.m_output << "    add esp, 4\n";
-                    gen.m_output << "    push eax\n";
+                    bool eax_break = false;
+                    std::vector<NodeExpr*> iargs;
+                    if(term_call->args.has_value()) {
+                        if(std::holds_alternative<NodeBinExpr*>(term_call->args.value()->var)) {
+                            NodeBinExpr* binargs = std::get<NodeBinExpr*>(term_call->args.value()->var);
+                            if(std::holds_alternative<NodeBinExprArgs*>(binargs->var)) {
+                                NodeBinExprArgs* args = std::get<NodeBinExprArgs*>(binargs->var);
+                                iargs = args->args;
+                            } else {
+                                iargs.push_back(term_call->args.value());
+                            }
+                        } else {
+                            if(iargs.size() == 0U) {
+                                iargs.push_back(term_call->args.value());
+                            }
+                        }
+                    }
+                    if(iargs.size() != 0U) {
+                        if(iargs.size() != st.value().fields.size()) {
+                            gen.GeneratorError(term_call->def, "except " + std::to_string(st.value().fields.size()) + " args\nNOTE: but got " + std::to_string(iargs.size()) + "\nNOTE: if you don't want initialize all fields dont provide any arguments");
+                        }
+                        eax_break = true;
+                        gen.m_output << "    mov dword [tmp_stor], eax\n";
+                        for(int i = 0;i < static_cast<int>(iargs.size());++i) {
+                            DataType itype = gen.type_of_expr(iargs[i]);
+                            DataType ftype = st.value().fields[i].second;
+                            if(itype != ftype) {
+                                gen.GeneratorError(term_call->def, "missmatch in initializers types for field nth `" + std::to_string(i + 1) + "`\nNOTE: field name - `" + st.value().fields[i].first + "`" + "\nNOTE: excepted " + ftype.to_string() + "\nNOTE: but got " + itype.to_string());
+                            }
+                            gen.gen_expr(iargs[i]);
+                            gen.m_output << "    pop ecx\n";
+                            gen.m_output << "    mov edx, dword [tmp_stor]\n";
+                            gen.m_output << "    mov dword [edx+" << i * 4 << "], ecx\n";
+                        }
+                    }
+                    if(!eax_break) {
+                        gen.m_output << "    push eax\n";
+                    } else {
+                        gen.m_output << "    push dword [tmp_stor]\n";
+                    }
                     return;
                 }
                 gen.GeneratorError(term_call->def, "unkown procedure `" + name + "`");
@@ -1076,6 +1115,8 @@ public:
             hexstr.clear();
             m_output << "0x0\n";
         }
+        m_output << "\nsection .bss\n";
+        m_output << "    tmp_stor: resd 1\n";
         result << m_output.str();
         return result.str();
     }
