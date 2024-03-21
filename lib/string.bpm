@@ -23,6 +23,6 @@ proc streq str1:ptr str2:ptr -> int {
 
 proc strcpy src:ptr dst:ptr -> void {
 	let dstsize = strlen(dst);
-	memcpy(src, dst, dstsize);
+	memcopy(src, dst, dstsize);
 	store8(src + dstsize, 0);
 }

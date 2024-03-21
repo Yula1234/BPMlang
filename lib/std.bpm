@@ -19,7 +19,7 @@ proc tmp_utos src:ptr number:int -> int {
 		result = result / 10;
 		i = i + 1;
 	}
-	memcpy(src, &bf, i);
+	memcopy(src, &bf, i);
 	return i;
 }
 
@@ -35,7 +35,7 @@ proc utos src:ptr number:int -> void {
 	let strsize_i = tmp_utos(src, number);
 	let strsize_m = strsize_i - 1;
 	buffer tmpb(UTOS_BUFFER_CAPACITY);
-	memcpy(&tmpb, src, strsize_i);
+	memcopy(&tmpb, src, strsize_i);
 	store8(&tmpb + strsize_i, 0);
 	while(i < strsize_i) {
 		store8(src + i, rd8(&tmpb + strsize_m));
