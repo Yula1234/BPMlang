@@ -6,6 +6,10 @@ const stderr 2;
 // characters
 const NEWLINE 10;
 
+// exit codes
+const EXIT_SUCCESS 0;
+const EXIT_FAILURE 1;
+
 // booleans constants
 const true 1;
 const false 0;
