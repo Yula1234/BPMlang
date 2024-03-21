@@ -581,14 +581,14 @@ public:
 
             void operator()(const NodeBinExprLess* less) const
             {
-                gen.gen_expr(less->rhs);
                 gen.gen_expr(less->lhs);
+                gen.gen_expr(less->rhs);
                 gen.m_output << "    mov edx, 0\n";
                 gen.m_output << "    mov ecx, 1\n";
                 gen.m_output << "    pop ebx\n";
                 gen.m_output << "    pop eax\n";
                 gen.m_output << "    cmp eax, ebx\n";
-                gen.m_output << "    cmovae edx, ecx\n";
+                gen.m_output << "    cmovc edx, ecx\n";
                 gen.m_output << "    push edx\n";
             }
 
