@@ -886,10 +886,10 @@ public:
                 }
             }
             try_consume_err(TokenType::arrow);
-            if(peek().has_value() && peek().value().type != TokenType::int_type && peek().value().type != TokenType::ptr_type && peek().value().type != TokenType::void_type) {
+            if(!is_type_token(peek().value().type)) {
                 error_expected("procedure return type");
             }
-            DataType rettype = token_to_dt(consume().type);
+            DataType rettype = uni_token_to_dt(consume());
             stmt_proc->rettype = rettype;
             stmt_proc->name = identif.value.value();
             stmt_proc->params = pparams;
