@@ -47,3 +47,16 @@ proc sv_chop_by sv:StringView chr:int -> int {
 	asm "sv_chop_by_end:";
 	return 0;
 }
+
+const NOT_FINDED 4294967295;
+
+proc sv_find sv:StringView chr:int -> int {
+	let i = 0;
+	while(i < strlen(sv.data)) {
+		if(sv_at(sv, i) == chr) {
+			return i;
+		}
+		i = i + 1;
+	}
+	return NOT_FINDED;
+}
