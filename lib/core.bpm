@@ -49,3 +49,13 @@ proc cmemcpy src:ptr dst:ptr size:int -> void {
 	asm "call memcpy";
 	asm "add esp, 12";
 }
+
+cextern "printf";
+
+proc cputu number:int -> void
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "push numfmtnl";
+	asm "call printf";
+	asm "add esp, 8";
+}
