@@ -1,0 +1,49 @@
+include "std"
+
+struct StringView {
+	count:int,
+	data:ptr
+}
+
+proc sv_from cstr:ptr -> StringView {
+	return StringView(strlen(cstr), cstr);
+}
+
+proc sv_cut sv:StringView -> void {
+	sv.data = (sv.data) + 1;
+	sv.count = (sv.count) - 1;
+}
+
+proc sv_first_chr sv:StringView -> int {
+	return rd8(sv.data);
+}
+
+proc sv_at sv:StringView index:int -> int {
+	return rd8((sv.data) + index);
+}
+
+proc sv_trim_left sv:StringView -> void {
+	while(sv_first_chr(sv) == ' ') {
+		sv_cut(sv);
+	}
+}
+
+proc fputSV fd:int sv:StringView -> void {
+	fputs(fd, sv.data);
+}
+
+proc putSV sv:StringView -> void {
+	fputSV(stdout, sv);
+}
+
+proc sv_chop_by sv:StringView chr:int -> int {
+	while(sv_first_chr(sv) != chr) {
+		if(sv_first_chr(sv) == 0) {
+			asm "jmp sv_chop_by_end";
+		}
+		sv_cut(sv);
+	}
+	sv_cut(sv);
+	asm "sv_chop_by_end:";
+	return 0;
+}
