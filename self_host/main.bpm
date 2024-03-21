@@ -1,0 +1,16 @@
+include "std"
+include "fsys"
+include "string"
+include "string_view"
+
+proc compiller_usage fd:int -> void {
+	fputs(fd, "Incorrect usage...\n");
+	fputs(fd, "Correct is: out <input.bpm>\n");
+}
+
+proc main argc:int argv:ptr -> void {
+	if(argc < 2) {
+		compiller_usage(stdout);
+		exit(1);
+	}
+}
