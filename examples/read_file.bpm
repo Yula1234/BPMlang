@@ -1,0 +1,10 @@
+include "std"
+include "fsys"
+
+proc main -> void {
+	let file = openf("test.txt", "r");
+	buffer buf(1024);
+	read_file(file, &buf);
+	puts(&buf);
+	closef(file);
+}

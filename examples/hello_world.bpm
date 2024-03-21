@@ -1,0 +1,5 @@
+include "std"
+
+proc main -> void {
+	puts("Hello, World!\n");
+}
