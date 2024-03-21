@@ -28,12 +28,12 @@ proc sv_trim_left sv:StringView -> void {
 	}
 }
 
-proc fputSV fd:int sv:StringView -> void {
+proc sv_fput fd:int sv:StringView -> void {
 	fputs(fd, sv.data);
 }
 
-proc putSV sv:StringView -> void {
-	fputSV(stdout, sv);
+proc sv_put sv:StringView -> void {
+	sv_fput(stdout, sv);
 }
 
 proc sv_chop_by sv:StringView chr:int -> int {
@@ -59,4 +59,12 @@ proc sv_find sv:StringView chr:int -> int {
 		i = i + 1;
 	}
 	return NOT_FINDED;
+}
+
+proc sv_copy_sized src:ptr dst:StringView size:int -> void {
+	memcopy(src, dst.data, size);
+}
+
+proc sv_copy src:ptr dst:StringView -> void {
+	sv_copy_sized(src, dst, dst.count);
 }
