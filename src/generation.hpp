@@ -1103,6 +1103,7 @@ public:
 
         m_output << "\nsection .data\n";
         m_output << "    numfmt: db \"%d\", 0x0\n";
+        m_output << "    numfmtnl: db \"%d\", 0xa, 0x0\n";
         m_output << "    strfmt: db \"%s\", 0x0\n";
         for(int i = 0;i < static_cast<int>(m_strings.size());++i) {
             String& cur_s = m_strings[i];
