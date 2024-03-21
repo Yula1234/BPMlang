@@ -8,6 +8,17 @@ proc strlen str:ptr -> int {
 	return i;
 }
 
+proc fputs
+	fd:int // File Descriptor
+	string:ptr // string to put into a file
+-> void {
+	wrapper_write(fd, string, strlen(string));
+}
+
+proc puts string:ptr -> void {
+	fputs(stdout, string);
+}
+
 const UTOS_BUFFER_CAPACITY 128;
 
 proc tmp_utos src:ptr number:int -> int {
@@ -36,23 +47,12 @@ proc utos src:ptr number:int -> void {
 	let strsize_m = strsize_i - 1;
 	buffer tmpb(UTOS_BUFFER_CAPACITY);
 	memcopy(&tmpb, src, strsize_i);
-	store8(&tmpb + strsize_i, 0);
 	while(i < strsize_i) {
 		store8(src + i, rd8(&tmpb + strsize_m));
 		strsize_m = strsize_m - 1;
 		i = i + 1;
 	}
-}
-
-proc fputs
-	fd:int // File Descriptor
-	string:ptr // string to put into a file
--> void {
-	wrapper_write(fd, string, strlen(string));
-}
-
-proc puts string:ptr -> void {
-	fputs(stdout, string);
+	store8(src + strsize_i, 0);
 }
 
 proc fputc fd:int chr:int -> void {
