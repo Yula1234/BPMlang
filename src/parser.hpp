@@ -388,6 +388,15 @@ struct NodeProg {
     std::vector<NodeStmt*> stmts {};
 };
 
+bool file_exists(std::string name) {
+    if(FILE *file = fopen(name.c_str(), "r")) {
+        fclose(file);
+        return true;
+    } else {
+        return false;
+    }
+}
+
 class Parser {
 public:
     struct Constant {
@@ -1029,8 +1038,17 @@ public:
             if(peek().has_value() && peek().value().type != TokenType::string_lit) {
                 error_expected("file path string");
             }
-            std::string fname = "./lib/" + consume().value.value() + ".bpm";
-            std::string path = std::filesystem::canonical(fname).string();
+            std::string fname = consume().value.value() + ".bpm";
+            std::string path = "";
+            if(file_exists(fname)) {
+                path = std::filesystem::canonical(fname).string();
+            }
+            else if(file_exists("lib/" + fname)) {
+                path = std::filesystem::canonical("lib/" + fname).string();
+            }
+            else {
+                ParsingError("file not found at `include` - `" + fname + "`");
+            }
             m_proprocessor_stmt = true;
             if(std::find(m_includes.begin(), m_includes.end(), path) != m_includes.end()) {
                 return {};
