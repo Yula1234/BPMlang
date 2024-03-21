@@ -645,7 +645,24 @@ public:
             return {};
         }
         auto expr_lhs = m_allocator.emplace<NodeExpr>(term_lhs.value());
-
+        if(peek().has_value() && peek().value().type == TokenType::dot) {
+            Token def = consume();
+            if(auto term = parse_term()) {
+                NodeTerm* ident = term.value();
+                NodeExpr* iexpr = m_allocator.emplace<NodeExpr>();
+                iexpr->var = ident;
+                NodeBinExprDot* dot = m_allocator.emplace<NodeBinExprDot>();
+                dot->lhs = expr_lhs;
+                dot->rhs = iexpr;
+                NodeBinExpr* binexpr = m_allocator.emplace<NodeBinExpr>();
+                binexpr->var = dot;
+                NodeExpr* resval = m_allocator.emplace<NodeExpr>();
+                resval->var = binexpr;
+                expr_lhs = resval;
+            } else {
+                error_expected("identifier");
+            }
+        }
         while (true) {
             std::optional<Token> curr_tok = peek();
             std::optional<int> prec;
