@@ -2,6 +2,7 @@ include "std"
 include "fsys"
 include "string"
 include "string_view"
+include "self_host/arena"
 
 proc compiller_usage fd:int -> void {
 	fputs(fd, "Incorrect usage...\n");
@@ -9,8 +10,15 @@ proc compiller_usage fd:int -> void {
 }
 
 proc main argc:int argv:ptr -> void {
-	if(argc < 2) {
+	if(argc != 2) {
 		compiller_usage(stdout);
 		exit(1);
 	}
+	let FILE_PATH = nth_argv(argv, 1);
+	let file = openf(FILE_PATH, "r");
+	let arena = new_arena(512 * 1024); // 512 kb
+	let FILE_CONTENT_BUF = arena_take(arena, 12 * 1024); // 12 kb
+	read_file(file, FILE_CONTENT_BUF);
+	arena_delete(arena);
+	closef(file);
 }
