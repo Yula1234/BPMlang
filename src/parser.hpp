@@ -254,9 +254,14 @@ struct NodeBinExprArgs {
     std::vector<NodeExpr*> args;
 };
 
+struct NodeBinExprDot {
+    NodeExpr* lhs; // object
+    NodeExpr* rhs; // field (must be a NodeTermIdent*)
+};
+
 struct NodeBinExpr {
     Token def;
-    std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*, NodeBinExprMod*> var;
+    std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*, NodeBinExprMod*, NodeBinExprDot*> var;
 };
 
 struct NodeTerm {
@@ -716,6 +721,12 @@ public:
                 expr->def = ctok;
                 expr->var = above;
             }
+            else if (type == TokenType::dot) {
+                expr_lhs2->var = expr_lhs->var;
+                auto dot = m_allocator.emplace<NodeBinExprDot>(expr_lhs2, expr_rhs.value());
+                expr->def = ctok;
+                expr->var = dot;
+            }
             else {
                 assert(false); // Unreachable;
             }
@@ -866,11 +877,11 @@ public:
                 for(int i = 0;peek().has_value() && peek().value().type != TokenType::arrow;++i) {
                     Token argid = try_consume_err(TokenType::ident);
                     try_consume_err(TokenType::double_dot);
-                    if(peek().value().type != TokenType::int_type && peek().value().type != TokenType::ptr_type) {
-                        error_expected("type");
+                    if(!is_type_token(peek().value().type)) {
+                        error_expected("arg type");
                     }
                     Token ttype = consume();
-                    DataType argtype = token_to_dt(ttype.type);
+                    DataType argtype = uni_token_to_dt(ttype);
                     pparams.push_back(std::make_pair(argid.value.value(), argtype));
                 }
             }

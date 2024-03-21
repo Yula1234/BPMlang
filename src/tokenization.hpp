@@ -55,6 +55,7 @@ enum class TokenType {
     cast,
     _struct,
     _delete,
+    dot,
 };
 
 #define BinaryOpsCount 7
@@ -163,6 +164,8 @@ std::string tok_to_string(const TokenType type)
         return "`struct`";
     case TokenType::_delete:
         return "`delete`";
+    case TokenType::dot:
+        return "`.`";
     }
     assert(false);
 }
@@ -171,6 +174,8 @@ int prec_IOTA = 0;
 inline std::optional<int> bin_prec(const TokenType type)
 {
     switch (type) {
+    case TokenType::dot:
+        return prec_IOTA++;
     case TokenType::eqeq:
     case TokenType::_not_eq:
     case TokenType::less:
@@ -476,6 +481,10 @@ public:
             else if (peek().value() == ',') {
                 consume();
                 tokens.push_back({ .type = TokenType::comma, .line = line_count, .col = m_col - 1, .file = file });
+            }
+            else if (peek().value() == '.') {
+                consume();
+                tokens.push_back({ .type = TokenType::dot, .line = line_count, .col = m_col - 1, .file = file });
             }
             else if (peek().value() == '&') {
                 consume();

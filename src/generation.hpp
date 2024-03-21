@@ -77,6 +77,15 @@ public:
         return std::nullopt;
     }
 
+    std::optional<std::pair<size_t, DataType>> field_lookup(Struct st, std::string field) {
+        for(int i = 0;i < static_cast<int>(st.fields.size());++i) {
+            if(st.fields[i].first == field) {
+                return std::make_pair(static_cast<size_t>(i), st.fields[i].second);
+            }
+        }
+        return std::nullopt;
+    }
+
     std::optional<String> string_lookup(std::string svalue) {
         String it;
         bool finded = false;
@@ -96,6 +105,31 @@ public:
         putloc(tok);
         std::cout << " ERROR: " << msg << "\n";
         exit(EXIT_FAILURE);
+    }
+
+    DataType type_of_dot(NodeBinExprDot* dot) {
+        DataType otype = type_of_expr(dot->lhs);
+        if(std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
+            NodeTerm* id = std::get<NodeTerm*>(dot->rhs->var);
+            if(!std::holds_alternative<NodeTermIdent*>(id->var)) {
+                return DataTypeVoid;
+            }
+            NodeTermIdent* tid = std::get<NodeTermIdent*>(id->var);
+            Token ident = tid->ident;
+            std::string field_name = ident.value.value();
+            if(!otype.is_object) {
+                return DataTypeVoid;
+            }
+            std::string struct_name = otype.getobjectname();
+            Struct st = struct_lookup(struct_name).value();
+            std::optional<std::pair<size_t, DataType>> field = field_lookup(st, field_name);
+            if(!field.has_value()) {
+                return DataTypeVoid;
+            }
+            return field.value().second;
+        } else {
+            return DataTypeVoid;
+        }
     }
 
     DataType type_of_expr(const NodeExpr* expr) {
@@ -123,20 +157,20 @@ public:
                 NodeTermCall* call = std::get<NodeTermCall*>(term->var);
                 std::string name = call->name;
                 std::optional<Procedure> proc = proc_lookup(name);
-                if(!proc.has_value()) {
-                    return make_void_type();
+                if(proc.has_value()) {
+                    return proc.value().rettype;
                 }
-                return proc.value().rettype;
+                std::optional<Struct> st = struct_lookup(call->name);
+                if(st.has_value()) {
+                    DataType dt = st.value().name;
+                    return dt;
+                }
+                return DataTypeVoid;
             }
             if(std::holds_alternative<NodeTermIdent*>(term->var)) {
                 std::optional<Var> svar = var_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
                 if(svar.has_value()) {
                     return svar.value().type;
-                }
-                std::optional<Struct> sstruct = struct_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
-                if(sstruct.has_value()) {
-                    DataType dt = std::get<NodeTermIdent*>(term->var)->ident.value.value();
-                    return dt;
                 }
                 GeneratorError(std::get<NodeTermIdent*>(term->var)->ident, "unkown word `" + std::get<NodeTermIdent*>(term->var)->ident.value.value() + "`");
             }
@@ -172,6 +206,10 @@ public:
             if(std::holds_alternative<NodeBinExprAbove*>(binex->var)) {
                 return type_of_expr(std::get<NodeBinExprAbove*>(binex->var)->lhs);
             }
+            if(std::holds_alternative<NodeBinExprDot*>(binex->var)) {
+                NodeBinExprDot* dot = std::get<NodeBinExprDot*>(binex->var);
+                return type_of_dot(dot);
+            }  
         }
         assert(false);
     }
@@ -206,6 +244,8 @@ public:
         } else if(std::holds_alternative<NodeBinExprAbove*>(expr->var)) {
             NodeBinExprAbove* above = std::get<NodeBinExprAbove*>(expr->var);
             return type_of_expr(above->lhs) == type_of_expr(above->rhs);
+        } else if(std::holds_alternative<NodeBinExprDot*>(expr->var)) {
+            return true;
         } else {
             assert(false);
         }
@@ -334,19 +374,6 @@ public:
                     }
                     return;
                 }
-                std::optional<Struct> st = gen.struct_lookup(term_ident->ident.value.value());
-                if(st.has_value()) {
-                    size_t objectSize = st.value().fields.size();
-                    if(objectSize == 0U) {
-                        gen.m_output << "    push dword 0\n";
-                        return;
-                    }
-                    gen.m_output << "    push dword " << objectSize * 4U << "\n";
-                    gen.m_output << "    call malloc\n";
-                    gen.m_output << "    add esp, 4\n";
-                    gen.m_output << "    push eax\n";
-                    return;
-                }
                 gen.GeneratorError(term_ident->ident, "unkown word `" + term_ident->ident.value.value() + "`");
             }
 
@@ -359,64 +386,80 @@ public:
             {
                 const std::string name = term_call->def.value.value();
                 std::optional<Procedure> proc = gen.proc_lookup(name);
-                if(!proc.has_value()) {
-                    gen.GeneratorError(term_call->def, "unkown procedure `" + name + "`");
-                }
-                size_t stack_allign = 0;
-                if(term_call->args.has_value()) {
-                    if(proc.value().params.size() == 0) {
-                        gen.GeneratorError(term_call->def, "procedure `" + name + "` don't excepts any arguments");
-                    }
-                    NodeExpr* args = term_call->args.value();
-                    if(std::holds_alternative<NodeBinExpr*>(args->var)) {
-                        NodeBinExpr* cexpr = std::get<NodeBinExpr*>(args->var);
-                        if(std::holds_alternative<NodeBinExprArgs*>(cexpr->var)) {
-                            std::vector<NodeExpr*> pargs = get<NodeBinExprArgs*>(cexpr->var)->args;
-                            if(pargs.size() != proc.value().params.size()) {
-                                gen.GeneratorError(term_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got " + std::to_string(pargs.size()));
-                            }
-                            for(int i = 0;i < static_cast<int>(pargs.size());++i) {
-                                if(gen.type_of_expr(pargs[i]) != proc.value().params[i].second) {
-                                    gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
+                if(proc.has_value()) {
+                    size_t stack_allign = 0;
+                    if(term_call->args.has_value()) {
+                        if(proc.value().params.size() == 0) {
+                            gen.GeneratorError(term_call->def, "procedure `" + name + "` don't excepts any arguments");
+                        }
+                        NodeExpr* args = term_call->args.value();
+                        if(std::holds_alternative<NodeBinExpr*>(args->var)) {
+                            NodeBinExpr* cexpr = std::get<NodeBinExpr*>(args->var);
+                            if(std::holds_alternative<NodeBinExprArgs*>(cexpr->var)) {
+                                std::vector<NodeExpr*> pargs = get<NodeBinExprArgs*>(cexpr->var)->args;
+                                if(pargs.size() != proc.value().params.size()) {
+                                    gen.GeneratorError(term_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got " + std::to_string(pargs.size()));
                                 }
+                                for(int i = 0;i < static_cast<int>(pargs.size());++i) {
+                                    if(gen.type_of_expr(pargs[i]) != proc.value().params[i].second) {
+                                        gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
+                                    }
+                                }
+                                stack_allign += pargs.size();
                             }
-                            stack_allign += pargs.size();
+                        } else {
+                            if(gen.type_of_expr(args) != proc.value().params[0].second) {
+                                gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[0].second) + " at 0 argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(args)));
+                            }
+                            if(proc.value().params.size() != 1U) {
+                                gen.GeneratorError(term_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got 0");
+                            }
+                            stack_allign++;
                         }
                     } else {
-                        if(gen.type_of_expr(args) != proc.value().params[0].second) {
-                            gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[0].second) + " at 0 argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(args)));
+                        if(proc.value().params.size() != 0U) {
+                            gen.GeneratorError(term_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " args\nNOTE: but got 0");
                         }
-                        if(proc.value().params.size() != 1U) {
-                            gen.GeneratorError(term_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got 0");
-                        }
-                        stack_allign++;
                     }
-                } else {
-                    if(proc.value().params.size() != 0U) {
-                        gen.GeneratorError(term_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " args\nNOTE: but got 0");
+                    if(term_call->args.has_value()) {
+                        gen.gen_expr(term_call->args.value());
                     }
+                    gen.m_output << "    call " << name << "\n";
+                    if(stack_allign != 0) {
+                        gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
+                    }
+                    if(proc.value().rettype == DataTypeVoid) {
+                        gen.GeneratorError(term_call->def, "using void function as expression");
+                    }
+                    gen.m_output << "    push eax\n";
+                    return;
                 }
-                if(term_call->args.has_value()) {
-                    gen.gen_expr(term_call->args.value());
+                std::optional<Struct> st = gen.struct_lookup(term_call->name);
+                if(st.has_value()) {
+                    size_t objectSize = st.value().fields.size();
+                    if(objectSize == 0U) {
+                        gen.m_output << "    push dword 0\n";
+                        return;
+                    }
+                    gen.m_output << "    push dword " << objectSize * 4U << "\n";
+                    gen.m_output << "    call malloc\n";
+                    gen.m_output << "    add esp, 4\n";
+                    gen.m_output << "    push eax\n";
+                    return;
                 }
-                gen.m_output << "    call " << name << "\n";
-                if(stack_allign != 0) {
-                    gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
-                }
-                if(proc.value().rettype == DataTypeVoid) {
-                    gen.GeneratorError(term_call->def, "using void function as expression");
-                }
-                gen.m_output << "    push eax\n";
+                gen.GeneratorError(term_call->def, "unkown procedure `" + name + "`");
             }
         };
         TermVisitor visitor({ .gen = *this , .lvalue = lvalue });
         std::visit(visitor, term->var);
     }
 
-    void gen_bin_expr(const NodeBinExpr* bin_expr)
+    void gen_bin_expr(const NodeBinExpr* bin_expr, bool lvalue = false)
     {
         struct BinExprVisitor {
             Generator& gen;
+            bool lvalue;
+            const NodeBinExpr* base;
 
             void operator()(const NodeBinExprSub* sub) const
             {
@@ -525,6 +568,47 @@ public:
                 gen.m_output << "    push edx\n";
             }
 
+            void operator()(const NodeBinExprDot* dot) const
+            {
+                DataType otype = gen.type_of_expr(dot->lhs);
+                if(std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
+                    NodeTerm* id = std::get<NodeTerm*>(dot->rhs->var);
+                    if(!std::holds_alternative<NodeTermIdent*>(id->var)) {
+                        gen.GeneratorError(base->def, "after `.` except identificator");
+                    }
+                    NodeTermIdent* tid = std::get<NodeTermIdent*>(id->var);
+                    Token ident = tid->ident;
+                    std::string field_name = ident.value.value();
+                    if(!otype.is_object) {
+                        gen.GeneratorError(base->def, "bellow `.` except expression of type any object\nNOTE: but got " + otype.to_string());
+                    }
+                    std::string struct_name = otype.getobjectname();
+                    Struct st = gen.struct_lookup(struct_name).value();
+                    std::optional<std::pair<size_t, DataType>> field = gen.field_lookup(st, field_name);
+                    if(!field.has_value()) {
+                        gen.GeneratorError(base->def, "object of type `" + otype.to_string() + "` doesn`t have field `" + field_name + "`");
+                    }
+                    size_t field_offset = field.value().first;
+                    gen.gen_expr(dot->lhs);
+                    if(lvalue) {
+                        gen.m_output << "    pop ecx\n";
+                        if(field_offset != 0U) {
+                            gen.m_output << "    add ecx, " << field_offset * 4U << "\n";
+                        }
+                        gen.m_output << "    push ecx\n";
+                    } else {
+                        gen.m_output << "    pop ecx\n";
+                        if(field_offset != 0U) {
+                            gen.m_output << "    push dword [ecx+" << field_offset * 4U << "]\n";
+                        } else {
+                           gen.m_output << "    push dword [ecx]\n"; 
+                        }
+                    }
+                } else {
+                    gen.GeneratorError(base->def, "after `.` except identificator");
+                }
+            }
+
             void operator()(const NodeBinExprArgs* args) const
             {
                 for(int i = static_cast<int>(args->args.size()) - 1;i > -1;--i) {
@@ -555,7 +639,7 @@ public:
         if(!std::holds_alternative<NodeBinExprArgs*>(bin_expr->var)) {
             typecheck_bin_expr_err(bin_expr, bin_str);
         }
-        BinExprVisitor visitor { .gen = *this };
+        BinExprVisitor visitor { .gen = *this , .lvalue = lvalue , .base = bin_expr };
         std::visit(visitor, bin_expr->var);
     }
 
@@ -572,7 +656,7 @@ public:
 
             void operator()(const NodeBinExpr* bin_expr) const
             {
-                gen.gen_bin_expr(bin_expr);
+                gen.gen_bin_expr(bin_expr, lvalue);
             }
         };
 
@@ -770,6 +854,11 @@ public:
             void operator()(const NodeStmtAssign* stmt_assign) const
             {
                 NodeExpr* lvalue = stmt_assign->lvalue;
+                DataType ltype = gen.type_of_expr(stmt_assign->lvalue);
+                DataType vtype = gen.type_of_expr(stmt_assign->expr);
+                if(ltype != vtype) {
+                    gen.GeneratorError(stmt_assign->def, "at = except type " + ltype.to_string() + "\nNOTE: but got " + vtype.to_string());
+                }
                 if(std::holds_alternative<NodeTerm*>(lvalue->var)) {
                     NodeTerm* lvterm = std::get<NodeTerm*>(lvalue->var);
                     if(std::holds_alternative<NodeTermIdent*>(lvterm->var)) {
