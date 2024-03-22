@@ -55,6 +55,16 @@ proc utos src:ptr number:int -> void {
 	store8(src + strsize_i, 0);
 }
 
+proc stou str:ptr -> int {
+	let i = 0;
+	let result = 0;
+	while(rd8(str + i) != 0) {
+		result = (rd8(str + i) - '0') + (result * 10);
+		i = i + 1;
+	}
+	return result;
+}
+
 proc fputc fd:int chr:int -> void {
 	buffer bf(2);
 	store8(&bf, chr);
