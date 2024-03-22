@@ -28,12 +28,31 @@ proc parser_consume prs:parser -> Token {
 	return tok;
 }
 
+struct NodeExprAdd {
+	left:ptr,
+	right:ptr,
+	def:Token
+}
+
+struct NodeExprSub {
+	left:ptr,
+	right:ptr,
+	def:Token
+}
+
 struct NodeExpr {
 	kind:int,
 	data:ptr
 }
 
 const NodeKindInt 0;
+const NodeKindPlus 1;
+const NodeKindMinus 2;
+
+proc Error str:ptr line:int col:int -> void {
+	format_print("ERROR %d:%d: %s\n", line, col, str);
+	exit(1);
+}
 
 proc parser_parse_term prs:parser def_tok:Token -> NodeExpr {
 	if(parser_peek(prs).type == TokenTypeIntLiteral) {
@@ -41,13 +60,39 @@ proc parser_parse_term prs:parser def_tok:Token -> NodeExpr {
 		let expr_int = NodeExpr(NodeKindInt, number_tok.value);
 		return expr_int;
 	}
+	putu(parser_peek(prs).type);
 	puts("Parser error (parse_term)\n");
 	exit(1);
 }
 
-proc Error str:ptr line:int col:int -> void {
-	format_print("ERROR %d:%d: %s\n", line, col, str);
-	exit(1);
+proc is_bin_operator toktype:int -> int {
+	if(toktype == TokenTypePlus) {
+		return true;
+	}
+	elif(toktype == TokenTypeMinus) {
+		return true;
+	}
+	return false;
+}
+
+proc parser_parse_expr prs:parser def_tok:Token -> NodeExpr {
+	let left_term = parser_parse_term(prs, def_tok);
+	if(is_bin_operator(parser_peek(prs).type) != 1) {
+		return left_term;
+	}
+	let bin_def = parser_peek(prs);
+	parser_consume(prs);
+	let right_expr = parser_parse_expr(prs, def_tok);
+	if(bin_def.type == TokenTypePlus) {
+		let bin_plus = NodeExprAdd(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
+		return NodeExpr(NodeKindPlus, cast(ptr, bin_plus));
+	}
+	elif(bin_def.type == TokenTypeMinus) {
+		let bin_minus = NodeExprSub(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
+		let sub_expr = NodeExpr(NodeKindMinus, cast(ptr, bin_minus));
+		return sub_expr;
+	}
+	Error("parser_parse_expr unreacheable", bin_def.line, bin_def.col);
 }
 
 proc parser_consume_err prs:parser type:int -> Token {
@@ -76,8 +121,8 @@ proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
 	if(parser_peek(prs).type == TokenTypeExit) {
 		def_tok = parser_consume(prs);
 		parser_consume_err(prs, TokenTypeOpenParen);
-		let term = cast(ptr, parser_parse_term(prs, def_tok));
-		let stmt_exit = NodeStmtExit(term);
+		let expr_exit = cast(ptr, parser_parse_expr(prs, def_tok));
+		let stmt_exit = NodeStmtExit(expr_exit);
 		let stmt = NodeStmt(StmtKindExit, cast(ptr, stmt_exit));
 		push_ast(ast, ast_level, cast(ptr, stmt));
 		parser_consume_err(prs, TokenTypeCloseParen);
