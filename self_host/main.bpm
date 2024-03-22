@@ -4,6 +4,7 @@ include "string"
 include "string_view"
 include "self_host/arena"
 include "self_host/lexer"
+include "self_host/parser"
 
 proc compiller_usage fd:int -> void {
 	fputs(fd, "Incorrect usage...\n");
@@ -26,8 +27,13 @@ proc main argc:int argv:ptr -> void {
 	let Lexer = new_lexer(FILE_CONTENT_BUF);
 	lexer_lex(Lexer, str_arena, tokens);
 
+	let ast_arena = new_arena(128 * 1024);
+	let Parser = new_parser(tokens);
+	parser_parse(Parser, arena_take(ast_arena, 128 * 1024));
+
 	lexer_delete(Lexer);
 	arena_delete(str_arena);
+	arena_delete(ast_arena);
 	memfree(FILE_CONTENT_BUF);
 	free_tokens(tokens);
 	closef(file);

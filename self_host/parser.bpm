@@ -1,0 +1,83 @@
+include "std"
+include "string"
+include "string_view"
+include "self_host/arena"
+include "self_host/lexer"
+
+proc push_ast ast:ptr index:ptr element:ptr -> void {
+	store32(ast + (rd32(index) * 4), element);
+	store32(index, rd32(index) + 1);
+}
+
+struct parser {
+	tokens:ptr,
+	index:int
+}
+
+proc new_parser tokens:ptr -> parser {
+	return parser(tokens, 0);
+}
+
+proc parser_peek prs:parser -> Token {
+	return cast(Token, rd32(prs.tokens + (prs.index * 4)));
+}
+
+proc parser_consume prs:parser -> Token {
+	let tok = parser_peek(prs);
+	prs.index = prs.index + 1;
+	return tok;
+}
+
+struct NodeExprInt {
+	value:ptr
+}
+
+struct NodeExpr {
+	kind:int,
+	data:ptr
+}
+
+const NodeKindInt 0;
+
+proc parser_parse_term prs:parser def_tok:Token -> NodeExpr {
+	if(parser_peek(prs).type == TokenTypeIntLiteral) {
+		let expr_int = NodeExprInt(parser_peek(prs).value);	
+		parser_consume(prs);
+		return NodeExpr(NodeKindInt, cast(ptr, expr_int));
+	}
+	puts("Parser error (parse_term)\n");
+	exit(1);
+}
+
+proc Error str:ptr line:int col:int -> void {
+	format_print("ERROR %d:%d: %s\n", line, col, str);
+	exit(1);
+}
+
+proc parser_consume_err prs:parser type:int -> Token {
+	let tok = parser_consume(prs);
+	if(tok.type != type) {
+		format_print("ERROR %d:%d: excepted %s, but got %s\n", tok.line, tok.col, tokentype2str(type), tokentype2str(tok.type));
+		exit(1);
+	}
+	return tok;
+}
+
+proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
+	let def_tok = Token(0, 0, 0, "");
+	delete def_tok;
+	if(parser_peek(prs).type == TokenTypeExit) {
+		def_tok = parser_consume(prs);
+		parser_consume_err(prs, TokenTypeOpenParen);
+		push_ast(ast, ast_level, cast(ptr, parser_parse_term(prs, def_tok)));
+		parser_consume_err(prs, TokenTypeCloseParen);
+		parser_consume_err(prs, TokenTypeSemi);
+	}
+}
+
+proc parser_parse prs:parser ast:ptr -> void {
+	let ast_level = 0;
+	while(cast(int, parser_peek(prs)) != 0) {
+		parser_parse_stmt(prs, ast, &ast_level);
+	}
+}

@@ -114,10 +114,6 @@ proc push_token tokens:ptr index:ptr tok:Token -> void {
 	store32(index, rd32(index) + 1);
 }
 
-proc ptr_to_tok p:ptr -> Token {
-	asm "push dword [ebp-4]";
-}
-
 proc tokentype2str type:int -> ptr {
 	if(type == TokenTypeIdent) {
 		return "`ident`";
@@ -237,5 +233,5 @@ proc lexer_lex
 		}
 	}
 	store32(tokens + (tokens_count * 4), 0);
-	print_tokens(tokens);
+	// print_tokens(tokens);
 }
