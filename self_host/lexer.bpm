@@ -95,7 +95,12 @@ proc is_identif chr:int -> int {
 	return true;
 }
 
-const TokenIdent 0;
+const TokenTypeIdent 0;
+const TokenTypeOpenParen 1;
+const TokenTypeCloseParen 2;
+const TokenTypeExit 3;
+const TokenTypeIntLiteral 4;
+const TokenTypeSemi 5;
 
 struct Token {
 	type:int,
@@ -113,6 +118,62 @@ proc ptr_to_tok p:ptr -> Token {
 	asm "push dword [ebp-4]";
 }
 
+proc tokentype2str type:int -> ptr {
+	if(type == TokenTypeIdent) {
+		return "`ident`";
+	}
+	elif(type == TokenTypeOpenParen) {
+		return "`(`";
+	}
+	elif(type == TokenTypeCloseParen) {
+		return "`)`";
+	}
+	elif(type == TokenTypeExit) {
+		return "`exit`";
+	}
+	elif(type == TokenTypeOpenParen) {
+		return "`(`";
+	}
+	elif(type == TokenTypeIntLiteral) {
+		return "`int literal`";
+	}
+	elif(type == TokenTypeOpenParen) {
+		return "`(`";
+	}
+	elif(type == TokenTypeSemi) {
+		return "`;`";
+	}
+	format_print("tokentype2str error: unkown TokenType `%d`\n", type);
+	exit(0);
+}
+
+proc print_token tok:Token -> void {
+	if(strlen(tok.value) != 0) {
+		format_print("Token(%s, %d:%d, %s)\n", tokentype2str(tok.type), tok.line, tok.col, tok.value);
+	} else {
+		format_print("Token(%s, %d:%d)\n", tokentype2str(tok.type), tok.line, tok.col);
+	}
+}
+
+proc print_tokens tokens:ptr -> void {
+	let i = 0;
+	while(rd32(tokens + (i * 4)) != 0) {
+		let tok = cast(Token, rd32(tokens + (i * 4)));
+		print_token(tok);
+		i = i + 1;
+	}
+}
+
+proc free_tokens tokens:ptr -> void {
+	let i = 0;
+	while(rd32(tokens + (i * 4)) != 0) {
+		let tok = cast(Token, rd32(tokens + (i * 4)));
+		delete tok;
+		i = i + 1;
+	}
+	memfree(tokens);
+}
+
 proc lexer_lex
 	lxr:lexer
 	str_arena:ArenaAllocator
@@ -121,13 +182,45 @@ proc lexer_lex
 {
 	let tokens_count = 0;
 	let line_count = 1;
+	let tmp_tok = Token(TokenTypeIdent, 0, 0, "");
+	delete tmp_tok;
 	let tmp_str = new_tmp_str(str_arena, 56);
 	while(lexer_peek(lxr) != NULL_PEEK) {
 		if(is_identif(lexer_peek(lxr))) {
 			while(is_identif(lexer_peek(lxr))) {
 				tmp_str_push(tmp_str, lexer_consume(lxr));
 			}
-			puts(tmp_str.data);
+			if(streq(tmp_str.data, "exit")) {
+				tmp_tok = Token(TokenTypeExit, line_count, lxr.col - strlen(tmp_str.data), "");
+				push_token(tokens, &tokens_count, tmp_tok);
+			}
+			else {
+				tmp_tok = Token(TokenTypeIdent, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data);
+				push_token(tokens, &tokens_count, tmp_tok);
+			}
+			tmp_str = new_tmp_str(str_arena, 56);
+		}
+		elif(lexer_peek(lxr) == '(') {
+			tmp_tok = Token(TokenTypeOpenParen, line_count, lxr.col - 1, "");
+			push_token(tokens, &tokens_count, tmp_tok);
+			lexer_consume(lxr);
+		}
+		elif(lexer_peek(lxr) == ')') {
+			tmp_tok = Token(TokenTypeCloseParen, line_count, lxr.col - 1, "");
+			push_token(tokens, &tokens_count, tmp_tok);
+			lexer_consume(lxr);
+		}
+		elif(lexer_peek(lxr) == ';') {
+			tmp_tok = Token(TokenTypeSemi, line_count, lxr.col - 1, "");
+			push_token(tokens, &tokens_count, tmp_tok);
+			lexer_consume(lxr);
+		}
+		elif(isdigit(lexer_peek(lxr))) {
+			while(isdigit(lexer_peek(lxr))) {
+				tmp_str_push(tmp_str, lexer_consume(lxr));
+			}
+			tmp_tok = Token(TokenTypeIntLiteral, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data);
+			push_token(tokens, &tokens_count, tmp_tok);
 			tmp_str = new_tmp_str(str_arena, 56);
 		}
 		elif(lexer_peek(lxr) == '\n') {
@@ -143,4 +236,6 @@ proc lexer_lex
 			lexer_consume(lxr);
 		}
 	}
+	store32(tokens + (tokens_count * 4), 0);
+	print_tokens(tokens);
 }

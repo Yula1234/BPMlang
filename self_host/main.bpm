@@ -29,6 +29,6 @@ proc main argc:int argv:ptr -> void {
 	lexer_delete(Lexer);
 	arena_delete(str_arena);
 	memfree(FILE_CONTENT_BUF);
-	memfree(tokens);
+	free_tokens(tokens);
 	closef(file);
 }
