@@ -28,10 +28,6 @@ proc parser_consume prs:parser -> Token {
 	return tok;
 }
 
-struct NodeExprInt {
-	value:ptr
-}
-
 struct NodeExpr {
 	kind:int,
 	data:ptr
@@ -41,9 +37,9 @@ const NodeKindInt 0;
 
 proc parser_parse_term prs:parser def_tok:Token -> NodeExpr {
 	if(parser_peek(prs).type == TokenTypeIntLiteral) {
-		let expr_int = NodeExprInt(parser_peek(prs).value);	
-		parser_consume(prs);
-		return NodeExpr(NodeKindInt, cast(ptr, expr_int));
+		let number_tok = parser_consume(prs);
+		let expr_int = NodeExpr(NodeKindInt, number_tok.value);
+		return expr_int;
 	}
 	puts("Parser error (parse_term)\n");
 	exit(1);
@@ -63,13 +59,27 @@ proc parser_consume_err prs:parser type:int -> Token {
 	return tok;
 }
 
+struct NodeStmt {
+	kind:int,
+	data:ptr
+}
+
+struct NodeStmtExit {
+	expr:ptr
+}
+
+const StmtKindExit 0;
+
 proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
 	let def_tok = Token(0, 0, 0, "");
 	delete def_tok;
 	if(parser_peek(prs).type == TokenTypeExit) {
 		def_tok = parser_consume(prs);
 		parser_consume_err(prs, TokenTypeOpenParen);
-		push_ast(ast, ast_level, cast(ptr, parser_parse_term(prs, def_tok)));
+		let term = cast(ptr, parser_parse_term(prs, def_tok));
+		let stmt_exit = NodeStmtExit(term);
+		let stmt = NodeStmt(StmtKindExit, cast(ptr, stmt_exit));
+		push_ast(ast, ast_level, cast(ptr, stmt));
 		parser_consume_err(prs, TokenTypeCloseParen);
 		parser_consume_err(prs, TokenTypeSemi);
 	}
@@ -80,4 +90,5 @@ proc parser_parse prs:parser ast:ptr -> void {
 	while(cast(int, parser_peek(prs)) != 0) {
 		parser_parse_stmt(prs, ast, &ast_level);
 	}
+	store32(ast + (ast_level * 4), 0);
 }
