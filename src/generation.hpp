@@ -706,7 +706,26 @@ public:
     size_t collect_alligns(const NodeScope* scope) {
         size_t fsz = 0U;
         for (const NodeStmt* stmt : scope->stmts) {
-            if(holds_alternative<NodeStmtLet*>(stmt->var)) {
+            if(std::holds_alternative<NodeStmtIf*>(stmt->var)) {
+                NodeStmtIf* ifstmt = std::get<NodeStmtIf*>(stmt->var);
+                fsz += collect_alligns(ifstmt->scope);
+                if(ifstmt->pred.has_value()) {
+                    NodeIfPred* pred = ifstmt->pred.value();
+                    if(std::holds_alternative<NodeIfPredElif*>(pred->var)) {
+                        NodeIfPredElif* pelif = std::get<NodeIfPredElif*>(pred->var);
+                        fsz += collect_alligns(pelif->scope);
+                    }
+                    else if(std::holds_alternative<NodeIfPredElse*>(pred->var)) {
+                        NodeIfPredElse* pelse = std::get<NodeIfPredElse*>(pred->var);
+                        fsz += collect_alligns(pelse->scope);
+                    }
+                }
+            }
+            else if(std::holds_alternative<NodeStmtWhile*>(stmt->var)) {
+                NodeStmtWhile* whstmt = std::get<NodeStmtWhile*>(stmt->var);
+                fsz += collect_alligns(whstmt->scope);
+            }
+            else if(std::holds_alternative<NodeStmtLet*>(stmt->var)) {
                 fsz += 1;
             }
             else if(std::holds_alternative<NodeStmtBuffer*>(stmt->var)) {
