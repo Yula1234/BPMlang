@@ -14,6 +14,29 @@ proc gen_generate_expr expr:NodeExpr gen:Generator -> void {
 	if(expr.kind == NodeKindInt) {
 		format_fprint(gen.asm_file.desc, "    push dword %s\n", expr.data);
 	}
+	elif(expr.kind == NodeKindPlus) {
+		let bin_expr = cast(NodeExprAdd, expr.data);
+		gen_generate_expr(cast(NodeExpr, bin_expr.left), gen);
+		gen_generate_expr(cast(NodeExpr, bin_expr.right), gen);
+		fputs(gen.asm_file.desc, "    pop ebx\n");
+		fputs(gen.asm_file.desc, "    pop eax\n");
+		fputs(gen.asm_file.desc, "    add eax, ebx\n");
+		fputs(gen.asm_file.desc, "    push eax\n");
+	}
+	elif(expr.kind == NodeKindMinus) {
+		bin_expr = cast(NodeExprAdd, expr.data);
+		gen_generate_expr(cast(NodeExpr, bin_expr.left), gen);
+		gen_generate_expr(cast(NodeExpr, bin_expr.right), gen);
+		fputs(gen.asm_file.desc, "    pop ebx\n");
+		fputs(gen.asm_file.desc, "    pop eax\n");
+		fputs(gen.asm_file.desc, "    sub eax, ebx\n");
+		fputs(gen.asm_file.desc, "    push eax\n");
+	}
+	else {
+		format_print("ERROR: unkown expr.kind at `gen_generate_expr` - ");
+		putu(expr.kind);
+		exit(1);
+	}
 }
 
 proc gen_generate_exit stmt:NodeStmtExit gen:Generator -> void {
