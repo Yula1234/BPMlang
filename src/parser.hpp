@@ -555,11 +555,11 @@ public:
             auto term_cast = m_allocator.emplace<NodeTermCast>();
             try_consume_err(TokenType::open_paren);
             term_cast->def = cast.value();
-            if(peek().has_value() && (peek().value().type != TokenType::int_type && peek().value().type != TokenType::ptr_type)) {
+            if(!is_type_token(peek().value().type)) {
                 error_expected("type name");
             }
             Token type = consume();
-            DataType dtype = token_to_dt(type.type);
+            DataType dtype = uni_token_to_dt(type);
             try_consume_err(TokenType::comma);
             term_cast->type = dtype;
             if(auto expr = parse_expr()) {
