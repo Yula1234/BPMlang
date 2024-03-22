@@ -108,7 +108,8 @@ struct Token {
 	type:int,
 	line:int,
 	col:int,
-	value:ptr
+	value:ptr,
+	file_loc:ptr,
 }
 
 proc push_token tokens:ptr index:ptr tok:Token -> void {
@@ -153,9 +154,9 @@ proc tokentype2str type:int -> ptr {
 
 proc print_token tok:Token -> void {
 	if(strlen(tok.value) != 0) {
-		format_print("Token(%s, %d:%d, %s)\n", tokentype2str(tok.type), tok.line, tok.col, tok.value);
+		format_print("Token(%s, %s:%d:%d, %s)\n", tokentype2str(tok.type), tok.file_loc, tok.line, tok.col, tok.value);
 	} else {
-		format_print("Token(%s, %d:%d)\n", tokentype2str(tok.type), tok.line, tok.col);
+		format_print("Token(%s, %s:%d:%d)\n", tokentype2str(tok.type), tok.file_loc, tok.line, tok.col);
 	}
 }
 
@@ -182,11 +183,12 @@ proc lexer_lex
 	lxr:lexer
 	str_arena:ArenaAllocator
 	tokens:ptr
+	FILE_PATH:ptr
 -> void 
 {
 	let tokens_count = 0;
 	let line_count = 1;
-	let tmp_tok = Token(TokenTypeIdent, 0, 0, "");
+	let tmp_tok = Token(TokenTypeIdent, 0, 0, "", FILE_PATH);
 	delete tmp_tok;
 	let tmp_str = new_tmp_str(str_arena, 56);
 	while(lexer_peek(lxr) != NULL_PEEK) {
@@ -195,37 +197,37 @@ proc lexer_lex
 				tmp_str_push(tmp_str, lexer_consume(lxr));
 			}
 			if(streq(tmp_str.data, "exit")) {
-				tmp_tok = Token(TokenTypeExit, line_count, lxr.col - strlen(tmp_str.data), "");
+				tmp_tok = Token(TokenTypeExit, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			else {
-				tmp_tok = Token(TokenTypeIdent, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data);
+				tmp_tok = Token(TokenTypeIdent, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data, FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			tmp_str = new_tmp_str(str_arena, 56);
 		}
 		elif(lexer_peek(lxr) == '(') {
-			tmp_tok = Token(TokenTypeOpenParen, line_count, lxr.col - 1, "");
+			tmp_tok = Token(TokenTypeOpenParen, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == ')') {
-			tmp_tok = Token(TokenTypeCloseParen, line_count, lxr.col - 1, "");
+			tmp_tok = Token(TokenTypeCloseParen, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == ';') {
-			tmp_tok = Token(TokenTypeSemi, line_count, lxr.col - 1, "");
+			tmp_tok = Token(TokenTypeSemi, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '+') {
-			tmp_tok = Token(TokenTypePlus, line_count, lxr.col - 1, "");
+			tmp_tok = Token(TokenTypePlus, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '-') {
-			tmp_tok = Token(TokenTypeMinus, line_count, lxr.col - 1, "");
+			tmp_tok = Token(TokenTypeMinus, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
@@ -233,7 +235,7 @@ proc lexer_lex
 			while(isdigit(lexer_peek(lxr))) {
 				tmp_str_push(tmp_str, lexer_consume(lxr));
 			}
-			tmp_tok = Token(TokenTypeIntLiteral, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data);
+			tmp_tok = Token(TokenTypeIntLiteral, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data, FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			tmp_str = new_tmp_str(str_arena, 56);
 		}
@@ -247,9 +249,12 @@ proc lexer_lex
 			}
 		}
 		else {
-			lexer_consume(lxr);
+			if(lexer_peek(lxr) != 0) {
+				format_print("%s:%d:%d ERROR: invalid token\n", FILE_PATH, line_count, lxr.col);
+				exit(1);
+			}
+			lexer_consume(lxr); // 0 byte
 		}
 	}
 	store32(tokens + (tokens_count * 4), 0);
-	// print_tokens(tokens);
 }

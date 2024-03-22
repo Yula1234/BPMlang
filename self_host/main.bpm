@@ -12,6 +12,15 @@ proc compiller_usage fd:int -> void {
 	fputs(fd, "Correct is: out <input.bpm>\n");
 }
 
+cextern "system";
+
+proc cmd_exec com_line_args:ptr -> void
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "call system";
+	asm "add esp, 4";
+}
+
 proc main argc:int argv:ptr -> void {
 	if(argc != 2) {
 		compiller_usage(stdout);
@@ -23,10 +32,10 @@ proc main argc:int argv:ptr -> void {
 	let FILE_CONTENT_BUF = memalloc(12 * 1024 * 1024);
 	read_file(file, FILE_CONTENT_BUF);
 
-	let str_arena = new_arena(12 * 1024);
+	let str_arena = new_arena(128 * 1024);
 	let tokens = memalloc(56 * 1024);
 	let Lexer = new_lexer(FILE_CONTENT_BUF);
-	lexer_lex(Lexer, str_arena, tokens);
+	lexer_lex(Lexer, str_arena, tokens, FILE_PATH);
 
 	let ast_arena = new_arena(128 * 1024);
 	let Parser = new_parser(tokens);
@@ -47,4 +56,8 @@ proc main argc:int argv:ptr -> void {
 
 	closef(file);
 	closef(asm_file);
+
+	cmd_exec("nasm --gprefix _ -fwin32 output2.asm -o out.o");
+	cmd_exec("gcc out.o -o out2.exe -m32");
+	cmd_exec("del out.o");
 }

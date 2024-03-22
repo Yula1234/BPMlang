@@ -19,7 +19,24 @@ proc new_parser tokens:ptr -> parser {
 }
 
 proc parser_peek prs:parser -> Token {
+	if(rd32(prs.tokens + (prs.index * 4)) == 0) {
+		return cast(Token, 0);
+	}
 	return cast(Token, rd32(prs.tokens + (prs.index * 4)));
+}
+
+proc parser_peek_at prs:parser offs:int -> Token {
+	if(rd32(prs.tokens + ((prs.index + offs) * 4)) == 0) {
+		return cast(Token, 0);
+	}
+	return cast(Token, rd32(prs.tokens + ((prs.index + offs) * 4)));
+}
+
+proc parser_peek_prev prs:parser -> Token {
+	if(rd32(prs.tokens + ((prs.index - 1) * 4)) == 0) {
+		return cast(Token, 0);
+	}
+	return cast(Token, rd32(prs.tokens + ((prs.index - 1) * 4)));
 }
 
 proc parser_consume prs:parser -> Token {
@@ -96,11 +113,17 @@ proc parser_parse_expr prs:parser def_tok:Token -> NodeExpr {
 }
 
 proc parser_consume_err prs:parser type:int -> Token {
-	let tok = parser_consume(prs);
-	if(tok.type != type) {
-		format_print("ERROR %d:%d: excepted %s, but got %s\n", tok.line, tok.col, tokentype2str(type), tokentype2str(tok.type));
+	let tok = parser_peek(prs);
+	if(cast(int, tok) == 0) {
+		let prev = parser_peek_prev(prs);
+		format_print("%s:%d:%d ERROR: excepted %s, but got nothing\n", prev.file_loc, prev.line, prev.col, tokentype2str(type));
 		exit(1);
 	}
+	elif(tok.type != type) {
+		format_print("%s:%d:%d ERROR: excepted %s, but got %s\n", tok.file_loc, tok.line, tok.col, tokentype2str(type), tokentype2str(tok.type));
+		exit(1);
+	}
+	parser_consume(prs);
 	return tok;
 }
 
@@ -116,7 +139,7 @@ struct NodeStmtExit {
 const StmtKindExit 0;
 
 proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
-	let def_tok = Token(0, 0, 0, "");
+	let def_tok = Token(0, 0, 0, "", "");
 	delete def_tok;
 	if(parser_peek(prs).type == TokenTypeExit) {
 		def_tok = parser_consume(prs);
