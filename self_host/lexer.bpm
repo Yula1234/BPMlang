@@ -101,6 +101,8 @@ const TokenTypeCloseParen 2;
 const TokenTypeExit 3;
 const TokenTypeIntLiteral 4;
 const TokenTypeSemi 5;
+const TokenTypePlus 6;
+const TokenTypeMinus 7;
 
 struct Token {
 	type:int,
@@ -138,6 +140,12 @@ proc tokentype2str type:int -> ptr {
 	}
 	elif(type == TokenTypeSemi) {
 		return "`;`";
+	}
+	elif(type == TokenTypePlus) {
+		return "`+`";
+	}
+	elif(type == TokenTypeMinus) {
+		return "`-`";
 	}
 	format_print("tokentype2str error: unkown TokenType `%d`\n", type);
 	exit(0);
@@ -208,6 +216,16 @@ proc lexer_lex
 		}
 		elif(lexer_peek(lxr) == ';') {
 			tmp_tok = Token(TokenTypeSemi, line_count, lxr.col - 1, "");
+			push_token(tokens, &tokens_count, tmp_tok);
+			lexer_consume(lxr);
+		}
+		elif(lexer_peek(lxr) == '+') {
+			tmp_tok = Token(TokenTypePlus, line_count, lxr.col - 1, "");
+			push_token(tokens, &tokens_count, tmp_tok);
+			lexer_consume(lxr);
+		}
+		elif(lexer_peek(lxr) == '-') {
+			tmp_tok = Token(TokenTypeMinus, line_count, lxr.col - 1, "");
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
