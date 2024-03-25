@@ -33,46 +33,28 @@ public:
 	}
 
 	std::optional<Var> var_lookup(std::string name) {
-		Var it;
-		bool finded = false;
-		for(Var var : m_vars) {
-			if(var.name == name) {
-				it = var;
-				finded = true;
+		yforeach(m_vars) {
+			if(m_vars[i].name == name) {
+				return m_vars[i];
 			}
-		}
-		if(finded) {
-			return it;
 		}
 		return std::nullopt;
 	}
 
 	std::optional<Procedure> proc_lookup(std::string name) {
-		Procedure it;
-		bool finded = false;
-		for(Procedure var : m_procs) {
-			if(var.name == name) {
-				it = var;
-				finded = true;
+		yforeach(m_procs) {
+			if(m_procs[i].name == name) {
+				return m_procs[i];
 			}
-		}
-		if(finded) {
-			return it;
 		}
 		return std::nullopt;
 	}
 
 	std::optional<Struct> struct_lookup(std::string name) {
-		Struct it;
-		bool finded = false;
-		for(Struct var : m_structs) {
-			if(var.name == name) {
-				it = var;
-				finded = true;
+		yforeach(m_structs) {
+			if(m_structs[i].name == name) {
+				return m_structs[i];
 			}
-		}
-		if(finded) {
-			return it;
 		}
 		return std::nullopt;
 	}
@@ -87,16 +69,10 @@ public:
 	}
 
 	std::optional<String> string_lookup(std::string svalue) {
-		String it;
-		bool finded = false;
-		for(String var : m_strings) {
-			if(var.value == svalue) {
-				it = var;
-				finded = true;
+		yforeach(m_strings) {
+			if(m_strings[i].value == svalue) {
+				return m_strings[i];
 			}
-		}
-		if(finded) {
-			return it;
 		}
 		return std::nullopt;
 	}
