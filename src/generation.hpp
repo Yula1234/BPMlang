@@ -830,9 +830,6 @@ public:
 
 			void operator()(const NodeStmtProc* stmt_proc)
 			{
-				if(std::find(gen.m_used_procs.begin(), gen.m_used_procs.end(), stmt_proc->name) == gen.m_used_procs.end()) {
-					return; // unused procedure
-				}
 				std::optional<Procedure> proc = gen.proc_lookup(stmt_proc->name);
 				if(proc.has_value()) {
 					return; // TODO: add a error procedure redefinition
@@ -1141,10 +1138,6 @@ public:
 		return result.str();
 	}
 
-	void get_props_from_parser(Parser& parser) {
-		m_used_procs = std::move(parser.get_used());
-	}
-
 private:
 	void push(const std::string& reg)
 	{
@@ -1196,7 +1189,6 @@ private:
 		"malloc",
 		"free"
 	};
-	std::vector<std::string> m_used_procs;
 	size_t m_var_index = 0U;
 	size_t m_label_count = 0U;
 };
