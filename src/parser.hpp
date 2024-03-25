@@ -4,8 +4,8 @@
 #include <variant>
 #include <filesystem>
 
-#include "arena.hpp"
 #include "tokenization.hpp"
+#include "arena.hpp"
 
 enum class SimpleDataType {
     _int,
