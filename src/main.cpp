@@ -5,19 +5,24 @@
 #include <vector>
 #include <cstdio>
 
+#include "argsparser.hpp"
 #include "generation.hpp"
 
 void usage(std::ostream& stream) {
     stream << "Incorrect usage. Correct usage is..." << std::endl;
-    stream << "bpm <input.bpm>" << std::endl;
+    stream << "bpm <input.bpm> <flags>" << std::endl;
 }
 
 int main(int argc, char* argv[])
 {
-    if (argc != 2) {
+    if (argc < 2) {
         usage(std::cerr);
         return EXIT_FAILURE;
     }
+
+    ArgParser argparser(argc, argv);
+
+    argparser.parse();
 
     std::string contents;
     {
@@ -45,9 +50,7 @@ int main(int argc, char* argv[])
         file << generated_asm;
     }
 
-    system("nasm --gprefix _ -fwin32 output.asm -o output.o");
-    system("gcc -o out.exe output.o -m32");
-    system("del output.o");
+    argparser.compile();
 
     return EXIT_SUCCESS;
 }
