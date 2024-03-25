@@ -1,0 +1,79 @@
+include "std"
+include "string"
+include "string_view"
+include "fsys"
+include "self_host/arena"
+include "self_host/lexer"
+include "self_host/parser"
+
+struct Generator {
+	asm_file:FILE
+}
+
+proc gen_generate_expr expr:NodeExpr gen:Generator -> void {
+	if(expr.kind == NodeKindInt) {
+		format_fprint(gen.asm_file.desc, "    push dword %s\n", expr.data);
+	}
+	elif(expr.kind == NodeKindPlus) {
+		let bin_expr = cast(NodeExprAdd, expr.data);
+		gen_generate_expr(cast(NodeExpr, bin_expr.left), gen);
+		gen_generate_expr(cast(NodeExpr, bin_expr.right), gen);
+		fputs(gen.asm_file.desc, "    pop ebx\n");
+		fputs(gen.asm_file.desc, "    pop eax\n");
+		fputs(gen.asm_file.desc, "    add eax, ebx\n");
+		fputs(gen.asm_file.desc, "    push eax\n");
+	}
+	elif(expr.kind == NodeKindMinus) {
+		bin_expr = cast(NodeExprAdd, expr.data);
+		gen_generate_expr(cast(NodeExpr, bin_expr.left), gen);
+		gen_generate_expr(cast(NodeExpr, bin_expr.right), gen);
+		fputs(gen.asm_file.desc, "    pop ebx\n");
+		fputs(gen.asm_file.desc, "    pop eax\n");
+		fputs(gen.asm_file.desc, "    sub eax, ebx\n");
+		fputs(gen.asm_file.desc, "    push eax\n");
+	}
+	else {
+		format_print("ERROR: unkown expr.kind at `gen_generate_expr` - ");
+		putu(expr.kind);
+		exit(1);
+	}
+}
+
+proc gen_generate_exit stmt:NodeStmtExit gen:Generator -> void {
+	let expr = cast(NodeExpr, stmt.expr);
+	gen_generate_expr(expr, gen);
+	fputs(gen.asm_file.desc, "    call ExitProcess@4\n");
+	fputs(gen.asm_file.desc, "    add esp, 4\n");
+}
+
+proc gen_stmt _stmt:ptr gen:Generator -> void {
+	let stmt = cast(NodeStmt, _stmt);
+	if(stmt.kind == StmtKindExit) {
+		let stmt_exit = cast(NodeStmtExit, stmt.data);
+		gen_generate_exit(stmt_exit, gen);
+	}
+}
+
+proc gen_generate_header gen:Generator -> void {
+	fputs(gen.asm_file.desc, "section .text\n\n");
+	fputs(gen.asm_file.desc, "global main\n\n");
+	fputs(gen.asm_file.desc, "extern ExitProcess@4\n\n");
+	fputs(gen.asm_file.desc, "main:\n");
+	fputs(gen.asm_file.desc, "    push ebp\n");
+	fputs(gen.asm_file.desc, "    mov ebp, esp\n");
+}
+
+proc gen_generate_footer gen:Generator -> void {
+	fputs(gen.asm_file.desc, "    pop ebp\n");
+	fputs(gen.asm_file.desc, "    ret\n");
+}
+
+proc gen_generate ast:ptr gen:Generator -> void {
+	let ast_level = 0;
+	gen_generate_header(gen);
+	while(rd32(ast +  (ast_level * 4)) != 0) {
+		gen_stmt(cast(ptr, rd32(ast +  (ast_level * 4))), gen);
+		ast_level = ast_level + 1;
+	}
+	gen_generate_footer(gen);
+}

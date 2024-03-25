@@ -1,0 +1,162 @@
+include "std"
+include "string"
+include "string_view"
+include "self_host/arena"
+include "self_host/lexer"
+
+proc push_ast ast:ptr index:ptr element:ptr -> void {
+	store32(ast + (rd32(index) * 4), element);
+	store32(index, rd32(index) + 1);
+}
+
+struct parser {
+	tokens:ptr,
+	index:int
+}
+
+proc new_parser tokens:ptr -> parser {
+	return parser(tokens, 0);
+}
+
+proc parser_peek prs:parser -> Token {
+	if(rd32(prs.tokens + (prs.index * 4)) == 0) {
+		return cast(Token, 0);
+	}
+	return cast(Token, rd32(prs.tokens + (prs.index * 4)));
+}
+
+proc parser_peek_at prs:parser offs:int -> Token {
+	if(rd32(prs.tokens + ((prs.index + offs) * 4)) == 0) {
+		return cast(Token, 0);
+	}
+	return cast(Token, rd32(prs.tokens + ((prs.index + offs) * 4)));
+}
+
+proc parser_peek_prev prs:parser -> Token {
+	if(rd32(prs.tokens + ((prs.index - 1) * 4)) == 0) {
+		return cast(Token, 0);
+	}
+	return cast(Token, rd32(prs.tokens + ((prs.index - 1) * 4)));
+}
+
+proc parser_consume prs:parser -> Token {
+	let tok = parser_peek(prs);
+	prs.index = prs.index + 1;
+	return tok;
+}
+
+struct NodeExprAdd {
+	left:ptr,
+	right:ptr,
+	def:Token
+}
+
+struct NodeExprSub {
+	left:ptr,
+	right:ptr,
+	def:Token
+}
+
+struct NodeExpr {
+	kind:int,
+	data:ptr
+}
+
+const NodeKindInt 0;
+const NodeKindPlus 1;
+const NodeKindMinus 2;
+
+proc Error str:ptr line:int col:int -> void {
+	format_print("ERROR %d:%d: %s\n", line, col, str);
+	exit(1);
+}
+
+proc parser_parse_term prs:parser def_tok:Token -> NodeExpr {
+	if(parser_peek(prs).type == TokenTypeIntLiteral) {
+		let number_tok = parser_consume(prs);
+		let expr_int = NodeExpr(NodeKindInt, number_tok.value);
+		return expr_int;
+	}
+	putu(parser_peek(prs).type);
+	puts("Parser error (parse_term)\n");
+	exit(1);
+}
+
+proc is_bin_operator toktype:int -> int {
+	if(toktype == TokenTypePlus) {
+		return true;
+	}
+	elif(toktype == TokenTypeMinus) {
+		return true;
+	}
+	return false;
+}
+
+proc parser_parse_expr prs:parser def_tok:Token -> NodeExpr {
+	let left_term = parser_parse_term(prs, def_tok);
+	if(is_bin_operator(parser_peek(prs).type) != 1) {
+		return left_term;
+	}
+	let bin_def = parser_peek(prs);
+	parser_consume(prs);
+	let right_expr = parser_parse_expr(prs, def_tok);
+	if(bin_def.type == TokenTypePlus) {
+		let bin_plus = NodeExprAdd(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
+		return NodeExpr(NodeKindPlus, cast(ptr, bin_plus));
+	}
+	elif(bin_def.type == TokenTypeMinus) {
+		let bin_minus = NodeExprSub(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
+		let sub_expr = NodeExpr(NodeKindMinus, cast(ptr, bin_minus));
+		return sub_expr;
+	}
+	Error("parser_parse_expr unreacheable", bin_def.line, bin_def.col);
+}
+
+proc parser_consume_err prs:parser type:int -> Token {
+	let tok = parser_peek(prs);
+	if(cast(int, tok) == 0) {
+		let prev = parser_peek_prev(prs);
+		format_print("%s:%d:%d ERROR: excepted %s, but got nothing\n", prev.file_loc, prev.line, prev.col, tokentype2str(type));
+		exit(1);
+	}
+	elif(tok.type != type) {
+		format_print("%s:%d:%d ERROR: excepted %s, but got %s\n", tok.file_loc, tok.line, tok.col, tokentype2str(type), tokentype2str(tok.type));
+		exit(1);
+	}
+	parser_consume(prs);
+	return tok;
+}
+
+struct NodeStmt {
+	kind:int,
+	data:ptr
+}
+
+struct NodeStmtExit {
+	expr:ptr
+}
+
+const StmtKindExit 0;
+
+proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
+	let def_tok = Token(0, 0, 0, "", "");
+	delete def_tok;
+	if(parser_peek(prs).type == TokenTypeExit) {
+		def_tok = parser_consume(prs);
+		parser_consume_err(prs, TokenTypeOpenParen);
+		let expr_exit = cast(ptr, parser_parse_expr(prs, def_tok));
+		let stmt_exit = NodeStmtExit(expr_exit);
+		let stmt = NodeStmt(StmtKindExit, cast(ptr, stmt_exit));
+		push_ast(ast, ast_level, cast(ptr, stmt));
+		parser_consume_err(prs, TokenTypeCloseParen);
+		parser_consume_err(prs, TokenTypeSemi);
+	}
+}
+
+proc parser_parse prs:parser ast:ptr -> void {
+	let ast_level = 0;
+	while(cast(int, parser_peek(prs)) != 0) {
+		parser_parse_stmt(prs, ast, &ast_level);
+	}
+	store32(ast + (ast_level * 4), 0);
+}
