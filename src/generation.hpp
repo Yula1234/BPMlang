@@ -705,6 +705,9 @@ public:
 			else if(std::holds_alternative<NodeStmtLet*>(stmt->var)) {
 				fsz += 1;
 			}
+			else if(std::holds_alternative<NodeStmtLetNoAssign*>(stmt->var)) {
+				fsz += 1;
+			}
 			else if(std::holds_alternative<NodeStmtBuffer*>(stmt->var)) {
 				fsz += std::get<NodeStmtBuffer*>(stmt->var)->size / 4U;
 			}
@@ -882,6 +885,11 @@ public:
 			void operator()(const NodeStmtLet* stmt_let) const
 			{
 				gen.create_var(stmt_let->ident.value.value(), stmt_let->expr, stmt_let->ident);
+			}
+
+			void operator()(const NodeStmtLetNoAssign* stmt_let) const
+			{
+				gen.create_var_va(stmt_let->ident.value.value(), stmt_let->type, stmt_let->ident);
 			}
 
 			void operator()(const NodeStmtAssign* stmt_assign) const

@@ -282,6 +282,11 @@ struct NodeStmtReturn {
     NodeExpr* expr;
 };
 
+struct NodeStmtLetNoAssign {
+    Token ident;
+    DataType type;
+};
+
 struct NodeStmtLet {
     Token ident;
     NodeExpr* expr {};
@@ -381,7 +386,7 @@ struct NodeStmt {
                 NodeStmtWhile*,NodeStmtReturn*,
                 NodeStmtStore*,NodeStmtBuffer*,
                 NodeStmtCextern*,NodeStmtStruct*,
-                NodeStmtDelete*> var;
+                NodeStmtDelete*,NodeStmtLetNoAssign*> var;
 };
 
 struct NodeProg {
@@ -840,6 +845,23 @@ public:
             else {
                 error_expected("expression");
             }
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_let;
+            return stmt;
+        }
+        if (peek().has_value() && peek().value().type == TokenType::let && peek(1).has_value()
+            && peek(1).value().type == TokenType::ident && peek(2).has_value()
+            && peek(2).value().type == TokenType::double_dot) {
+            consume();
+            auto stmt_let = m_allocator.emplace<NodeStmtLetNoAssign>();
+            stmt_let->ident = consume();
+            consume();
+            if(!is_type_token(peek().value().type)) {
+                error_expected("type");
+            }
+            DataType type = uni_token_to_dt(consume());
+            stmt_let->type = type;
             try_consume_err(TokenType::semi);
             auto stmt = m_allocator.emplace<NodeStmt>();
             stmt->var = stmt_let;
