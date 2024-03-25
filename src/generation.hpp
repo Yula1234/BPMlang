@@ -1192,7 +1192,7 @@ private:
 	std::vector<Struct> m_structs	   {};
 	std::optional<Procedure> m_cur_proc {};
 	std::vector<std::string> m_cexterns = {
-		"ExitProcess",
+		"ExitProcess@4",
 		"malloc",
 		"free"
 	};
