@@ -18,6 +18,7 @@ public:
 		DataType rettype;
 		size_t stack_allign;
 		std::vector<ProcAttr> attrs;
+		Token def;
 	};
 	struct String {
 		std::string value {};
@@ -808,10 +809,11 @@ public:
 			{
 				std::optional<Procedure> proc = gen.proc_lookup(stmt_proc->name);
 				if(proc.has_value()) {
-					return; // TODO: add a error procedure redefinition
+					Token pdef = proc.value().def;
+					gen.GeneratorError(stmt_proc->def, "procedure `" + stmt_proc->name + "` redefenition.\nNOTE: first defenition here " + loc_of(pdef) + ".");
 				}
 				size_t fsz = gen.collect_alligns(stmt_proc->scope);
-				gen.m_procs.push_back({ .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs });
+				gen.m_procs.push_back({ .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs , .def = stmt_proc->def });
 				for(int i = 0;i < static_cast<int>(stmt_proc->params.size());++i) {
 					gen.create_var_va(stmt_proc->params[i].first, stmt_proc->params[i].second, stmt_proc->def);
 				}
