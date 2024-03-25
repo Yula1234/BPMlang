@@ -869,14 +869,18 @@ public:
 					gen.GeneratorError(stmt_return->def, "return without procedure");
 				}
 				DataType rettype = cproc.value().rettype;
-				if(rettype == DataTypeVoid) {
+				if(rettype == DataTypeVoid && stmt_return->expr.has_value()) {
 					gen.GeneratorError(stmt_return->def, "return from void procedure with value");
+				} else if(!stmt_return->expr.has_value() && rettype != DataTypeVoid) {
+					gen.GeneratorError(stmt_return->def, "procedure `" + cproc.value().name + "` at return except type " + dt_to_string(rettype) + "\nNOTE: but got empty return");
 				}
-				if(gen.type_of_expr(stmt_return->expr) != rettype) {
-					gen.GeneratorError(stmt_return->def, "procedure `" + cproc.value().name + "` at return except type " + dt_to_string(rettype) + "\nNOTE: but got type " + dt_to_string(gen.type_of_expr(stmt_return->expr)));
+				if(stmt_return->expr.has_value() && gen.type_of_expr(stmt_return->expr.value()) != rettype) {
+					gen.GeneratorError(stmt_return->def, "procedure `" + cproc.value().name + "` at return except type " + dt_to_string(rettype) + "\nNOTE: but got type " + dt_to_string(gen.type_of_expr(stmt_return->expr.value())));
 				}
-				gen.gen_expr(stmt_return->expr);
-				gen.pop("eax");
+				if(stmt_return->expr.has_value()) {
+					gen.gen_expr(stmt_return->expr.value());
+					gen.pop("eax");
+				}
 				gen.end_scope_fsz(cproc.value().stack_allign);
 				gen.m_output << "	pop ebp\n";
 				gen.m_output << "	ret\n";

@@ -279,7 +279,7 @@ struct NodeStmtExit {
 
 struct NodeStmtReturn {
     Token def;
-    NodeExpr* expr;
+    std::optional<NodeExpr*> expr;
 };
 
 struct NodeStmtLetNoAssign {
@@ -980,11 +980,15 @@ public:
         if(auto ret = try_consume(TokenType::_return)) {
             Token def = ret.value();
             auto stmt_return = m_allocator.emplace<NodeStmtReturn>();
-            if (const auto node_expr = parse_expr()) {
-                stmt_return->expr = node_expr.value();
-            }
-            else {
-                error_expected("expression");
+            if(peek().has_value() && peek().value().type == TokenType::semi) {
+                stmt_return->expr = std::nullopt;
+            } else {
+                if (const auto node_expr = parse_expr()) {
+                    stmt_return->expr = node_expr.value();
+                }
+                else {
+                    error_expected("expression");
+                }
             }
             stmt_return->def = def;
             try_consume_err(TokenType::semi);
