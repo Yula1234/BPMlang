@@ -708,11 +708,9 @@ public:
 
 	void gen_scope(const NodeScope* scope)
 	{
-		begin_scope();
 		for (const NodeStmt* stmt : scope->stmts) {
 			gen_stmt(stmt);
 		}
-		end_scope();
 	}
 
 	void gen_scope_fsz(const NodeScope* scope, const int psizes = 0)
@@ -1130,10 +1128,6 @@ private:
 		m_output << "	pop " << reg << "\n";
 	}
 
-	void begin_scope() {}
-
-	void end_scope() {}
-
 	void begin_scope_fsz(int fsz)
 	{
 		if(fsz != 0) {
@@ -1156,11 +1150,11 @@ private:
 	}
 
 	const NodeProg m_prog;
-	std::stringstream		m_output   {};
-	std::vector<Var>		 m_vars	 {};
-	std::vector<String>	  m_strings  {};
-	std::vector<Procedure>   m_procs	{};
-	std::vector<Struct> m_structs	   {};
+	std::stringstream		 m_output   {};
+	std::vector<Var>         m_vars     {};
+	std::vector<String>	     m_strings  {};
+	std::vector<Procedure>   m_procs    {};
+	std::vector<Struct>      m_structs  {};
 	std::optional<Procedure> m_cur_proc {};
 	std::vector<std::string> m_cexterns = {
 		"ExitProcess@4",
