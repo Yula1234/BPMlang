@@ -57,21 +57,28 @@ struct NodeExprSub {
 	def:Token
 }
 
+struct NodeExprMul {
+	left:ptr,
+	right:ptr,
+	def:Token
+}
+
 struct NodeExpr {
 	kind:int,
 	data:ptr
 }
 
-const NodeKindInt 0;
-const NodeKindPlus 1;
+const NodeKindInt   0;
+const NodeKindPlus  1;
 const NodeKindMinus 2;
+const NodeKindMul   3;
 
 proc Error str:ptr line:int col:int -> void {
 	format_print("ERROR %d:%d: %s\n", line, col, str);
 	exit(1);
 }
 
-proc parser_parse_term prs:parser def_tok:Token -> NodeExpr {
+proc parser_parse_term prs:parser -> NodeExpr {
 	if(parser_peek(prs).type == TokenTypeIntLiteral) {
 		let number_tok = parser_consume(prs);
 		let expr_int = NodeExpr(NodeKindInt, number_tok.value);
@@ -89,25 +96,34 @@ proc is_bin_operator toktype:int -> int {
 	elif(toktype == TokenTypeMinus) {
 		return true;
 	}
+	elif(toktype == TokenTypeStar) {
+		return true;
+	}
 	return false;
 }
 
-proc parser_parse_expr prs:parser def_tok:Token -> NodeExpr {
-	let left_term = parser_parse_term(prs, def_tok);
+proc parser_parse_expr prs:parser -> NodeExpr {
+	let left_term = parser_parse_term(prs);
 	if(is_bin_operator(parser_peek(prs).type) != 1) {
 		return left_term;
 	}
 	let bin_def = parser_peek(prs);
 	parser_consume(prs);
-	let right_expr = parser_parse_expr(prs, def_tok);
+	let right_expr = parser_parse_expr(prs);
+	let as_expr: NodeExpr;
 	if(bin_def.type == TokenTypePlus) {
 		let bin_plus = NodeExprAdd(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
 		return NodeExpr(NodeKindPlus, cast(ptr, bin_plus));
 	}
 	elif(bin_def.type == TokenTypeMinus) {
 		let bin_minus = NodeExprSub(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
-		let sub_expr = NodeExpr(NodeKindMinus, cast(ptr, bin_minus));
-		return sub_expr;
+		as_expr = NodeExpr(NodeKindMinus, cast(ptr, bin_minus));
+		return as_expr;
+	}
+	elif(bin_def.type == TokenTypeStar) {
+		let bin_mul = NodeExprMul(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
+		as_expr = NodeExpr(NodeKindMul, cast(ptr, bin_mul));
+		return as_expr;
 	}
 	Error("parser_parse_expr unreacheable", bin_def.line, bin_def.col);
 }
@@ -139,12 +155,11 @@ struct NodeStmtExit {
 const StmtKindExit 0;
 
 proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
-	let def_tok = Token(0, 0, 0, "", "");
-	delete def_tok;
+	let def_tok: Token;
 	if(parser_peek(prs).type == TokenTypeExit) {
 		def_tok = parser_consume(prs);
 		parser_consume_err(prs, TokenTypeOpenParen);
-		let expr_exit = cast(ptr, parser_parse_expr(prs, def_tok));
+		let expr_exit = cast(ptr, parser_parse_expr(prs));
 		let stmt_exit = NodeStmtExit(expr_exit);
 		let stmt = NodeStmt(StmtKindExit, cast(ptr, stmt_exit));
 		push_ast(ast, ast_level, cast(ptr, stmt));

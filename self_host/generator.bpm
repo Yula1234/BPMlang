@@ -11,11 +11,12 @@ struct Generator {
 }
 
 proc gen_generate_expr expr:NodeExpr gen:Generator -> void {
+	let bin_expr: NodeExprAdd;
 	if(expr.kind == NodeKindInt) {
 		format_fprint(gen.asm_file.desc, "    push dword %s\n", expr.data);
 	}
 	elif(expr.kind == NodeKindPlus) {
-		let bin_expr = cast(NodeExprAdd, expr.data);
+		bin_expr = cast(NodeExprAdd, expr.data);
 		gen_generate_expr(cast(NodeExpr, bin_expr.left), gen);
 		gen_generate_expr(cast(NodeExpr, bin_expr.right), gen);
 		fputs(gen.asm_file.desc, "    pop ebx\n");
@@ -30,6 +31,15 @@ proc gen_generate_expr expr:NodeExpr gen:Generator -> void {
 		fputs(gen.asm_file.desc, "    pop ebx\n");
 		fputs(gen.asm_file.desc, "    pop eax\n");
 		fputs(gen.asm_file.desc, "    sub eax, ebx\n");
+		fputs(gen.asm_file.desc, "    push eax\n");
+	}
+	elif(expr.kind == NodeKindMul) {
+		let mul_expr = cast(NodeExprMul, expr.data);
+		gen_generate_expr(cast(NodeExpr, mul_expr.left), gen);
+		gen_generate_expr(cast(NodeExpr, mul_expr.right), gen);
+		fputs(gen.asm_file.desc, "    pop ebx\n");
+		fputs(gen.asm_file.desc, "    pop eax\n");
+		fputs(gen.asm_file.desc, "    imul eax, ebx\n");
 		fputs(gen.asm_file.desc, "    push eax\n");
 	}
 	else {

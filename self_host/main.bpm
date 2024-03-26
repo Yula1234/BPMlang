@@ -22,20 +22,20 @@ proc cmd_exec com_line_args:ptr -> void
 }
 
 proc main argc:int argv:ptr -> void {
-	if(argc != 2) {
-		compiller_usage(stdout);
-		exit(1);
-	}
-	let FILE_PATH = nth_argv(argv, 1);
-	let file = openf(FILE_PATH, "r");
+	//if(argc != 2) {
+	//	compiller_usage(stdout);
+	//	exit(1);
+	//}
+	//let FILE_PATH = nth_argv(argv, 1);
+	//let file = openf(FILE_PATH, "r");
 
-	let FILE_CONTENT_BUF = memalloc(12 * 1024 * 1024);
-	read_file(file, FILE_CONTENT_BUF);
+	//let FILE_CONTENT_BUF = memalloc(12 * 1024 * 1024);
+	//read_file(file, FILE_CONTENT_BUF);
 
 	let str_arena = new_arena(128 * 1024);
 	let tokens = memalloc(56 * 1024);
-	let Lexer = new_lexer(FILE_CONTENT_BUF);
-	lexer_lex(Lexer, str_arena, tokens, FILE_PATH);
+	let Lexer = new_lexer("exit(1 * 1);");
+	lexer_lex(Lexer, str_arena, tokens, "test.txt");
 
 	let ast_arena = new_arena(128 * 1024);
 	let Parser = new_parser(tokens);
@@ -51,10 +51,10 @@ proc main argc:int argv:ptr -> void {
 	arena_delete(str_arena);
 	arena_delete(ast_arena);
 
-	memfree(FILE_CONTENT_BUF);
+	//memfree(FILE_CONTENT_BUF);
 	free_tokens(tokens);
 
-	closef(file);
+	//closef(file);
 	closef(asm_file);
 
 	cmd_exec("nasm --gprefix _ -fwin32 output2.asm -o out.o");
