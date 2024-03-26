@@ -54,9 +54,6 @@ enum class TokenType {
     dot,
 };
 
-#define BinaryOpsCount 7
-#define StmtsCount 7
-
 std::string tok_to_string(const TokenType type)
 {
     switch (type) {

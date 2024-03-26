@@ -149,8 +149,6 @@ public:
 				GeneratorError(std::get<NodeTermIdent*>(term->var)->ident, "unkown word `" + std::get<NodeTermIdent*>(term->var)->ident.value.value() + "`");
 			}
 		}
-		static_assert(BinaryOpsCount == 7,
-					"\n	 Impl type_of for new binop");
 		if(holds_alternative<NodeBinExpr*>(expr->var)) {
 			NodeBinExpr* binex = std::get<NodeBinExpr*>(expr->var);
 			if(std::holds_alternative<NodeBinExprAdd*>(binex->var)) {
@@ -189,8 +187,6 @@ public:
 	}
 
 	bool typecheck_bin_expr(const NodeBinExpr* expr) {
-		static_assert(BinaryOpsCount == 7,
-					"\n	 Impl typecheck for new binop");
 		if(std::holds_alternative<NodeBinExprAdd*>(expr->var)) {
 			NodeBinExprAdd* add = std::get<NodeBinExprAdd*>(expr->var);
 			return type_of_expr(add->lhs) == type_of_expr(add->rhs);
@@ -226,8 +222,6 @@ public:
 	}
 
 	void typecheck_bin_expr_err(const NodeBinExpr* expr, std::string IRexpr) {
-		static_assert(BinaryOpsCount == 7,
-					"\n	 Impl typecheck_err for new binop");
 		if(!typecheck_bin_expr(expr)) {
 			DataType ltype;
 			DataType rtype;
@@ -1145,7 +1139,6 @@ private:
 		if(fsz != 0) {
 			m_output << "	sub esp, " << fsz * 4 << "\n";
 		}
-		m_scopes.push_back(m_vars.size());
 	}
 
 	void end_scope_fsz(int fsz)
@@ -1153,7 +1146,6 @@ private:
 		if(fsz != 0) {
 			m_output << "	add esp, " << fsz * 4 << "\n";
 		}
-		m_scopes.pop_back();
 	}
 
 	std::string create_label()
@@ -1167,7 +1159,6 @@ private:
 	std::stringstream		m_output   {};
 	std::vector<Var>		 m_vars	 {};
 	std::vector<String>	  m_strings  {};
-	std::vector<size_t>	  m_scopes   {};
 	std::vector<Procedure>   m_procs	{};
 	std::vector<Struct> m_structs	   {};
 	std::optional<Procedure> m_cur_proc {};
