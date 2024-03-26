@@ -39,7 +39,14 @@ public:
 			gen->m_output << "    sub " << one << ", " << two << "\n";
 		}
 		void mul(std::string one, std::string two) const {
-			gen->m_output << "    imul " << one << ", " << two << "\n";
+			bool is_eax = one == "eax";
+			if(!is_eax) {
+				gen->m_output << "    mov eax, " << one << "\n";
+			}
+			gen->m_output << "    imul " << two << "\n";
+			if(!is_eax) {
+				gen->m_output << "    mov " << one << ", eax\n";
+			}
 		}
 		void pop(std::string to) const {
 			gen->m_output << "    pop " << to << "\n";
@@ -999,6 +1006,13 @@ public:
 
 			void operator()(const NodeStmtDecBy* stmt_assign) const
 			{
+				if(auto ident = ptools::get::ident(stmt_assign->lvalue)) {
+					Var vr = gen.var_lookup_err(ident.value()->ident.value.value(), stmt_assign->def);
+					gen.gen_expr(stmt_assign->expr);
+					gen.asmg.pop("edx");
+					gen.asmg.sub(gen._ref_to(vr), "edx");
+					return;
+				}
 				gen.gen_expr(stmt_assign->lvalue, true);
 				gen.gen_expr(stmt_assign->expr);
 				gen.pop("ecx");
@@ -1008,6 +1022,13 @@ public:
 
 			void operator()(const NodeStmtMulBy* stmt_assign) const
 			{
+				if(auto ident = ptools::get::ident(stmt_assign->lvalue)) {
+					Var vr = gen.var_lookup_err(ident.value()->ident.value.value(), stmt_assign->def);
+					gen.gen_expr(stmt_assign->expr);
+					gen.asmg.pop("edi");
+					gen.asmg.mul(gen._ref_to(vr), "edi");
+					return;
+				}
 				gen.gen_expr(stmt_assign->lvalue, true);
 				gen.gen_expr(stmt_assign->expr);
 				gen.pop("ecx");
@@ -1023,7 +1044,7 @@ public:
 				gen.pop("esi");
 				gen.m_output << "    xor edx, edx\n";
 				gen.m_output << "    mov eax, dword [esi]\n";
-				gen.m_output << "    mul edi\n";
+				gen.m_output << "    div edi\n";
 				gen.m_output << "    mov dword [esi], eax\n";
 			}
 
