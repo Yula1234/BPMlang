@@ -1,8 +1,5 @@
 #pragma once
 
-#include <algorithm>
-#include <cassert>
-
 #include "parser.hpp"
 
 class Generator {

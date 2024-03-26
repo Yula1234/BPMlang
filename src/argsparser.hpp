@@ -1,13 +1,8 @@
 #pragma once
 
-#include <ostream>
-#include <vector>
-#include <string>
-#include <cstring>
-#include <cassert>
-
 enum class FlagType {
     output,
+    run,
 };
 
 struct Flag {
@@ -42,11 +37,16 @@ public:
                 }
                 m_flags.push_back({ .type = FlagType::output , .operand = m_argv[++i] });
             }
+            else if(strcmp(m_argv[i], "-r") == 0) {
+                m_flags.push_back({ .type = FlagType::run , .operand = std::nullopt });
+            }
         }
     }
-    void compile() {
+    int compile() {
         system("nasm --gprefix _ -fwin32 output.asm -o output.o");
+        std::optional<Flag> has_o_flag = std::nullopt;
         if(auto o_flag = find_flag(FlagType::output)) {
+            has_o_flag = o_flag;
             std::string link_com;
             assert(o_flag.value().operand.has_value());
             link_com = "gcc -o " + o_flag.value().operand.value() + " output.o -m32";
@@ -55,5 +55,14 @@ public:
             system("gcc -o out.exe output.o -m32");
         }
         system("del output.o");
+        if(auto r_flag = find_flag(FlagType::run)) {
+            if(has_o_flag.has_value()) {
+                return system(has_o_flag.value().operand.value().c_str());
+            }
+            else {
+                return system("out.exe");
+            }
+        }
+        return EXIT_SUCCESS;
     }
 };

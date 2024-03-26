@@ -1,9 +1,5 @@
 #pragma once
 
-#include <cassert>
-#include <variant>
-#include <filesystem>
-
 #include "tokenization.hpp"
 #include "arena.hpp"
 

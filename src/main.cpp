@@ -4,6 +4,14 @@
 #include <sstream>
 #include <vector>
 #include <cstdio>
+#include <cassert>
+#include <cstring>
+#include <cstddef>
+#include <memory>
+#include <utility>
+#include <variant>
+#include <filesystem>
+#include <algorithm>
 
 #include "argsparser.hpp"
 #include "generation.hpp"
@@ -50,7 +58,5 @@ int main(int argc, char* argv[])
         file << generated_asm;
     }
 
-    argparser.compile();
-
-    return EXIT_SUCCESS;
+    return argparser.compile();
 }
