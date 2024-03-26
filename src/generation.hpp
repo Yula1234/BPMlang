@@ -18,8 +18,10 @@ namespace ptools {
 			}
 			return std::holds_alternative<NodeTermIdent*>(std::get<NodeTerm*>(expr->var)->var);
 		}
-		std::optional<NodeTermIdent*> get_ident(NodeExpr* expr) {
-			if(!ident(expr)) return std::nullopt;
+	}
+	namespace get {
+		std::optional<NodeTermIdent*> ident(NodeExpr* expr) {
+			if(!is::ident(expr)) return std::nullopt;
 			return as::ident(expr);
 		}
 	}
@@ -27,18 +29,26 @@ namespace ptools {
 
 class Generator {
 public:
+
 	struct AsmGen {
 		Generator* gen;
-		void add(char* one, char* two) {
+		void add(std::string one, std::string two) const {
 			gen->m_output << "    add " << one << ", " << two << "\n";
 		}
-		void sub(char* one, char* two) {
+		void sub(std::string one, std::string two) const {
 			gen->m_output << "    sub " << one << ", " << two << "\n";
 		}
-		void mul(char* one, char* two) {
+		void mul(std::string one, std::string two) const {
 			gen->m_output << "    imul " << one << ", " << two << "\n";
 		}
+		void pop(std::string to) const {
+			gen->m_output << "    pop " << to << "\n";
+		}
+		void push(std::string to) const {
+			gen->m_output << "    push " << to << "\n";
+		}
 	};
+
 	struct Var {
 		std::string name {};
 		size_t stack_loc {};
@@ -60,9 +70,14 @@ public:
 		std::string name;
 		std::vector<std::pair<std::string, DataType>> fields;
 	};
+
 	explicit Generator(NodeProg prog)
 		: m_prog(std::move(prog))
 	{
+	}
+
+	std::string _ref_to(Var& v) {
+		return "dword [ebp-" + std::to_string(v.stack_loc) + "]";
 	}
 
 	std::optional<Var> var_lookup(std::string name) {
@@ -72,6 +87,12 @@ public:
 			}
 		}
 		return std::nullopt;
+	}
+
+	Var var_lookup_err(std::string name, Token def) {
+		std::optional<Var> v = var_lookup(name);
+		if(!v.has_value()) GeneratorError(def, "unkown variable `" + name + "`");
+		return v.value();
 	}
 
 	std::optional<Procedure> proc_lookup(std::string name) {
@@ -963,7 +984,11 @@ public:
 			void operator()(const NodeStmtIncBy* stmt_assign) const
 			{
 				if(auto ident = ptools::get::ident(stmt_assign->lvalue)) {
-					
+					Var vr = gen.var_lookup_err(ident.value()->ident.value.value(), stmt_assign->def);
+					gen.gen_expr(stmt_assign->expr);
+					gen.asmg.pop("edx");
+					gen.asmg.add(gen._ref_to(vr), "edx");
+					return;
 				}
 				gen.gen_expr(stmt_assign->lvalue, true);
 				gen.gen_expr(stmt_assign->expr);
