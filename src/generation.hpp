@@ -285,20 +285,20 @@ public:
 			{
 				if(term_rd->size == 8) {
 					gen.gen_expr(term_rd->expr);
-					gen.m_output << "	pop edx\n";
-					gen.m_output << "	xor ecx, ecx\n";
-					gen.m_output << "	mov cl, byte [edx]\n";
-					gen.m_output << "	push ecx\n";
+					gen.m_output << "    pop edx\n";
+					gen.m_output << "    xor ecx, ecx\n";
+					gen.m_output << "    mov cl, byte [edx]\n";
+					gen.m_output << "    push ecx\n";
 				} else if(term_rd->size == 16) {
 					gen.gen_expr(term_rd->expr);
-					gen.m_output << "	pop edx\n";
-					gen.m_output << "	xor ecx, ecx\n";
-					gen.m_output << "	mov cx, word [edx]\n";
-					gen.m_output << "	push ecx\n";
+					gen.m_output << "    pop edx\n";
+					gen.m_output << "    xor ecx, ecx\n";
+					gen.m_output << "    mov cx, word [edx]\n";
+					gen.m_output << "    push ecx\n";
 				} else if(term_rd->size == 32) {
 					gen.gen_expr(term_rd->expr);
-					gen.m_output << "	pop edx\n";
-					gen.m_output << "	push dword [edx]\n";
+					gen.m_output << "    pop edx\n";
+					gen.m_output << "    push dword [edx]\n";
 				} else {
 					assert(false); // unreacheable
 				}
@@ -316,10 +316,10 @@ public:
 				if(!str.has_value()) {
 					size_t index = gen.m_strings.size();
 					gen.m_strings.push_back({ .value = value, .index = index});
-					gen.m_output << "	push s_" << index << "\n";
+					gen.m_output << "    push s_" << index << "\n";
 					return;
 				}
-				gen.m_output << "	push s_" << str.value().index << "\n";
+				gen.m_output << "    push s_" << str.value().index << "\n";
 			}
 
 			void operator()(const NodeTermAmpersand* term_amp) const
@@ -332,9 +332,9 @@ public:
 				std::optional<Var> it = gen.var_lookup(term_ident->ident.value.value());
 				if(it.has_value()) {
 					if(lvalue) {
-						gen.m_output << "	mov edx, ebp\n";
-						gen.m_output << "	sub edx, " << it.value().stack_loc << "\n";
-						gen.m_output << "	push edx\n";
+						gen.m_output << "    mov edx, ebp\n";
+						gen.m_output << "    sub edx, " << it.value().stack_loc << "\n";
+						gen.m_output << "    push edx\n";
 					} else {
 						std::stringstream offset;
 						offset << "dword [ebp-" << it.value().stack_loc << "]";
@@ -392,26 +392,26 @@ public:
 					if(term_call->args.has_value()) {
 						gen.gen_expr(term_call->args.value());
 					}
-					gen.m_output << "	call " << name << "\n";
+					gen.m_output << "    call " << name << "\n";
 					if(stack_allign != 0) {
-						gen.m_output << "	add esp, " << stack_allign * 4 << "\n";
+						gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
 					}
 					if(proc.value().rettype == DataTypeVoid) {
 						gen.GeneratorError(term_call->def, "using void function as expression");
 					}
-					gen.m_output << "	push eax\n";
+					gen.m_output << "    push eax\n";
 					return;
 				}
 				std::optional<Struct> st = gen.struct_lookup(term_call->name);
 				if(st.has_value()) {
 					size_t objectSize = st.value().fields.size();
 					if(objectSize == 0U) {
-						gen.m_output << "	push dword 0\n";
+						gen.m_output << "    push dword 0\n";
 						return;
 					}
-					gen.m_output << "	push dword " << objectSize * 4U << "\n";
-					gen.m_output << "	call malloc\n";
-					gen.m_output << "	add esp, 4\n";
+					gen.m_output << "    push dword " << objectSize * 4U << "\n";
+					gen.m_output << "    call malloc\n";
+					gen.m_output << "    add esp, 4\n";
 					bool eax_break = false;
 					std::vector<NodeExpr*> iargs;
 					if(term_call->args.has_value()) {
@@ -434,7 +434,10 @@ public:
 							gen.GeneratorError(term_call->def, "except " + std::to_string(st.value().fields.size()) + " args\nNOTE: but got " + std::to_string(iargs.size()) + "\nNOTE: if you don't want initialize all fields dont provide any arguments");
 						}
 						eax_break = true;
-						gen.m_output << "	mov dword [tmp_stor], eax\n";
+						gen.m_output << "    mov edx, dword [tmp_p]\n";
+						gen.m_output << "    add edx, 4\n";
+						gen.m_output << "    mov dword [tmp_p], edx\n";
+						gen.m_output << "    mov dword [tmp_stor+edx], eax\n";
 						for(int i = 0;i < static_cast<int>(iargs.size());++i) {
 							DataType itype = gen.type_of_expr(iargs[i]);
 							DataType ftype = st.value().fields[i].second;
@@ -442,15 +445,19 @@ public:
 								gen.GeneratorError(term_call->def, "missmatch in initializers types for field nth `" + std::to_string(i + 1) + "`\nNOTE: field name - `" + st.value().fields[i].first + "`" + "\nNOTE: excepted " + ftype.to_string() + "\nNOTE: but got " + itype.to_string());
 							}
 							gen.gen_expr(iargs[i]);
-							gen.m_output << "	pop ecx\n";
-							gen.m_output << "	mov edx, dword [tmp_stor]\n";
-							gen.m_output << "	mov dword [edx+" << i * 4 << "], ecx\n";
+							gen.m_output << "    pop ecx\n";
+							gen.m_output << "    mov ebx, dword [tmp_p]\n";
+							gen.m_output << "    mov edx, dword [tmp_stor+ebx]\n";
+							gen.m_output << "    mov dword [edx+" << i * 4 << "], ecx\n";
 						}
 					}
 					if(!eax_break) {
-						gen.m_output << "	push eax\n";
+						gen.m_output << "    push eax\n";
 					} else {
-						gen.m_output << "	push dword [tmp_stor]\n";
+						gen.m_output << "    mov edx, dword [tmp_p]\n";
+						gen.m_output << "    push dword [tmp_stor+edx]\n";
+						gen.m_output << "    sub edx, 4\n";
+						gen.m_output << "    mov dword [tmp_p], edx\n";
 					}
 					return;
 				}
@@ -474,7 +481,7 @@ public:
 				gen.gen_expr(sub->lhs);
 				gen.pop("eax");
 				gen.pop("ebx");
-				gen.m_output << "	sub eax, ebx\n";
+				gen.m_output << "    sub eax, ebx\n";
 				gen.push("eax");
 			}
 
@@ -484,7 +491,7 @@ public:
 				gen.gen_expr(add->lhs);
 				gen.pop("eax");
 				gen.pop("ebx");
-				gen.m_output << "	add eax, ebx\n";
+				gen.m_output << "    add eax, ebx\n";
 				gen.push("eax");
 			}
 
@@ -494,7 +501,7 @@ public:
 				gen.gen_expr(multi->lhs);
 				gen.pop("eax");
 				gen.pop("ebx");
-				gen.m_output << "	mul ebx\n";
+				gen.m_output << "    mul ebx\n";
 				gen.push("eax");
 			}
 
@@ -504,10 +511,10 @@ public:
 				gen.gen_expr(div->lhs);
 				gen.pop("eax");
 				gen.pop("ebx");
-				gen.m_output << "	xor edx, edx\n";
-				gen.m_output << "	div ebx\n";
+				gen.m_output << "    xor edx, edx\n";
+				gen.m_output << "    div ebx\n";
 				gen.push("eax");
-				gen.m_output << "	mov edx, ecx\n";
+				gen.m_output << "    mov edx, ecx\n";
 			}
 
 			void operator()(const NodeBinExprMod* md) const
@@ -516,8 +523,8 @@ public:
 				gen.gen_expr(md->lhs);
 				gen.pop("eax");
 				gen.pop("ebx");
-				gen.m_output << "	xor edx, edx\n";
-				gen.m_output << "	div ebx\n";
+				gen.m_output << "    xor edx, edx\n";
+				gen.m_output << "    div ebx\n";
 				gen.push("edx");
 			}
 
@@ -525,39 +532,39 @@ public:
 			{
 				gen.gen_expr(eqeq->rhs);
 				gen.gen_expr(eqeq->lhs);
-				gen.m_output << "	mov edx, 0\n";
-				gen.m_output << "	mov ecx, 1\n";
-				gen.m_output << "	pop ebx\n";
-				gen.m_output << "	pop eax\n";
-				gen.m_output << "	cmp eax, ebx\n";
-				gen.m_output << "	cmove edx, ecx\n";
-				gen.m_output << "	push edx\n";
+				gen.m_output << "    mov edx, 0\n";
+				gen.m_output << "    mov ecx, 1\n";
+				gen.m_output << "    pop ebx\n";
+				gen.m_output << "    pop eax\n";
+				gen.m_output << "    cmp eax, ebx\n";
+				gen.m_output << "    cmove edx, ecx\n";
+				gen.m_output << "    push edx\n";
 			}
 
 			void operator()(const NodeBinExprNotEq* nq) const
 			{
 				gen.gen_expr(nq->rhs);
 				gen.gen_expr(nq->lhs);
-				gen.m_output << "	mov edx, 0\n";
-				gen.m_output << "	mov ecx, 1\n";
-				gen.m_output << "	pop ebx\n";
-				gen.m_output << "	pop eax\n";
-				gen.m_output << "	cmp eax, ebx\n";
-				gen.m_output << "	cmovne edx, ecx\n";
-				gen.m_output << "	push edx\n";
+				gen.m_output << "    mov edx, 0\n";
+				gen.m_output << "    mov ecx, 1\n";
+				gen.m_output << "    pop ebx\n";
+				gen.m_output << "    pop eax\n";
+				gen.m_output << "    cmp eax, ebx\n";
+				gen.m_output << "    cmovne edx, ecx\n";
+				gen.m_output << "    push edx\n";
 			}
 
 			void operator()(const NodeBinExprLess* less) const
 			{
 				gen.gen_expr(less->lhs);
 				gen.gen_expr(less->rhs);
-				gen.m_output << "	mov edx, 0\n";
-				gen.m_output << "	mov ecx, 1\n";
-				gen.m_output << "	pop ebx\n";
-				gen.m_output << "	pop eax\n";
-				gen.m_output << "	cmp eax, ebx\n";
-				gen.m_output << "	cmovc edx, ecx\n";
-				gen.m_output << "	push edx\n";
+				gen.m_output << "    mov edx, 0\n";
+				gen.m_output << "    mov ecx, 1\n";
+				gen.m_output << "    pop ebx\n";
+				gen.m_output << "    pop eax\n";
+				gen.m_output << "    cmp eax, ebx\n";
+				gen.m_output << "    cmovc edx, ecx\n";
+				gen.m_output << "    push edx\n";
 			}
 
 			void operator()(const NodeBinExprAbove* above) const
@@ -566,13 +573,13 @@ public:
 				// DON'T COPY PASTE
 				// IN > FIRST GENERATE LEFT OPERAND
 				gen.gen_expr(above->rhs);
-				gen.m_output << "	mov edx, 0\n";
-				gen.m_output << "	mov ecx, 1\n";
-				gen.m_output << "	pop ebx\n";
-				gen.m_output << "	pop eax\n";
-				gen.m_output << "	cmp eax, ebx\n";
-				gen.m_output << "	cmova edx, ecx\n";
-				gen.m_output << "	push edx\n";
+				gen.m_output << "    mov edx, 0\n";
+				gen.m_output << "    mov ecx, 1\n";
+				gen.m_output << "    pop ebx\n";
+				gen.m_output << "    pop eax\n";
+				gen.m_output << "    cmp eax, ebx\n";
+				gen.m_output << "    cmova edx, ecx\n";
+				gen.m_output << "    push edx\n";
 			}
 
 			void operator()(const NodeBinExprDot* dot) const
@@ -598,17 +605,17 @@ public:
 					size_t field_offset = field.value().first;
 					gen.gen_expr(dot->lhs);
 					if(lvalue) {
-						gen.m_output << "	pop ecx\n";
+						gen.m_output << "    pop ecx\n";
 						if(field_offset != 0U) {
-							gen.m_output << "	add ecx, " << field_offset * 4U << "\n";
+							gen.m_output << "    add ecx, " << field_offset * 4U << "\n";
 						}
-						gen.m_output << "	push ecx\n";
+						gen.m_output << "    push ecx\n";
 					} else {
-						gen.m_output << "	pop ecx\n";
+						gen.m_output << "    pop ecx\n";
 						if(field_offset != 0U) {
-							gen.m_output << "	push dword [ecx+" << field_offset * 4U << "]\n";
+							gen.m_output << "    push dword [ecx+" << field_offset * 4U << "]\n";
 						} else {
-						   gen.m_output << "	push dword [ecx]\n"; 
+						   gen.m_output << "    push dword [ecx]\n"; 
 						}
 					}
 				} else {
@@ -731,8 +738,8 @@ public:
 		DataType vartype = type_of_expr(value);
 		m_vars.push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = vartype });
 		gen_expr(value);
-		m_output << "	pop ecx\n";
-		m_output << "	mov dword [ebp-" << m_var_index * 4 << "], ecx\n";
+		m_output << "    pop ecx\n";
+		m_output << "    mov dword [ebp-" << m_var_index * 4 << "], ecx\n";
 	}
 
 	void create_var_va(const std::string name, DataType type, Token where) {
@@ -762,11 +769,11 @@ public:
 				gen.gen_expr(elif->expr);
 				gen.pop("eax");
 				const std::string label = gen.create_label();
-				gen.m_output << "	test eax, eax\n";
-				gen.m_output << "	jz " << label << "\n";
+				gen.m_output << "    test eax, eax\n";
+				gen.m_output << "    jz " << label << "\n";
 				gen.gen_scope(elif->scope);
-				gen.m_output << "	jmp " << end_label << "\n";
-				gen.m_output << "	" << label << ":\n";
+				gen.m_output << "    jmp " << end_label << "\n";
+				gen.m_output << "    " << label << ":\n";
 				if (elif->pred.has_value()) {
 					gen.gen_if_pred(elif->pred.value(), end_label);
 				}
@@ -794,7 +801,7 @@ public:
 					gen.GeneratorError(stmt_exit->def, "`exit` except type `int`\nNOTE: but got type " + dt_to_string(etype));
 				}
 				gen.gen_expr(stmt_exit->expr);
-				gen.m_output << "	call ExitProcess@4\n";
+				gen.m_output << "    call ExitProcess@4\n";
 			}
 
 			void operator()(const NodeStmtProc* stmt_proc)
@@ -813,8 +820,8 @@ public:
 				bool noprolog = std::find(attrs.begin(), attrs.end(), ProcAttr::noprolog) != attrs.end();
 				gen.m_output << stmt_proc->name << ":\n";
 				if(!noprolog) {
-					gen.m_output << "	push ebp\n";
-					gen.m_output << "	mov ebp, esp\n";
+					gen.m_output << "    push ebp\n";
+					gen.m_output << "    mov ebp, esp\n";
 				}
 				size_t scope_size = stmt_proc->params.size() + fsz;
 				bool nostdargs = std::find(attrs.begin(), attrs.end(), ProcAttr::nostdargs) != attrs.end();
@@ -825,28 +832,31 @@ public:
 					scope_size -= stmt_proc->params.size();
 				}
 				if(scope_size != 0) {
-					gen.m_output << "	sub esp, " << scope_size * 4 << "\n";
+					gen.m_output << "    sub esp, " << scope_size * 4 << "\n";
 				}
 				if(static_cast<int>(stmt_proc->params.size()) != 0U && !nostdargs) {
 					int rev_i = 0;
 					for(int i = static_cast<int>(stmt_proc->params.size()) - 1;i > -1;--i, rev_i++) {
-						gen.m_output << "	mov edx, dword [ebp+" << rev_i * 4 + 8 << "]\n";
-						gen.m_output << "	mov dword [ebp-" << rev_i * 4 + 4 << "], edx\n";
+						gen.m_output << "    mov edx, dword [ebp+" << rev_i * 4 + 8 << "]\n";
+						gen.m_output << "    mov dword [ebp-" << rev_i * 4 + 4 << "], edx\n";
 					}
 				}
 				gen.m_cur_proc = gen.m_procs[gen.m_procs.size() - 1];
+				if(stmt_proc->name == "main") {
+					gen.m_output << "    call _BPM_init_\n";
+				}
 				gen.gen_scope(stmt_proc->scope);
 				gen.m_cur_proc = std::nullopt;
 				if(stmt_proc->name == "main") {
-					gen.m_output << "	xor eax, eax\n";
+					gen.m_output << "    xor eax, eax\n";
 				}
 				if(scope_size != 0) {
-					gen.m_output << "	add esp, " << scope_size * 4 << "\n";
+					gen.m_output << "    add esp, " << scope_size * 4 << "\n";
 				}
 				if(!noprolog) {
-					gen.m_output << "	pop ebp\n";
+					gen.m_output << "    pop ebp\n";
 				}
-				gen.m_output << "	ret\n\n";
+				gen.m_output << "    ret\n\n";
 				gen.m_vars.clear();
 				gen.m_var_index = 0U;
 			}
@@ -871,8 +881,8 @@ public:
 					gen.pop("eax");
 				}
 				gen.end_scope_fsz(cproc.value().stack_allign);
-				gen.m_output << "	pop ebp\n";
-				gen.m_output << "	ret\n";
+				gen.m_output << "    pop ebp\n";
+				gen.m_output << "    ret\n";
 			}
 
 			void operator()(const NodeStmtLet* stmt_let) const
@@ -904,7 +914,7 @@ public:
 						}
 						gen.gen_expr(stmt_assign->expr);
 						gen.pop("edx");
-						gen.m_output << "	mov dword [ebp-" << var.value().stack_loc << "], edx\n";
+						gen.m_output << "    mov dword [ebp-" << var.value().stack_loc << "], edx\n";
 						return;
 					}
 				}
@@ -912,7 +922,7 @@ public:
 				gen.gen_expr(stmt_assign->expr);
 				gen.pop("ecx");
 				gen.pop("edx");
-				gen.m_output << "	mov dword [edx], ecx\n";
+				gen.m_output << "    mov dword [edx], ecx\n";
 			}
 
 			void operator()(const NodeStmtCall* stmt_call) const
@@ -963,9 +973,9 @@ public:
 				if(stmt_call->args.has_value()) {
 					gen.gen_expr(stmt_call->args.value());
 				}
-				gen.m_output << "	call " << name << "\n";
+				gen.m_output << "    call " << name << "\n";
 				if(stack_allign != 0) {
-					gen.m_output << "	add esp, " << stack_allign * 4 << "\n";
+					gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
 				}
 			}
 
@@ -979,18 +989,18 @@ public:
 				gen.gen_expr(stmt_if->expr);
 				gen.pop("eax");
 				const std::string label = gen.create_label();
-				gen.m_output << "	test eax, eax\n";
-				gen.m_output << "	jz " << label << "\n";
+				gen.m_output << "    test eax, eax\n";
+				gen.m_output << "    jz " << label << "\n";
 				gen.gen_scope(stmt_if->scope);
 				if (stmt_if->pred.has_value()) {
 					const std::string end_label = gen.create_label();
-					gen.m_output << "	jmp " << end_label << "\n";
-					gen.m_output << "	" << label << ":\n";
+					gen.m_output << "    jmp " << end_label << "\n";
+					gen.m_output << "    " << label << ":\n";
 					gen.gen_if_pred(stmt_if->pred.value(), end_label);
-					gen.m_output << "	" << end_label << ":\n";
+					gen.m_output << "    " << end_label << ":\n";
 				}
 				else {
-					gen.m_output << "	" << label << ":\n";
+					gen.m_output << "    " << label << ":\n";
 				}
 			}
 
@@ -999,15 +1009,15 @@ public:
 				auto preiflab = gen.create_label();
 				auto blocklab = gen.create_label();
 				auto breaklab = gen.create_label();
-				gen.m_output << "	" << preiflab << ":\n";
+				gen.m_output << "    " << preiflab << ":\n";
 				gen.gen_expr(stmt_while->expr);
-				gen.m_output << "	pop eax\n";
-				gen.m_output << "	test eax, eax\n";
-				gen.m_output << "	jz " << breaklab << "\n";
-				gen.m_output << "	" << blocklab << ":\n";
+				gen.m_output << "    pop eax\n";
+				gen.m_output << "    test eax, eax\n";
+				gen.m_output << "    jz " << breaklab << "\n";
+				gen.m_output << "    " << blocklab << ":\n";
 				gen.gen_scope(stmt_while->scope);
-				gen.m_output << "	jmp " << preiflab << "\n";
-				gen.m_output << "	" << breaklab << ":\n";
+				gen.m_output << "    jmp " << preiflab << "\n";
+				gen.m_output << "    " << breaklab << ":\n";
 			}
 
 			void operator()(const NodeStmtStore* stmt_store) const
@@ -1020,23 +1030,23 @@ public:
 				if(stmt_store->size == 8U) {
 					gen.gen_expr(stmt_store->ptr);
 					gen.gen_expr(stmt_store->expr);
-					gen.m_output << "	pop edx\n";
-					gen.m_output << "	pop ecx\n";
-					gen.m_output << "	mov byte [ecx], dl\n";
+					gen.m_output << "    pop edx\n";
+					gen.m_output << "    pop ecx\n";
+					gen.m_output << "    mov byte [ecx], dl\n";
 				}
 				else if(stmt_store->size == 16U) {
 					gen.gen_expr(stmt_store->ptr);
 					gen.gen_expr(stmt_store->expr);
-					gen.m_output << "	pop edx\n";
-					gen.m_output << "	pop ecx\n";
-					gen.m_output << "	mov word [ecx], dx\n";
+					gen.m_output << "    pop edx\n";
+					gen.m_output << "    pop ecx\n";
+					gen.m_output << "    mov word [ecx], dx\n";
 				}
 				else if(stmt_store->size == 32U) {
 					gen.gen_expr(stmt_store->ptr);
 					gen.gen_expr(stmt_store->expr);
-					gen.m_output << "	pop edx\n";
-					gen.m_output << "	pop ecx\n";
-					gen.m_output << "	mov dword [ecx], edx\n";
+					gen.m_output << "    pop edx\n";
+					gen.m_output << "    pop ecx\n";
+					gen.m_output << "    mov dword [ecx], edx\n";
 				} else {
 					assert(false); // unreacheable
 				}
@@ -1051,7 +1061,7 @@ public:
 			}
 
 			void operator()(const NodeStmtAsm* stmt_asm) {
-				gen.m_output << "	" << stmt_asm->code << "\n";
+				gen.m_output << "    " << stmt_asm->code << "\n";
 			}
 
 			void operator()(const NodeStmtCextern* stmt_cextern) {
@@ -1071,8 +1081,8 @@ public:
 					gen.GeneratorError(stmt_delete->def, "`delete` except object\nNOTE: but got " + gen.type_of_expr(stmt_delete->expr).to_string());
 				}
 				gen.gen_expr(stmt_delete->expr);
-				gen.m_output << "	call free\n";
-				gen.m_output << "	add esp, 4\n";
+				gen.m_output << "    call free\n";
+				gen.m_output << "    add esp, 4\n";
 			}
 		};
 
@@ -1086,6 +1096,10 @@ public:
 		result << "section .text\n\n";
 		result << "global main\n\n";
 
+		result << "_BPM_init_:\n";
+		result << "    mov dword [tmp_p], dword 0x0\n";
+		result << "    ret\n\n\n";
+
 		for (const NodeStmt* stmt : m_prog.stmts) {
 			gen_stmt(stmt);
 		}
@@ -1097,12 +1111,12 @@ public:
 		result << "\n";
 
 		m_output << "\nsection .data\n";
-		m_output << "	numfmt: db \"%d\", 0x0\n";
-		m_output << "	numfmtnl: db \"%d\", 0xa, 0x0\n";
-		m_output << "	strfmt: db \"%s\", 0x0\n";
+		m_output << "    numfmt: db \"%d\", 0x0\n";
+		m_output << "    numfmtnl: db \"%d\", 0xa, 0x0\n";
+		m_output << "    strfmt: db \"%s\", 0x0\n";
 		for(int i = 0;i < static_cast<int>(m_strings.size());++i) {
 			String& cur_s = m_strings[i];
-			m_output << "	s_" << static_cast<int>(cur_s.index) << ": db ";
+			m_output << "    s_" << static_cast<int>(cur_s.index) << ": db ";
 			std::stringstream hexstr;
 			for(int j = 0;j < static_cast<int>(cur_s.value.length());++j) {
 				hexstr << "0x" << std::hex << static_cast<int>(cur_s.value[j]) << ", ";
@@ -1112,7 +1126,8 @@ public:
 			m_output << "0x0\n";
 		}
 		m_output << "\nsection .bss\n";
-		m_output << "	tmp_stor: resd 1\n";
+		m_output << "    tmp_stor: resd 1024\n";
+		m_output << "    tmp_p: resd 1\n";
 		result << m_output.str();
 		return result.str();
 	}
@@ -1120,25 +1135,25 @@ public:
 private:
 	void push(const std::string& reg)
 	{
-		m_output << "	push " << reg << "\n";
+		m_output << "    push " << reg << "\n";
 	}
 
 	void pop(const std::string& reg)
 	{
-		m_output << "	pop " << reg << "\n";
+		m_output << "    pop " << reg << "\n";
 	}
 
 	void begin_scope_fsz(int fsz)
 	{
 		if(fsz != 0) {
-			m_output << "	sub esp, " << fsz * 4 << "\n";
+			m_output << "    sub esp, " << fsz * 4 << "\n";
 		}
 	}
 
 	void end_scope_fsz(int fsz)
 	{
 		if(fsz != 0) {
-			m_output << "	add esp, " << fsz * 4 << "\n";
+			m_output << "    add esp, " << fsz * 4 << "\n";
 		}
 	}
 
