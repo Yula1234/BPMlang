@@ -2,6 +2,11 @@
 
 #include "parser.hpp"
 
+// TODO: Add a scopes.
+// its mean on every scope (if, while, proc)
+// asm generate sub esp, {} and add esp, {} at end.
+// and pushes scope size at m_scopes in gen object.
+
 namespace ptools {
 	namespace as {
 		NodeTerm* term(NodeExpr* expr) {
