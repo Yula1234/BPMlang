@@ -2,8 +2,43 @@
 
 #include "parser.hpp"
 
+namespace ptools {
+	namespace as {
+		NodeTerm* term(NodeExpr* expr) {
+			return std::get<NodeTerm*>(expr->var);
+		}
+		NodeTermIdent* ident(NodeExpr* expr) {
+			return std::get<NodeTermIdent*>(std::get<NodeTerm*>(expr->var)->var);
+		}
+	}
+	namespace is {
+		bool ident(NodeExpr* expr) {
+			if(!std::holds_alternative<NodeTerm*>(expr->var)) {
+				return false;
+			}
+			return std::holds_alternative<NodeTermIdent*>(std::get<NodeTerm*>(expr->var)->var);
+		}
+		std::optional<NodeTermIdent*> get_ident(NodeExpr* expr) {
+			if(!ident(expr)) return std::nullopt;
+			return as::ident(expr);
+		}
+	}
+}
+
 class Generator {
 public:
+	struct AsmGen {
+		Generator* gen;
+		void add(char* one, char* two) {
+			gen->m_output << "    add " << one << ", " << two << "\n";
+		}
+		void sub(char* one, char* two) {
+			gen->m_output << "    sub " << one << ", " << two << "\n";
+		}
+		void mul(char* one, char* two) {
+			gen->m_output << "    imul " << one << ", " << two << "\n";
+		}
+	};
 	struct Var {
 		std::string name {};
 		size_t stack_loc {};
@@ -925,6 +960,48 @@ public:
 				gen.m_output << "    mov dword [edx], ecx\n";
 			}
 
+			void operator()(const NodeStmtIncBy* stmt_assign) const
+			{
+				if(auto ident = ptools::get::ident(stmt_assign->lvalue)) {
+					
+				}
+				gen.gen_expr(stmt_assign->lvalue, true);
+				gen.gen_expr(stmt_assign->expr);
+				gen.pop("ecx");
+				gen.pop("edx");
+				gen.m_output << "    add dword [edx], ecx\n";
+			}
+
+			void operator()(const NodeStmtDecBy* stmt_assign) const
+			{
+				gen.gen_expr(stmt_assign->lvalue, true);
+				gen.gen_expr(stmt_assign->expr);
+				gen.pop("ecx");
+				gen.pop("edx");
+				gen.m_output << "    sub dword [edx], ecx\n";
+			}
+
+			void operator()(const NodeStmtMulBy* stmt_assign) const
+			{
+				gen.gen_expr(stmt_assign->lvalue, true);
+				gen.gen_expr(stmt_assign->expr);
+				gen.pop("ecx");
+				gen.pop("edx");
+				gen.m_output << "    imul dword [edx], ecx\n";
+			}
+
+			void operator()(const NodeStmtDivBy* stmt_assign) const
+			{
+				gen.gen_expr(stmt_assign->lvalue, true);
+				gen.gen_expr(stmt_assign->expr);
+				gen.pop("edi");
+				gen.pop("esi");
+				gen.m_output << "    xor edx, edx\n";
+				gen.m_output << "    mov eax, dword [esi]\n";
+				gen.m_output << "    mul edi\n";
+				gen.m_output << "    mov dword [esi], eax\n";
+			}
+
 			void operator()(const NodeStmtCall* stmt_call) const
 			{
 				const std::string name = stmt_call->def.value.value();
@@ -1175,6 +1252,7 @@ private:
 	}
 
 	const NodeProg m_prog;
+	const AsmGen asmg { .gen = this };
 	std::stringstream		 m_output   {};
 	std::vector<Var>         m_vars     {};
 	std::vector<String>	     m_strings  {};

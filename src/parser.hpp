@@ -378,6 +378,30 @@ struct NodeStmtBreak {
     Token def;
 };
 
+struct NodeStmtIncBy {
+    Token def;
+    NodeExpr* expr;
+    NodeExpr* lvalue;
+};
+
+struct NodeStmtDecBy {
+    Token def;
+    NodeExpr* expr;
+    NodeExpr* lvalue;
+};
+
+struct NodeStmtMulBy {
+    Token def;
+    NodeExpr* expr;
+    NodeExpr* lvalue;
+};
+
+struct NodeStmtDivBy {
+    Token def;
+    NodeExpr* expr;
+    NodeExpr* lvalue;
+};
+
 struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtLet*,
                 NodeScope*, NodeStmtIf*,
@@ -387,7 +411,9 @@ struct NodeStmt {
                 NodeStmtStore*,NodeStmtBuffer*,
                 NodeStmtCextern*,NodeStmtStruct*,
                 NodeStmtDelete*,NodeStmtLetNoAssign*,
-                NodeStmtBreak*> var;
+                NodeStmtBreak*,NodeStmtIncBy*,
+                NodeStmtDecBy*,NodeStmtMulBy*,
+                NodeStmtDivBy*> var;
 };
 
 struct NodeProg {
@@ -1200,10 +1226,7 @@ public:
             if(!peek().has_value()) {
                 error_expected("statement");
             }
-            Token curtok = peek().value();
-            if(curtok.type != TokenType::eq) {
-                error_expected("statement");
-            }           
+            Token curtok = peek().value();        
             if(!lvalue.has_value()) {
                 error_expected("lvalue");
             }
@@ -1220,7 +1243,22 @@ public:
                 try_consume_err(TokenType::semi);
                 auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
                 return stmt;
-            } else {
+            }
+            else if(curtok.type == TokenType::plus_eq) {
+                const auto stmt_assign = m_allocator.emplace<NodeStmtIncBy>();
+                stmt_assign->lvalue = lvalue.value();
+                stmt_assign->def = consume();
+                if (const auto expr = parse_expr()) {
+                    stmt_assign->expr = expr.value();
+                }
+                else {
+                    error_expected("expression");
+                }
+                try_consume_err(TokenType::semi);
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
+                return stmt;
+            }
+            else {
                 error_expected("statement");
             }
         }

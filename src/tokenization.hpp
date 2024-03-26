@@ -53,6 +53,10 @@ enum class TokenType {
     _delete,
     dot,
     _break,
+    plus_eq,
+    minus_eq,
+    star_eq,
+    fslash_eq,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -162,6 +166,14 @@ std::string tok_to_string(const TokenType type)
         return "`.`";
     case TokenType::_break:
         return "`break`";
+    case TokenType::plus_eq:
+        return "`+=`";
+    case TokenType::minus_eq:
+        return "`-=`";
+    case TokenType::star_eq:
+        return "`*=`";
+    case TokenType::fslash_eq:
+        return "`/=`";
     }
     assert(false);
 }
@@ -368,6 +380,26 @@ public:
                 consume();
                 consume();
                 tokens.push_back({ .type = TokenType::arrow, .line =  line_count, .col = m_col - 2, .file = file });
+            }
+            else if (peek().value() == '+' && peek(1).has_value() && peek(1).value() == '=') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::plus_eq, .line =  line_count, .col = m_col - 2, .file = file });
+            }
+            else if (peek().value() == '-' && peek(1).has_value() && peek(1).value() == '=') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::minus_eq, .line =  line_count, .col = m_col - 2, .file = file });
+            }
+            else if (peek().value() == '*' && peek(1).has_value() && peek(1).value() == '=') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::star_eq, .line =  line_count, .col = m_col - 2, .file = file });
+            }
+            else if (peek().value() == '/' && peek(1).has_value() && peek(1).value() == '=') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::fslash_eq, .line =  line_count, .col = m_col - 2, .file = file });
             }
             else if (peek().value() == '/' && peek(1).has_value() && peek(1).value() == '/') {
                 consume();
