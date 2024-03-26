@@ -1258,6 +1258,48 @@ public:
                 auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
                 return stmt;
             }
+            else if(curtok.type == TokenType::minus_eq) {
+                const auto stmt_assign = m_allocator.emplace<NodeStmtDecBy>();
+                stmt_assign->lvalue = lvalue.value();
+                stmt_assign->def = consume();
+                if (const auto expr = parse_expr()) {
+                    stmt_assign->expr = expr.value();
+                }
+                else {
+                    error_expected("expression");
+                }
+                try_consume_err(TokenType::semi);
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
+                return stmt;
+            }
+            else if(curtok.type == TokenType::star_eq) {
+                const auto stmt_assign = m_allocator.emplace<NodeStmtMulBy>();
+                stmt_assign->lvalue = lvalue.value();
+                stmt_assign->def = consume();
+                if (const auto expr = parse_expr()) {
+                    stmt_assign->expr = expr.value();
+                }
+                else {
+                    error_expected("expression");
+                }
+                try_consume_err(TokenType::semi);
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
+                return stmt;
+            }
+            else if(curtok.type == TokenType::fslash_eq) {
+                const auto stmt_assign = m_allocator.emplace<NodeStmtDivBy>();
+                stmt_assign->lvalue = lvalue.value();
+                stmt_assign->def = consume();
+                if (const auto expr = parse_expr()) {
+                    stmt_assign->expr = expr.value();
+                }
+                else {
+                    error_expected("expression");
+                }
+                try_consume_err(TokenType::semi);
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
+                return stmt;
+            }
             else {
                 error_expected("statement");
             }
