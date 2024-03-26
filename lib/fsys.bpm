@@ -62,7 +62,7 @@ proc read_file f:FILE buf:ptr -> int {
 	while(ch != EOF) {
 		ch = fgetc_wrapper(f.cfile);
 		store8(buf + i, ch);
-		i = i + 1;
+		i += 1;
 	}
 	store8(buf + (i - 1), 0);
 	return i;

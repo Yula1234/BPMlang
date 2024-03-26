@@ -3,7 +3,7 @@ include "core"
 proc strlen str:ptr -> int {
 	let i = 0;
 	while(rd8(str + i) != 0) {
-		i = i + 1;
+		i += 1;
 	}
 	return i;
 }
@@ -27,8 +27,8 @@ proc tmp_utos src:ptr number:int -> int {
 	buffer bf(UTOS_BUFFER_CAPACITY);
 	while(result != 0) {
 		store8(&bf + i, (result % 10) + '0');
-		result = result / 10;
-		i = i + 1;
+		result /= 10;
+		i += 1;
 	}
 	memcopy(src, &bf, i);
 	return i;
@@ -49,8 +49,8 @@ proc utos src:ptr number:int -> void {
 	memcopy(&tmpb, src, strsize_i);
 	while(i < strsize_i) {
 		store8(src + i, rd8(&tmpb + strsize_m));
-		strsize_m = strsize_m - 1;
-		i = i + 1;
+		strsize_m -= 1;
+		i += 1;
 	}
 	store8(src + strsize_i, 0);
 }
@@ -60,7 +60,7 @@ proc stou str:ptr -> int {
 	let result = 0;
 	while(rd8(str + i) != 0) {
 		result = (rd8(str + i) - '0') + (result * 10);
-		i = i + 1;
+		i += 1;
 	}
 	return result;
 }
@@ -143,25 +143,25 @@ proc format_fprint fd:int format_str:ptr -> void
 	while(rd8(format_str + i) != 0) {
 		if(rd8(format_str + i) == '%') {
 			if(rd8(format_str + (i + 1)) == 'd') {
-				i = i + 1;
+				i += 1;
 				fputuwnl(fd, nth_arg_int(frame, nth));
-				nth = nth + 1;
+				nth += 1;
 			}
 			elif(rd8(format_str + (i + 1)) == 's') {
-				i = i + 1;
+				i += 1;
 				fputs(fd, nth_arg_ptr(frame, nth));
-				nth = nth + 1;
+				nth += 1;
 			} elif(rd8(format_str + (i + 1)) == 'c') {
-				i = i + 1;
+				i += 1;
 				fputc(fd, nth_arg_int(frame, nth));
-				nth = nth + 1;
+				nth += 1;
 			} else {
 				fputc(fd, rd8(format_str + i));
 			}
 		} else {
 			fputc(fd, rd8(format_str + i));
 		}
-		i = i + 1;
+		i += 1;
 	}
 }
 
@@ -172,25 +172,25 @@ proc format_fprint_frame fd:int frame:int format_str:ptr -> void
 	while(rd8(format_str + i) != 0) {
 		if(rd8(format_str + i) == '%') {
 			if(rd8(format_str + (i + 1)) == 'd') {
-				i = i + 1;
+				i += 1;
 				fputuwnl(fd, nth_arg_int(frame, nth));
-				nth = nth + 1;
+				nth += 1;
 			}
 			elif(rd8(format_str + (i + 1)) == 's') {
-				i = i + 1;
+				i += 1;
 				fputs(fd, nth_arg_ptr(frame, nth));
-				nth = nth + 1;
+				nth += 1;
 			} elif(rd8(format_str + (i + 1)) == 'c') {
-				i = i + 1;
+				i += 1;
 				fputc(fd, nth_arg_int(frame, nth));
-				nth = nth + 1;
+				nth += 1;
 			} else {
 				fputc(fd, rd8(format_str + i));
 			}
 		} else {
 			fputc(fd, rd8(format_str + i));
 		}
-		i = i + 1;
+		i += 1;
 	}
 }
 
