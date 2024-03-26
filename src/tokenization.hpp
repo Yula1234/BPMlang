@@ -52,6 +52,7 @@ enum class TokenType {
     _struct,
     _delete,
     dot,
+    _break,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -159,6 +160,8 @@ std::string tok_to_string(const TokenType type)
         return "`delete`";
     case TokenType::dot:
         return "`.`";
+    case TokenType::_break:
+        return "`break`";
     }
     assert(false);
 }
@@ -342,6 +345,10 @@ public:
                 }
                 else if (buf == "delete") {
                     tokens.push_back({ .type = TokenType::_delete, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "break") {
+                    tokens.push_back({ .type = TokenType::_break, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {

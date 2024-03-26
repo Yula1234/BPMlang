@@ -1009,6 +1009,7 @@ public:
 				auto preiflab = gen.create_label();
 				auto blocklab = gen.create_label();
 				auto breaklab = gen.create_label();
+				gen.m_breaks.push_back(breaklab);
 				gen.m_output << "    " << preiflab << ":\n";
 				gen.gen_expr(stmt_while->expr);
 				gen.m_output << "    pop eax\n";
@@ -1018,6 +1019,15 @@ public:
 				gen.gen_scope(stmt_while->scope);
 				gen.m_output << "    jmp " << preiflab << "\n";
 				gen.m_output << "    " << breaklab << ":\n";
+				gen.m_breaks.pop_back();
+			}
+
+			void operator()(const NodeStmtBreak* stmt_break)
+			{
+				if(gen.m_breaks.size() == 0ULL) {
+					gen.GeneratorError(stmt_break->def, "break without loop");
+				}
+				gen.m_output << "    jmp " << gen.m_breaks[gen.m_breaks.size() - 1ULL] << "\n";
 			}
 
 			void operator()(const NodeStmtStore* stmt_store) const
@@ -1171,6 +1181,7 @@ private:
 	std::vector<Procedure>   m_procs    {};
 	std::vector<Struct>      m_structs  {};
 	std::optional<Procedure> m_cur_proc {};
+	std::vector<std::string> m_breaks   {};
 	std::vector<std::string> m_cexterns = {
 		"ExitProcess@4",
 		"malloc",

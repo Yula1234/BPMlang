@@ -374,6 +374,10 @@ struct NodeStmtDelete {
     NodeExpr* expr;
 };
 
+struct NodeStmtBreak {
+    Token def;
+};
+
 struct NodeStmt {
     std::variant<NodeStmtExit*, NodeStmtLet*,
                 NodeScope*, NodeStmtIf*,
@@ -382,7 +386,8 @@ struct NodeStmt {
                 NodeStmtWhile*,NodeStmtReturn*,
                 NodeStmtStore*,NodeStmtBuffer*,
                 NodeStmtCextern*,NodeStmtStruct*,
-                NodeStmtDelete*,NodeStmtLetNoAssign*> var;
+                NodeStmtDelete*,NodeStmtLetNoAssign*,
+                NodeStmtBreak*> var;
 };
 
 struct NodeProg {
@@ -1178,6 +1183,16 @@ public:
             try_consume_err(TokenType::semi);
             auto stmt = m_allocator.emplace<NodeStmt>();
             stmt->var = stmt_delete;
+            return stmt;
+        }
+
+        if(auto _break = try_consume(TokenType::_break)) {
+            Token def = _break.value();
+            auto stmt_break = m_allocator.emplace<NodeStmtBreak>();
+            stmt_break->def = def;
+            try_consume_err(TokenType::semi);
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_break;
             return stmt;
         }
 
