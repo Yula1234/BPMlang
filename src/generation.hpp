@@ -2,31 +2,6 @@
 
 #include "parser.hpp"
 
-namespace ptools {
-	namespace as {
-		NodeTerm* term(NodeExpr* expr) {
-			return std::get<NodeTerm*>(expr->var);
-		}
-		NodeTermIdent* ident(NodeExpr* expr) {
-			return std::get<NodeTermIdent*>(std::get<NodeTerm*>(expr->var)->var);
-		}
-	}
-	namespace is {
-		bool ident(NodeExpr* expr) {
-			if(!std::holds_alternative<NodeTerm*>(expr->var)) {
-				return false;
-			}
-			return std::holds_alternative<NodeTermIdent*>(std::get<NodeTerm*>(expr->var)->var);
-		}
-	}
-	namespace get {
-		std::optional<NodeTermIdent*> ident(NodeExpr* expr) {
-			if(!is::ident(expr)) return std::nullopt;
-			return as::ident(expr);
-		}
-	}
-}
-
 void consume_un(...) {}
 
 class Generator {
@@ -126,6 +101,15 @@ public:
 	std::vector<Var>& last_scope() {
 		return m_vars[m_vars.size() - 1ULL];
 	}
+
+	std::optional<Constant> const_lookup(std::string name) {
+        for(int i = 0;i < static_cast<int>(m_consts->size());++i) {
+            if(m_consts[0][i].name == name) {
+                return m_consts[0][i];
+            }
+        }
+        return std::nullopt;
+    }
 
 	std::optional<Procedure> proc_lookup(std::string name) {
 		yforeach(m_procs) {
@@ -236,6 +220,10 @@ public:
 				std::optional<Var> svar = var_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
 				if(svar.has_value()) {
 					return svar.value().type;
+				}
+				std::optional<Constant> scns = const_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
+				if(scns.has_value()) {
+					return DataTypeInt;
 				}
 				GeneratorError(std::get<NodeTermIdent*>(term->var)->ident, "unkown word `" + std::get<NodeTermIdent*>(term->var)->ident.value.value() + "`");
 			}
@@ -431,6 +419,15 @@ public:
 						offset << "dword [ebp-" << it.value().stack_loc << "]";
 						gen.push(offset.str());
 					}
+					return;
+				}
+				std::optional<Constant> cns = gen.const_lookup(term_ident->ident.value.value());
+				if(cns.has_value()) {
+					if(lvalue) {
+						std::cout << "can't assign constant `" << term_ident->ident.value.value() << "`\n";
+						exit(1);
+					}
+					gen.m_output << "    push dword " << cns.value().value << "\n";
 					return;
 				}
 				gen.GeneratorError(term_ident->ident, "unkown word `" + term_ident->ident.value.value() + "`");
@@ -1261,6 +1258,10 @@ public:
 		return result.str();
 	}
 
+	void get_props_from_parser(Parser* parser) {
+		m_consts = parser->get_consts();
+	}
+
 private:
 	void push(const std::string& reg)
 	{
@@ -1319,6 +1320,7 @@ private:
 	std::vector<std::string> m_breaks;
 	std::vector<size_t>      m_scopes;
 	std::vector<size_t>      m_scopes_vi;
+	std::vector<Constant>*   m_consts;
 	std::vector<std::string> m_cexterns = {
 		"ExitProcess@4",
 		"malloc",

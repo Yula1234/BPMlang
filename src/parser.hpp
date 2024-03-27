@@ -429,12 +429,38 @@ bool file_exists(std::string name) {
     }
 }
 
+namespace ptools {
+    namespace as {
+        NodeTerm* term(NodeExpr* expr) {
+            return std::get<NodeTerm*>(expr->var);
+        }
+        NodeTermIdent* ident(NodeExpr* expr) {
+            return std::get<NodeTermIdent*>(std::get<NodeTerm*>(expr->var)->var);
+        }
+    }
+    namespace is {
+        bool ident(NodeExpr* expr) {
+            if(!std::holds_alternative<NodeTerm*>(expr->var)) {
+                return false;
+            }
+            return std::holds_alternative<NodeTermIdent*>(std::get<NodeTerm*>(expr->var)->var);
+        }
+    }
+    namespace get {
+        std::optional<NodeTermIdent*> ident(NodeExpr* expr) {
+            if(!is::ident(expr)) return std::nullopt;
+            return as::ident(expr);
+        }
+    }
+}
+
+struct Constant {
+    std::string name;
+    int value;
+};
+
 class Parser {
 public:
-    struct Constant {
-        std::string name;
-        int value;
-    };
 
     explicit Parser(std::vector<Token> tokens)
         : m_tokens(std::move(tokens))
@@ -476,6 +502,21 @@ public:
             NodeTerm* nterm = std::get<NodeTerm*>(expr->var);
             if(std::holds_alternative<NodeTermIntLit*>(nterm->var)) {
                 return std::stoul(std::get<NodeTermIntLit*>(nterm->var)->int_lit.value.value());
+            }
+            if(std::holds_alternative<NodeTermIdent*>(nterm->var)) {
+                std::string cname = std::get<NodeTermIdent*>(nterm->var)->ident.value.value();
+                if(cname == "iota") {
+                    return CTX_IOTA++;
+                }
+                if(cname == "reset") {
+                    int old = CTX_IOTA;
+                    CTX_IOTA = 0;
+                    return old;
+                }
+                std::optional<Constant> cns = const_lookup(cname);
+                if(cns.has_value()) {
+                    return cns.value().value;
+                }
             }
         }
         if(std::holds_alternative<NodeBinExpr*>(expr->var)) {
@@ -650,33 +691,10 @@ public:
         }
         if (auto ident = try_consume(TokenType::ident)) {
             std::string tname = ident.value().value.value();
-            if(tname == "iota") {
-                auto CnsTerm = m_allocator.emplace<NodeTermIntLit>();
-                CnsTerm->int_lit = { .type = TokenType::int_lit, .line = 0, .col = 0, .value = std::to_string(CTX_IOTA++), .file = ""};
-                auto term = m_allocator.emplace<NodeTerm>(CnsTerm);
-                return term;
-            }
-            if(tname == "reset") {
-                auto CnsTerm = m_allocator.emplace<NodeTermIntLit>();
-                CnsTerm->int_lit = { .type = TokenType::int_lit, .line = 0, .col = 0, .value = std::to_string(CTX_IOTA), .file = ""};
-                auto term = m_allocator.emplace<NodeTerm>(CnsTerm);
-                CTX_IOTA = 0;
-                return term;
-            }
             auto expr_ident = m_allocator.emplace<NodeTermIdent>();
-            std::optional<Constant> cns = const_lookup(tname);
-            /*TODO: replace const machanism
-            from parsing to the generation step*/
-            if(!cns.has_value()) {
-                expr_ident->ident = ident.value();
-                auto term = m_allocator.emplace<NodeTerm>(expr_ident);
-                return term;
-            } else {
-                auto CnsTerm = m_allocator.emplace<NodeTermIntLit>();
-                CnsTerm->int_lit = { .type = TokenType::int_lit, .line = 0, .col = 0, .value = std::to_string(cns.value().value), .file = ""};
-                auto term = m_allocator.emplace<NodeTerm>(CnsTerm);
-                return term;
-            }
+            expr_ident->ident = ident.value();
+            auto term = m_allocator.emplace<NodeTerm>(expr_ident);
+            return term;
         }
         if (const auto open_paren = try_consume(TokenType::open_paren)) {
             auto expr = parse_expr();
@@ -1341,6 +1359,10 @@ public:
         return prog;
     }
 
+    std::vector<Constant>* get_consts() {
+        return &m_consts;
+    }
+
 private:
     [[nodiscard]] std::optional<Token> peek(const int offset = 0) const
     {
@@ -1372,9 +1394,9 @@ private:
         return {};
     }
 
-    std::vector<Token> m_tokens;
+    std::vector<Token>       m_tokens;
     std::vector<std::string> m_includes;
-    std::vector<Constant> m_consts;
+    std::vector<Constant>    m_consts;
     bool m_proprocessor_stmt = false;
     size_t m_index = 0ULL;
     size_t CTX_IOTA = 0ULL;
