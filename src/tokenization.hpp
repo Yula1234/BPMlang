@@ -429,6 +429,12 @@ public:
                 buf.clear();
                 while(peek().has_value() && peek().value() != '"') {
                     buf.push_back(consume());
+                    if(peek().has_value() && peek(0).value() == '\\' &&
+                        peek(1).has_value() && peek(1).value() == '"') {
+                        consume();
+                        consume();
+                        buf.push_back('"');
+                    }
                 }
                 consume();
                 for(int i = 0;i < static_cast<int>(buf.size());++i) {
