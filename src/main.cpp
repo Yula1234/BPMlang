@@ -35,6 +35,14 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+    if(FILE *file = fopen(argv[1], "r")) {
+        fclose(file);
+    } else {
+        char* path = argv[1];
+        std::cerr << "ERROR: file `" << path << "` not found\n";
+        exit(1);
+    }
+
     ArgParser argparser(argc, argv);
 
     argparser.parse();
