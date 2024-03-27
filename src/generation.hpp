@@ -135,10 +135,8 @@ public:
 	}
 
 	std::optional<String> string_lookup(std::string svalue) {
-		yforeach(m_strings) {
-			if(m_strings[i].value == svalue) {
-				return m_strings[i];
-			}
+		if(m_strings.find(svalue) != m_strings.end()) {
+			return m_strings[svalue];
 		}
 		return std::nullopt;
 	}
@@ -389,7 +387,7 @@ public:
 				std::optional<String> str = gen.string_lookup(value);
 				if(!str.has_value()) {
 					size_t index = gen.m_strings.size();
-					gen.m_strings.push_back({ .value = value, .index = index});
+					gen.m_strings[value] = { .value = value, .index = index};
 					gen.m_output << "    push s_" << index << "\n";
 					return;
 				}
@@ -1235,8 +1233,8 @@ public:
 		m_output << "    numfmt: db \"%d\", 0x0\n";
 		m_output << "    numfmtnl: db \"%d\", 0xa, 0x0\n";
 		m_output << "    strfmt: db \"%s\", 0x0\n";
-		for(int i = 0;i < static_cast<int>(m_strings.size());++i) {
-			String& cur_s = m_strings[i];
+		for(const auto& pairs : m_strings) {
+			const String& cur_s = pairs.second;
 			m_output << "    s_" << static_cast<int>(cur_s.index) << ": db ";
 			std::stringstream hexstr;
 			for(int j = 0;j < static_cast<int>(cur_s.value.length());++j) {
@@ -1308,7 +1306,7 @@ private:
 	const AsmGen asmg { .gen = this };
 	std::stringstream		 m_output;
 	std::vector<std::unordered_map<std::string, Var>> m_vars;
-	std::vector<String>	     m_strings;
+	std::unordered_map<std::string, String> m_strings;
 	std::vector<Procedure>   m_procs;
 	std::vector<Struct>      m_structs;
 	std::optional<Procedure> m_cur_proc;
