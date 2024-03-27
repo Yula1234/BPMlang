@@ -1,0 +1,47 @@
+control flow:
+if:
+`   If execute's body if condition
+	is true. Elif execute's body if If
+	condition is false.
+	else execute's if If and Elif conditions
+	is false
+	(creates a new scope)`
+	if(<condition>) {
+		<block>
+	}
+	elif(<condition>) { (optional)
+		<body>
+	}
+	else { (optional)
+		<body>
+	}
+	example:
+	`if(true) {
+		...
+	}
+	elif(false) {
+		...
+	}
+	else {
+		...
+	}`
+while:
+`   execute's body while condition is true
+	(creates a new scope)`
+	while(<condition>) {
+		<body>
+	}
+	example:
+	`let i = 0;
+	while(i < 10) {
+		putu(i);
+		i += 1;
+	}`
+proc:
+	proc <name> <args> [<attrs>] (optional) -> <return type> {
+		<body>
+	}
+	example:
+	`proc main argc:int argv:ptr -> int {
+		return 0;
+	}`
