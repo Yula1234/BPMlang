@@ -100,10 +100,8 @@ public:
 	}
 
 	std::optional<Constant> const_lookup(std::string name) {
-        for(int i = 0;i < static_cast<int>(m_consts->size());++i) {
-            if(m_consts[0][i].name == name) {
-                return m_consts[0][i];
-            }
+        if(m_consts->find(name) != m_consts->end()) {
+        	return m_consts->operator[](name);
         }
         return std::nullopt;
     }
@@ -1317,7 +1315,7 @@ private:
 	std::vector<std::string> m_breaks;
 	std::vector<size_t>      m_scopes;
 	std::vector<size_t>      m_scopes_vi;
-	std::vector<Constant>*   m_consts;
+	std::unordered_map<std::string, Constant>* m_consts;
 	std::vector<std::string> m_cexterns = {
 		"ExitProcess@4",
 		"malloc",

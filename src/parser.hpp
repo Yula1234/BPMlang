@@ -469,11 +469,8 @@ public:
     }
 
     std::optional<Constant> const_lookup(std::string name) {
-        Constant it;
-        yforeach(m_consts) {
-            if(m_consts[i].name == name) {
-                return m_consts[i];
-            }
+        if(m_consts.find(name) != m_consts.end()) {
+            return m_consts[name];
         }
         return std::nullopt;
     }
@@ -1130,7 +1127,7 @@ public:
                 ParsingError("file not found at `include` - `" + fname + "`");
             }
             m_proprocessor_stmt = true;
-            if(std::find(m_includes.begin(), m_includes.end(), path) != m_includes.end()) {
+            if(m_includes.find(path) != m_includes.end()) {
                 return {};
             }
             std::string contents;
@@ -1143,7 +1140,7 @@ public:
             }
             Tokenizer nlexer(std::move(contents));
             std::vector<Token> ntokens = nlexer.tokenize(fname);
-            m_includes.push_back(path);
+            m_includes.insert(path);
             m_tokens.insert(m_tokens.begin() + m_index, ntokens.begin(), ntokens.end());
             return {};
         }
@@ -1192,7 +1189,7 @@ public:
             Token name = try_consume_err(TokenType::ident);
             if(auto expr = parse_expr()) {
                 int _value = eval_int_value(expr.value());
-                m_consts.push_back({ .name = name.value.value(), .value = _value});
+                m_consts[name.value.value()] = { .name = name.value.value(), .value = _value};
             } else {
                 error_expected("constant expression");
             }
@@ -1359,7 +1356,7 @@ public:
         return prog;
     }
 
-    std::vector<Constant>* get_consts() {
+    std::unordered_map<std::string, Constant>* get_consts() {
         return &m_consts;
     }
 
@@ -1395,8 +1392,8 @@ private:
     }
 
     std::vector<Token>       m_tokens;
-    std::vector<std::string> m_includes;
-    std::vector<Constant>    m_consts;
+    std::unordered_set<std::string> m_includes;
+    std::unordered_map<std::string, Constant> m_consts;
     bool m_proprocessor_stmt = false;
     size_t m_index = 0ULL;
     size_t CTX_IOTA = 0ULL;
