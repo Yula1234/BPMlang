@@ -2,11 +2,6 @@
 
 #include "parser.hpp"
 
-// TODO: Add a scopes.
-// its mean on every scope (if, while, proc)
-// asm generate sub esp, {} and add esp, {} at end.
-// and pushes scope size at m_scopes in gen object.
-
 namespace ptools {
 	namespace as {
 		NodeTerm* term(NodeExpr* expr) {
@@ -31,6 +26,8 @@ namespace ptools {
 		}
 	}
 }
+
+void consume_un(...) {}
 
 class Generator {
 public:
@@ -92,19 +89,42 @@ public:
 		return "dword [ebp-" + std::to_string(v.stack_loc) + "]";
 	}
 
-	std::optional<Var> var_lookup(std::string name) {
-		yforeach(m_vars) {
-			if(m_vars[i].name == name) {
-				return m_vars[i];
+	/*procedure lookup on only last scope.
+	creating var (keyword `let`) use it function*/
+	std::optional<Var> var_lookup_cs(std::string name) {
+		std::vector<Var>& vrs = last_scope();
+		for(int i = 0;i < static_cast<int>(vrs.size());++i) {
+			if(vrs[i].name == name) {
+				return vrs[i];
 			}
 		}
 		return std::nullopt;
 	}
 
+	/*it lookup all scopes and find in they
+	var with name `name`*/
+	std::optional<Var> var_lookup(std::string name) {
+		// i = scope than contains vars of current nth scope
+		for(int i = static_cast<int>(m_vars.size()) - 1;i > -1;--i) {
+			for(int j = 0;j < static_cast<int>(m_vars[i].size());++j) {
+				if(m_vars[i][j].name == name) {
+					return m_vars[i][j];
+				}
+			}
+		}
+		return std::nullopt;
+	}
+
+	/*it function lookup ny name var
+	and if it doesnt find, it throw a error*/
 	Var var_lookup_err(std::string name, Token def) {
 		std::optional<Var> v = var_lookup(name);
 		if(!v.has_value()) GeneratorError(def, "unkown variable `" + name + "`");
 		return v.value();
+	}
+
+	std::vector<Var>& last_scope() {
+		return m_vars[m_vars.size() - 1ULL];
 	}
 
 	std::optional<Procedure> proc_lookup(std::string name) {
@@ -125,6 +145,7 @@ public:
 		return std::nullopt;
 	}
 
+	/*it is like var_lookup, but in struct*/
 	std::optional<std::pair<size_t, DataType>> field_lookup(Struct st, std::string field) {
 		for(int i = 0;i < static_cast<int>(st.fields.size());++i) {
 			if(st.fields[i].first == field) {
@@ -143,12 +164,14 @@ public:
 		return std::nullopt;
 	}
 
+	/*function throwing error with location*/
 	void GeneratorError(Token tok, std::string msg) {
 		putloc(tok);
 		std::cout << " ERROR: " << msg << "\n";
 		exit(EXIT_FAILURE);
 	}
 
+	/*function returns type of field {}.{}*/
 	DataType type_of_dot(NodeBinExprDot* dot) {
 		DataType otype = type_of_expr(dot->lhs);
 		if(std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
@@ -749,81 +772,69 @@ public:
 	size_t collect_alligns(const NodeScope* scope) {
 		size_t fsz = 0U;
 		for (const NodeStmt* stmt : scope->stmts) {
-			if(std::holds_alternative<NodeStmtIf*>(stmt->var)) {
-				NodeStmtIf* ifstmt = std::get<NodeStmtIf*>(stmt->var);
-				fsz += collect_alligns(ifstmt->scope);
-				if(ifstmt->pred.has_value()) {
-					NodeIfPred* pred = ifstmt->pred.value();
-					if(std::holds_alternative<NodeIfPredElif*>(pred->var)) {
-						NodeIfPredElif* pelif = std::get<NodeIfPredElif*>(pred->var);
-						fsz += collect_alligns(pelif->scope);
-					}
-					else if(std::holds_alternative<NodeIfPredElse*>(pred->var)) {
-						NodeIfPredElse* pelse = std::get<NodeIfPredElse*>(pred->var);
-						fsz += collect_alligns(pelse->scope);
-					}
-				}
-			}
-			else if(std::holds_alternative<NodeStmtWhile*>(stmt->var)) {
-				NodeStmtWhile* whstmt = std::get<NodeStmtWhile*>(stmt->var);
-				fsz += collect_alligns(whstmt->scope);
-			}
-			else if(std::holds_alternative<NodeStmtLet*>(stmt->var)) {
+			if(std::holds_alternative<NodeStmtLet*>(stmt->var)) {
 				fsz += 1;
 			}
 			else if(std::holds_alternative<NodeStmtLetNoAssign*>(stmt->var)) {
 				fsz += 1;
 			}
 			else if(std::holds_alternative<NodeStmtBuffer*>(stmt->var)) {
-				fsz += std::get<NodeStmtBuffer*>(stmt->var)->size / 4U;
+				fsz += std::get<NodeStmtBuffer*>(stmt->var)->size / 4ULL;
 			}
 		}
 		return fsz;
 	}
 
-	void gen_scope(const NodeScope* scope)
+	void gen_scope(const NodeScope* scope, size_t psize = 0)
 	{
+		begin_scope(psize + collect_alligns(scope));
 		for (const NodeStmt* stmt : scope->stmts) {
 			gen_stmt(stmt);
 		}
+		end_scope();
 	}
 
-	void gen_scope_fsz(const NodeScope* scope, const int psizes = 0)
+	void gen_scope_sp(const NodeScope* scope, size_t psize = 0, size_t ps = 0)
 	{
-		size_t fsz = collect_alligns(scope);
-		begin_scope_fsz(fsz + static_cast<size_t>(psizes));
+		consume_un(psize);
+		begin_scope(ps + collect_alligns(scope));
+		int rev_i = 0;
+		for(int i = ps - 1;i > -1;--i, rev_i++) {
+			m_output << "    mov edx, dword [ebp+" << rev_i * 4 + 8 << "]\n";
+			m_output << "    mov dword [ebp-" << rev_i * 4 + 4 << "], edx\n";
+		}
 		for (const NodeStmt* stmt : scope->stmts) {
 			gen_stmt(stmt);
 		}
-		end_scope_fsz(fsz + static_cast<size_t>(psizes));
+		end_scope();
 	}
 
 	void create_var(const std::string name, NodeExpr* value, Token where) {
-		std::optional<Var> ivar = var_lookup(name);
+		std::optional<Var> ivar = var_lookup_cs(name);
 		if(ivar.has_value()) {
 			GeneratorError(where, "name `" + name + "` already in use");
 		}
 		DataType vartype = type_of_expr(value);
-		m_vars.push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = vartype });
+		last_scope().push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = vartype });
 		gen_expr(value);
 		m_output << "    pop ecx\n";
 		m_output << "    mov dword [ebp-" << m_var_index * 4 << "], ecx\n";
 	}
 
 	void create_var_va(const std::string name, DataType type, Token where) {
-		std::optional<Var> ivar = var_lookup(name);
+		std::optional<Var> ivar = var_lookup_cs(name);
 		if(ivar.has_value()) {
 			GeneratorError(where, "name `" + name + "` already in use");
 		}
-		m_vars.push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = type });
+		last_scope().push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = type });
 	}
 
 	void create_var_va_wid(const std::string name, DataType type, Token where) {
-		std::optional<Var> ivar = var_lookup(name);
+		std::optional<Var> ivar = var_lookup_cs(name);
 		if(ivar.has_value()) {
 			GeneratorError(where, "name `" + name + "` already in use");
 		}
-		m_vars.push_back({ .name = name, .stack_loc = m_var_index * 4 , .type = type });
+		last_scope().push_back({ .name = name, .stack_loc = m_var_index * 4 , .type = type });
 	}
 
 	void gen_if_pred(const NodeIfPred* pred, const std::string& end_label)
@@ -891,7 +902,7 @@ public:
 					gen.m_output << "    push ebp\n";
 					gen.m_output << "    mov ebp, esp\n";
 				}
-				size_t scope_size = stmt_proc->params.size() + fsz;
+				size_t scope_size = stmt_proc->params.size();
 				bool nostdargs = std::find(attrs.begin(), attrs.end(), ProcAttr::nostdargs) != attrs.end();
 				if(noprolog && !nostdargs) {
 					gen.GeneratorError(stmt_proc->def, "attribute noprolog without nostdargs\nNOTE: it should cause a error in runtime");
@@ -899,27 +910,14 @@ public:
 				if(nostdargs) {
 					scope_size -= stmt_proc->params.size();
 				}
-				if(scope_size != 0) {
-					gen.m_output << "    sub esp, " << scope_size * 4 << "\n";
-				}
-				if(static_cast<int>(stmt_proc->params.size()) != 0U && !nostdargs) {
-					int rev_i = 0;
-					for(int i = static_cast<int>(stmt_proc->params.size()) - 1;i > -1;--i, rev_i++) {
-						gen.m_output << "    mov edx, dword [ebp+" << rev_i * 4 + 8 << "]\n";
-						gen.m_output << "    mov dword [ebp-" << rev_i * 4 + 4 << "], edx\n";
-					}
-				}
 				gen.m_cur_proc = gen.m_procs[gen.m_procs.size() - 1];
 				if(stmt_proc->name == "main") {
 					gen.m_output << "    call _BPM_init_\n";
 				}
-				gen.gen_scope(stmt_proc->scope);
+				gen.gen_scope_sp(stmt_proc->scope, scope_size, stmt_proc->params.size());
 				gen.m_cur_proc = std::nullopt;
 				if(stmt_proc->name == "main") {
 					gen.m_output << "    xor eax, eax\n";
-				}
-				if(scope_size != 0) {
-					gen.m_output << "    add esp, " << scope_size * 4 << "\n";
 				}
 				if(!noprolog) {
 					gen.m_output << "    pop ebp\n";
@@ -948,7 +946,10 @@ public:
 					gen.gen_expr(stmt_return->expr.value());
 					gen.pop("eax");
 				}
-				gen.end_scope_fsz(cproc.value().stack_allign);
+				size_t allign = gen.__compute_allign_ret();
+				if(allign != 0) {
+					gen.m_output << "    add esp, " << allign * 4 << "\n";
+				}
 				gen.m_output << "    pop ebp\n";
 				gen.m_output << "    ret\n";
 			}
@@ -1281,18 +1282,33 @@ private:
 		m_output << "    pop " << reg << "\n";
 	}
 
-	void begin_scope_fsz(int fsz)
+	void begin_scope(int fsz)
 	{
 		if(fsz != 0) {
 			m_output << "    sub esp, " << fsz * 4 << "\n";
 		}
+		m_vars.push_back({});
+		m_scopes_vi.push_back(m_var_index);
+		m_scopes.push_back(fsz);
 	}
 
-	void end_scope_fsz(int fsz)
+	void end_scope()
 	{
-		if(fsz != 0) {
-			m_output << "    add esp, " << fsz * 4 << "\n";
+		if(m_scopes[m_scopes.size() - 1ULL] != 0ULL) {
+			m_output << "    add esp, " << m_scopes[m_scopes.size() - 1ULL] * 4 << "\n";
 		}
+		m_scopes.pop_back();
+		m_vars.pop_back();
+		m_var_index = m_scopes_vi[m_scopes_vi.size() - 1ULL];
+		m_scopes_vi.pop_back();
+	}
+
+	size_t __compute_allign_ret() {
+		size_t res = 0ULL;
+		yforeach(m_scopes) {
+			res += m_scopes[i];
+		}
+		return res;
 	}
 
 	std::string create_label()
@@ -1304,13 +1320,15 @@ private:
 
 	const NodeProg m_prog;
 	const AsmGen asmg { .gen = this };
-	std::stringstream		 m_output   {};
-	std::vector<Var>         m_vars     {};
-	std::vector<String>	     m_strings  {};
-	std::vector<Procedure>   m_procs    {};
-	std::vector<Struct>      m_structs  {};
-	std::optional<Procedure> m_cur_proc {};
-	std::vector<std::string> m_breaks   {};
+	std::stringstream		 m_output;
+	std::vector<std::vector<Var>> m_vars;
+	std::vector<String>	     m_strings;
+	std::vector<Procedure>   m_procs;
+	std::vector<Struct>      m_structs;
+	std::optional<Procedure> m_cur_proc;
+	std::vector<std::string> m_breaks;
+	std::vector<size_t>      m_scopes;
+	std::vector<size_t>      m_scopes_vi;
 	std::vector<std::string> m_cexterns = {
 		"ExitProcess@4",
 		"malloc",
