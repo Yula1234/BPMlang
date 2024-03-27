@@ -2,9 +2,9 @@ include "std"
 include "string"
 include "string_view"
 include "fsys"
-include "self_host/arena"
-include "self_host/lexer"
-include "self_host/parser"
+include "tbpm/arena"
+include "tbpm/lexer"
+include "tbpm/parser"
 
 struct Generator {
 	asm_file:FILE,
@@ -78,7 +78,7 @@ proc gen_generate_expr expr:NodeExpr gen:Generator -> void {
 }
 
 proc gen_var_lookup name:ptr gen:Generator -> int {
-	int i = 0;
+	let i = 0;
 	while(i < gen.vars_index) {
 		let var = cast(Var, rd32(gen.vars + (i * 4)));
 		if(streq(var.name, name)) {
@@ -93,7 +93,7 @@ proc gen_var_lookup name:ptr gen:Generator -> int {
 proc gen_create_var gen:Generator name:ptr expr:NodeExpr def:Token -> void {
 	let var = Var(name, (gen.vars_index * 4) + 4);
 	gen.vars_index += 1;
-	store32(gen.vars + gen.vars_size);
+	store32(gen.vars + gen.vars_size, var);
 	gen.vars_size += 1;
 }
 
@@ -113,7 +113,7 @@ proc gen_generate_print stmt:NodeStmtPrint gen:Generator -> void {
 }
 
 proc gen_generate_let stmt:NodeStmtLet gen:Generator -> void {
-	format_print("gen let %s\n", stmt.name);
+	gen_create_var(gen, stmt.name, cast(NodeExpr, stmt.expr), stmt.def);
 }
 
 proc gen_stmt _stmt:ptr gen:Generator -> void {

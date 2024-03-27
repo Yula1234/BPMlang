@@ -2,10 +2,10 @@ include "std"
 include "fsys"
 include "string"
 include "string_view"
-include "self_host/arena"
-include "self_host/lexer"
-include "self_host/parser"
-include "self_host/generator"
+include "tbpm/arena"
+include "tbpm/lexer"
+include "tbpm/parser"
+include "tbpm/generator"
 
 proc compiller_usage fd:int -> void {
 	fputs(fd, "Incorrect usage...\n");

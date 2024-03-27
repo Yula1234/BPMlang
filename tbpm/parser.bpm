@@ -1,8 +1,8 @@
 include "std"
 include "string"
 include "string_view"
-include "self_host/arena"
-include "self_host/lexer"
+include "tbpm/arena"
+include "tbpm/lexer"
 
 proc push_ast ast:ptr index:ptr element:ptr -> void {
 	store32(ast + (rd32(index) * 4), element);

@@ -1,5 +1,5 @@
 include "std"
-include "self_host/arena"
+include "tbpm/arena"
 include "string"
 include "string_view"
 
