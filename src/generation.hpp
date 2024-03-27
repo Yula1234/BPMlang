@@ -2,7 +2,7 @@
 
 #include "parser.hpp"
 
-#define VectorSimDataCap 2048
+#define VectorSimDataCap 4096
 
 template<typename T>
 class VectorSim {
