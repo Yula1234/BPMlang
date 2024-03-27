@@ -63,6 +63,12 @@ struct NodeExprMul {
 	def:Token
 }
 
+struct NodeExprDiv {
+	left:ptr,
+	right:ptr,
+	def:Token
+}
+
 struct NodeExpr {
 	kind:int,
 	data:ptr
@@ -72,6 +78,7 @@ const NodeKindInt   0;
 const NodeKindPlus  1;
 const NodeKindMinus 2;
 const NodeKindMul   3;
+const NodeKindDiv   4;
 
 proc Error str:ptr line:int col:int -> void {
 	format_print("ERROR %d:%d: %s\n", line, col, str);
@@ -99,6 +106,9 @@ proc is_bin_operator toktype:int -> int {
 	elif(toktype == TokenTypeStar) {
 		return true;
 	}
+	elif(toktype == TokenTypeSlash) {
+		return true;
+	}
 	return false;
 }
 
@@ -121,6 +131,10 @@ proc parser_parse_expr prs:parser -> NodeExpr {
 	elif(bin_def.type == TokenTypeStar) {
 		let bin_mul = NodeExprMul(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
 		return NodeExpr(NodeKindMul, cast(ptr, bin_mul));
+	}
+	elif(bin_def.type == TokenTypeSlash) {
+		let bin_div = NodeExprDiv(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
+		return NodeExpr(NodeKindDiv, cast(ptr, bin_div));
 	}
 	Error("parser_parse_expr unreacheable", bin_def.line, bin_def.col);
 }
@@ -149,7 +163,12 @@ struct NodeStmtExit {
 	expr:ptr
 }
 
-const StmtKindExit 0;
+struct NodeStmtPrint {
+	expr:ptr
+}
+
+const StmtKindExit  0;
+const StmtKindPrint 1;
 
 proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
 	let def_tok: Token;
@@ -162,6 +181,20 @@ proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
 		push_ast(ast, ast_level, cast(ptr, stmt));
 		parser_consume_err(prs, TokenTypeCloseParen);
 		parser_consume_err(prs, TokenTypeSemi);
+	}
+	elif(parser_peek(prs).type == TokenTypePrint) {
+		def_tok = parser_consume(prs);
+		parser_consume_err(prs, TokenTypeOpenParen);
+		let expr_print = cast(ptr, parser_parse_expr(prs));
+		let stmt_print = NodeStmtPrint(expr_print);
+		let stmt = NodeStmt(StmtKindPrint, cast(ptr, stmt_print));
+		push_ast(ast, ast_level, cast(ptr, stmt));
+		parser_consume_err(prs, TokenTypeCloseParen);
+		parser_consume_err(prs, TokenTypeSemi);
+	}
+	else {
+		Error("parser_parse_stmt unkown stmt\n", parser_peek(prs).line, parser_peek(prs).col);
+		exit(1);
 	}
 }
 

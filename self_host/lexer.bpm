@@ -110,6 +110,8 @@ const TokenTypeSemi       5;
 const TokenTypePlus       6;
 const TokenTypeMinus      7;
 const TokenTypeStar       8;
+const TokenTypeSlash      9;
+const TokenTypePrint     10;
 
 struct Token {
 	type:int,
@@ -158,6 +160,12 @@ proc tokentype2str type:int -> ptr {
 	elif(type == TokenTypeStar) {
 		return "`*`";
 	}
+	elif(type == TokenTypeSlash) {
+		return "`/`";
+	}
+	elif(type == TokenTypePrint) {
+		return "`print`";
+	}
 	format_print("tokentype2str error: unkown TokenType `%d`\n", type);
 	exit(0);
 }
@@ -198,8 +206,7 @@ proc lexer_lex
 {
 	let tokens_count = 0;
 	let line_count = 1;
-	let tmp_tok = Token(TokenTypeIdent, 0, 0, "", FILE_PATH);
-	delete tmp_tok;
+	let tmp_tok: Token;
 	let tmp_str = new_tmp_str(str_arena, 56);
 	while(lexer_peek(lxr) != NULL_PEEK) {
 		if(is_identif(lexer_peek(lxr))) {
@@ -208,6 +215,10 @@ proc lexer_lex
 			}
 			if(streq(tmp_str.data, "exit")) {
 				tmp_tok = Token(TokenTypeExit, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				push_token(tokens, &tokens_count, tmp_tok);
+			}
+			elif(streq(tmp_str.data, "print")) {
+				tmp_tok = Token(TokenTypePrint, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			else {
@@ -243,6 +254,11 @@ proc lexer_lex
 		}
 		elif(lexer_peek(lxr) == '*') {
 			tmp_tok = Token(TokenTypeStar, line_count, lxr.col - 1, "", FILE_PATH);
+			push_token(tokens, &tokens_count, tmp_tok);
+			lexer_consume(lxr);
+		}
+		elif(lexer_peek(lxr) == '/') {
+			tmp_tok = Token(TokenTypeSlash, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
