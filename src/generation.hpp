@@ -107,10 +107,8 @@ public:
     }
 
 	std::optional<Procedure> proc_lookup(std::string name) {
-		yforeach(m_procs) {
-			if(m_procs[i].name == name) {
-				return m_procs[i];
-			}
+		if(m_procs.find(name) != m_procs.end()) {
+			return m_procs[name];
 		}
 		return std::nullopt;
 	}
@@ -883,7 +881,7 @@ public:
 					gen.GeneratorError(stmt_proc->def, "procedure `" + stmt_proc->name + "` redefenition.\nNOTE: first defenition here " + loc_of(pdef) + ".");
 				}
 				size_t fsz = gen.collect_alligns(stmt_proc->scope);
-				gen.m_procs.push_back({ .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs , .def = stmt_proc->def });
+				gen.m_procs[stmt_proc->name] = { .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs , .def = stmt_proc->def };
 				std::vector<ProcAttr> attrs = stmt_proc->attrs; 
 				bool noprolog = std::find(attrs.begin(), attrs.end(), ProcAttr::noprolog) != attrs.end();
 				gen.m_output << stmt_proc->name << ":\n";
@@ -891,7 +889,7 @@ public:
 					gen.m_output << "    push ebp\n";
 					gen.m_output << "    mov ebp, esp\n";
 				}
-				gen.m_cur_proc = gen.m_procs[gen.m_procs.size() - 1];
+				gen.m_cur_proc = gen.m_procs[stmt_proc->name];
 				if(stmt_proc->name == "main") {
 					gen.m_output << "    call _BPM_init_\n";
 				}
@@ -1307,7 +1305,7 @@ private:
 	std::stringstream		 m_output;
 	std::vector<std::unordered_map<std::string, Var>> m_vars;
 	std::unordered_map<std::string, String> m_strings;
-	std::vector<Procedure>   m_procs;
+	std::unordered_map<std::string, Procedure> m_procs;
 	std::vector<Struct>      m_structs;
 	std::optional<Procedure> m_cur_proc;
 	std::vector<std::string> m_breaks;
