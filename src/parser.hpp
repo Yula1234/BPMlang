@@ -650,8 +650,23 @@ public:
         }
         if (auto ident = try_consume(TokenType::ident)) {
             std::string tname = ident.value().value.value();
+            if(tname == "iota") {
+                auto CnsTerm = m_allocator.emplace<NodeTermIntLit>();
+                CnsTerm->int_lit = { .type = TokenType::int_lit, .line = 0, .col = 0, .value = std::to_string(CTX_IOTA++), .file = ""};
+                auto term = m_allocator.emplace<NodeTerm>(CnsTerm);
+                return term;
+            }
+            if(tname == "reset") {
+                auto CnsTerm = m_allocator.emplace<NodeTermIntLit>();
+                CnsTerm->int_lit = { .type = TokenType::int_lit, .line = 0, .col = 0, .value = std::to_string(CTX_IOTA), .file = ""};
+                auto term = m_allocator.emplace<NodeTerm>(CnsTerm);
+                CTX_IOTA = 0;
+                return term;
+            }
             auto expr_ident = m_allocator.emplace<NodeTermIdent>();
             std::optional<Constant> cns = const_lookup(tname);
+            /*TODO: replace const machanism
+            from parsing to the generation step*/
             if(!cns.has_value()) {
                 expr_ident->ident = ident.value();
                 auto term = m_allocator.emplace<NodeTerm>(expr_ident);
@@ -1361,6 +1376,7 @@ private:
     std::vector<std::string> m_includes;
     std::vector<Constant> m_consts;
     bool m_proprocessor_stmt = false;
-    size_t m_index = 0;
+    size_t m_index = 0ULL;
+    size_t CTX_IOTA = 0ULL;
     ArenaAllocator m_allocator;
 };
