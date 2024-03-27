@@ -1,0 +1,63 @@
+include "std"
+include "fsys"
+include "string"
+include "string_view"
+include "self_host/arena"
+include "self_host/lexer"
+include "self_host/parser"
+include "self_host/generator"
+
+proc compiller_usage fd:int -> void {
+	fputs(fd, "Incorrect usage...\n");
+	fputs(fd, "Correct is: out <input.bpm>\n");
+}
+
+cextern "system";
+
+proc cmd_exec com_line_args:ptr -> void
+[nostdargs] {
+	asm "push dword [ebp+8]";
+	asm "call system";
+	asm "add esp, 4";
+}
+
+proc main argc:int argv:ptr -> void {
+
+	if(argc != 2) {
+		compiller_usage(stdout);
+		exit(1);
+	}
+
+	let FILE_PATH = nth_argv(argv, 1);
+	let file = openf(FILE_PATH, "r");
+	let FILE_CONTENT_BUF = memalloc(12 * 1024 * 1024);
+	read_file(file, FILE_CONTENT_BUF);
+
+	let str_arena = new_arena(128 * 1024);
+	let tokens = memalloc(56 * 1024);
+	let Lexer = new_lexer(FILE_CONTENT_BUF);
+	lexer_lex(Lexer, str_arena, tokens, FILE_PATH);
+
+	let ast_arena = new_arena(128 * 1024);
+	let Parser = new_parser(tokens);
+	let ast = arena_take(ast_arena, 128 * 1024);
+	parser_parse(Parser, ast);
+
+	let generator = new_generator(openf("output2.asm", "w"));
+	gen_generate(ast, generator);
+
+	lexer_delete(Lexer);
+
+	arena_delete(str_arena);
+	arena_delete(ast_arena);
+
+	memfree(FILE_CONTENT_BUF);
+	free_tokens(tokens);
+
+	closef(file);
+	delete_generator(generator);
+
+	cmd_exec("nasm --gprefix _ -fwin32 output2.asm -o out.o");
+	cmd_exec("gcc out.o -o out2.exe -m32");
+	cmd_exec("del out.o");
+}
