@@ -1,6 +1,17 @@
 include "core"
 
+proc strlen str:ptr -> int {
+	let i = 0;
+	while(rd8(str + i) != 0) {
+		i += 1;
+	}
+	return i;
+}
+
 proc streq str1:ptr str2:ptr -> int {
+	if(strlen(str1) != strlen(str2)) {
+		return false;
+	}
 	asm "mov ecx, dword [ebp-4]";
 	asm "mov edx, dword [ebp-8]";
 	asm "xor ebx, ebx";

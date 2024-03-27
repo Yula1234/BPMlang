@@ -1,12 +1,5 @@
 include "core"
-
-proc strlen str:ptr -> int {
-	let i = 0;
-	while(rd8(str + i) != 0) {
-		i += 1;
-	}
-	return i;
-}
+include "string"
 
 proc fputs
 	fd:int // File Descriptor
