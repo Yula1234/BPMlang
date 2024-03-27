@@ -32,6 +32,7 @@ enum class TokenType {
     arrow,
     void_type,
     ptr_type,
+    any_type,
     store8,
     store16,
     store32,
@@ -124,6 +125,8 @@ std::string tok_to_string(const TokenType type)
         return "`->`";
     case TokenType::ptr_type:
         return "`ptr`";
+    case TokenType::any_type:
+        return "`any`";
     case TokenType::store8:
         return "`store8`";
     case TokenType::store16:
@@ -293,6 +296,10 @@ public:
                 }
                 else if (buf == "ptr") {
                     tokens.push_back({ .type = TokenType::ptr_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "any") {
+                    tokens.push_back({ .type = TokenType::any_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "while") {

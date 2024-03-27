@@ -7,6 +7,7 @@ enum class SimpleDataType {
     _int,
     ptr,
     _void,
+    any,
 };
 
 struct DataType {
@@ -30,6 +31,8 @@ struct DataType {
                 return "`ptr`";
             case SimpleDataType::_void:
                 return "`void`";
+            case SimpleDataType::any:
+                return "`any`";
             default:
                 break;
             }
@@ -39,6 +42,9 @@ struct DataType {
         }
     }
     bool eq(const DataType& two) const {
+        if(two.is_simple() && two.getsimpletype() == SimpleDataType::any) {
+            return true;
+        }
         if((this->is_object && !two.is_object) || (!this->is_object && two.is_object)) {
             return false;
         }
@@ -99,9 +105,15 @@ DataType make_void_type() {
     return tp;
 }
 
+DataType make_any_type() {
+    DataType tp = SimpleDataType::any;
+    return tp;
+}
+
 DataType DataTypeInt = make_int_type();
 DataType DataTypePtr = make_ptr_type();
 DataType DataTypeVoid = make_void_type();
+DataType DataTypeAny = make_any_type();
 
 #define yforeach(container) for(int i = 0;i < static_cast<int>(container.size());++i)
 
@@ -117,6 +129,8 @@ DataType token_to_dt(TokenType tt) {
         return DataTypePtr;
     case TokenType::void_type:
         return DataTypeVoid;
+    case TokenType::any_type:
+        return DataTypeAny;
     default:
         break;
     }
@@ -133,7 +147,7 @@ DataType uni_token_to_dt(Token tok) {
 }
 
 bool is_type_token(TokenType tp) {
-    return (tp == TokenType::int_type || tp == TokenType::ptr_type || tp == TokenType::void_type || tp == TokenType::ident);
+    return (tp == TokenType::int_type || tp == TokenType::ptr_type || tp == TokenType::void_type || tp == TokenType::any_type || tp == TokenType::ident);
 }
 
 std::ostream& operator<<(std::ostream& out, const DataType dt) {
