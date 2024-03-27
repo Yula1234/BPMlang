@@ -4,6 +4,7 @@ enum class FlagType {
     output,
     run,
     time,
+    sasm,
 };
 
 struct Flag {
@@ -44,10 +45,17 @@ public:
             else if(strcmp(m_argv[i], "-t") == 0) {
                 m_flags.push_back({ .type = FlagType::time , .operand = std::nullopt });
             }
+            else if(strcmp(m_argv[i], "-s") == 0) {
+                m_flags.push_back({ .type = FlagType::sasm , .operand = std::nullopt });
+            }
         }
     }
     int compile() {
         system("nasm --gprefix _ -fwin32 output.asm -o output.o");
+        if(auto s_flag = find_flag(FlagType::sasm)) {}
+        else {
+            system("del output.asm");
+        }
         std::optional<Flag> has_o_flag = std::nullopt;
         if(auto o_flag = find_flag(FlagType::output)) {
             has_o_flag = o_flag;
