@@ -110,20 +110,17 @@ proc parser_parse_expr prs:parser -> NodeExpr {
 	let bin_def = parser_peek(prs);
 	parser_consume(prs);
 	let right_expr = parser_parse_expr(prs);
-	let as_expr: NodeExpr;
 	if(bin_def.type == TokenTypePlus) {
 		let bin_plus = NodeExprAdd(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
 		return NodeExpr(NodeKindPlus, cast(ptr, bin_plus));
 	}
 	elif(bin_def.type == TokenTypeMinus) {
 		let bin_minus = NodeExprSub(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
-		as_expr = NodeExpr(NodeKindMinus, cast(ptr, bin_minus));
-		return as_expr;
+		return NodeExpr(NodeKindMinus, cast(ptr, bin_minus));
 	}
 	elif(bin_def.type == TokenTypeStar) {
 		let bin_mul = NodeExprMul(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
-		as_expr = NodeExpr(NodeKindMul, cast(ptr, bin_mul));
-		return as_expr;
+		return NodeExpr(NodeKindMul, cast(ptr, bin_mul));
 	}
 	Error("parser_parse_expr unreacheable", bin_def.line, bin_def.col);
 }
