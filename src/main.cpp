@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
+#include <chrono>
+#include <ctime>
 
 #include "argsparser.hpp"
 #include "generation.hpp"
@@ -23,9 +25,12 @@ void usage(std::ostream& stream) {
     stream << "bpm <input.bpm> <flags>" << std::endl;
 }
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
+
+    auto start = std::chrono::system_clock::now();
+    
     if (argc < 2) {
+
         usage(std::cerr);
         return EXIT_FAILURE;
     }
@@ -61,5 +66,10 @@ int main(int argc, char* argv[])
         file << generated_asm;
     }
 
+    if(auto _f_time = argparser.find_flag(FlagType::time)) {
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end-start;
+        std::cout << "Compilation took: " << elapsed_seconds.count() << "s" << std::endl;
+    }
     return argparser.compile();
 }

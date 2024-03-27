@@ -3,6 +3,7 @@
 enum class FlagType {
     output,
     run,
+    time,
 };
 
 struct Flag {
@@ -39,6 +40,9 @@ public:
             }
             else if(strcmp(m_argv[i], "-r") == 0) {
                 m_flags.push_back({ .type = FlagType::run , .operand = std::nullopt });
+            }
+            else if(strcmp(m_argv[i], "-t") == 0) {
+                m_flags.push_back({ .type = FlagType::time , .operand = std::nullopt });
             }
         }
     }
