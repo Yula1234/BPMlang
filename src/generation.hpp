@@ -2,7 +2,27 @@
 
 #include "parser.hpp"
 
-void consume_un(...) {}
+#define VectorSimDataCap 2048
+
+template<typename T>
+class VectorSim {
+private:
+	T m_data[VectorSimDataCap];
+	size_t m_size = 0ULL;
+public:
+	size_t size() const {
+		return m_size;
+	}
+	inline void pop_back() {
+		m_size--;
+	}
+	T& operator[](const size_t _A_index) {
+		return m_data[_A_index];
+	}
+	void push_back(const T& _A_element) {
+		m_data[m_size++] = _A_element;
+	}
+};
 
 class Generator {
 public:
@@ -68,8 +88,9 @@ public:
 	creating var (keyword `let`) use it function*/
 	std::optional<Var> var_lookup_cs(std::string name) {
 		std::unordered_map<std::string, Var>& vrs = last_scope();
-		if(vrs.find(name) != vrs.end()) {
-			return vrs[name];
+		const auto& search = vrs.find(name);
+		if(search != vrs.end()) {
+			return search->second;
 		}
 		return std::nullopt;
 	}
@@ -79,8 +100,9 @@ public:
 	std::optional<Var> var_lookup(std::string name) {
 		// i = scope than contains vars of current nth scope
 		for(int i = static_cast<int>(m_vars.size()) - 1;i > -1;--i) {
-			if(m_vars[i].find(name) != m_vars[i].end()) {
-				return m_vars[i][name];
+			const auto& search = m_vars[i].find(name);
+			if(search != m_vars[i].end()) {
+				return search->second;
 			}
 
 		}
@@ -90,7 +112,7 @@ public:
 	/*it function lookup ny name var
 	and if it doesnt find, it throw a error*/
 	Var var_lookup_err(std::string name, Token def) {
-		std::optional<Var> v = var_lookup(name);
+		const std::optional<Var> v = var_lookup(name);
 		if(!v.has_value()) GeneratorError(def, "unkown variable `" + name + "`");
 		return v.value();
 	}
@@ -100,24 +122,25 @@ public:
 	}
 
 	std::optional<Constant> const_lookup(std::string name) {
-        if(m_consts->find(name) != m_consts->end()) {
-        	return m_consts->operator[](name);
+        const auto& search = m_consts->find(name);
+        if(search != m_consts->end()) {
+        	return search->second;
         }
         return std::nullopt;
     }
 
 	std::optional<Procedure> proc_lookup(std::string name) {
-		if(m_procs.find(name) != m_procs.end()) {
-			return m_procs[name];
+		const auto& search = m_procs.find(name);
+		if(search != m_procs.end()) {
+			return search->second;
 		}
 		return std::nullopt;
 	}
 
 	std::optional<Struct> struct_lookup(std::string name) {
-		yforeach(m_structs) {
-			if(m_structs[i].name == name) {
-				return m_structs[i];
-			}
+		const auto& search = m_structs.find(name);
+		if(search != m_structs.end()) {
+			return search->second;
 		}
 		return std::nullopt;
 	}
@@ -1189,7 +1212,7 @@ public:
 			}
 
 			void operator()(const NodeStmtStruct* stmt_struct) {
-				gen.m_structs.push_back({ .name = stmt_struct->name, .fields = stmt_struct->fields });
+				gen.m_structs[stmt_struct->name] = { .name = stmt_struct->name, .fields = stmt_struct->fields };
 			}
 
 			void operator()(const NodeStmtDelete* stmt_delete) {
@@ -1306,11 +1329,11 @@ private:
 	std::vector<std::unordered_map<std::string, Var>> m_vars;
 	std::unordered_map<std::string, String> m_strings;
 	std::unordered_map<std::string, Procedure> m_procs;
-	std::vector<Struct>      m_structs;
+	std::unordered_map<std::string, Struct> m_structs;
 	std::optional<Procedure> m_cur_proc;
 	std::vector<std::string> m_breaks;
-	std::vector<size_t>      m_scopes;
-	std::vector<size_t>      m_scopes_vi;
+	VectorSim<size_t>        m_scopes;
+	VectorSim<size_t>        m_scopes_vi;
 	std::unordered_map<std::string, Constant>* m_consts;
 	std::vector<std::string> m_cexterns = {
 		"ExitProcess@4",
