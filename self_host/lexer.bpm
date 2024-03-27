@@ -101,17 +101,18 @@ proc is_identif chr:int -> int {
 	return true;
 }
 
-const TokenTypeIdent      0;
-const TokenTypeOpenParen  1;
-const TokenTypeCloseParen 2;
-const TokenTypeExit       3;
-const TokenTypeIntLiteral 4;
-const TokenTypeSemi       5;
-const TokenTypePlus       6;
-const TokenTypeMinus      7;
-const TokenTypeStar       8;
-const TokenTypeSlash      9;
-const TokenTypePrint     10;
+const TokenTypeIdent      iota;
+const TokenTypeOpenParen  iota;
+const TokenTypeCloseParen iota;
+const TokenTypeExit       iota;
+const TokenTypeIntLiteral iota;
+const TokenTypeSemi       iota;
+const TokenTypePlus       iota;
+const TokenTypeMinus      iota;
+const TokenTypeStar       iota;
+const TokenTypeSlash      iota;
+const TokenTypePrint      iota;
+const TokenTypesCount     reset;
 
 struct Token {
 	type:int,

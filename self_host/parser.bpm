@@ -74,11 +74,12 @@ struct NodeExpr {
 	data:ptr
 }
 
-const NodeKindInt   0;
-const NodeKindPlus  1;
-const NodeKindMinus 2;
-const NodeKindMul   3;
-const NodeKindDiv   4;
+const NodeKindInt   iota;
+const NodeKindPlus  iota;
+const NodeKindMinus iota;
+const NodeKindMul   iota;
+const NodeKindDiv   iota;
+const NodeKindsCount reset;
 
 proc Error str:ptr line:int col:int -> void {
 	format_print("ERROR %d:%d: %s\n", line, col, str);
@@ -167,8 +168,9 @@ struct NodeStmtPrint {
 	expr:ptr
 }
 
-const StmtKindExit  0;
-const StmtKindPrint 1;
+const StmtKindExit  iota;
+const StmtKindPrint iota;
+const StmtKindsCount reset;
 
 proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
 	let def_tok: Token;
