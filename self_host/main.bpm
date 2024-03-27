@@ -22,6 +22,7 @@ proc cmd_exec com_line_args:ptr -> void
 }
 
 proc main argc:int argv:ptr -> void {
+
 	if(argc != 2) {
 		compiller_usage(stdout);
 		exit(1);
@@ -42,8 +43,7 @@ proc main argc:int argv:ptr -> void {
 	let ast = arena_take(ast_arena, 128 * 1024);
 	parser_parse(Parser, ast);
 
-	let asm_file = openf("output2.asm", "w");
-	let generator = Generator(asm_file);
+	let generator = Generator(openf("output2.asm", "w"));
 	gen_generate(ast, generator);
 
 	lexer_delete(Lexer);
@@ -55,7 +55,7 @@ proc main argc:int argv:ptr -> void {
 	free_tokens(tokens);
 
 	closef(file);
-	closef(asm_file);
+	closef(generator.asm_file);
 
 	cmd_exec("nasm --gprefix _ -fwin32 output2.asm -o out.o");
 	cmd_exec("gcc out.o -o out2.exe -m32");

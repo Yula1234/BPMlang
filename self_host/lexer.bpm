@@ -52,6 +52,12 @@ proc new_tmp_str arena:ArenaAllocator size:int -> TmpStr {
 	return TmpStr(0, size, arena_take(arena, size));
 }
 
+proc tmp_str_realloc str:TmpStr arena:ArenaAllocator size:int -> void {
+	str.used = 0;
+	str.capacity = size;
+	str.data = arena_take(arena, size);
+}
+
 proc tmp_str_push str:TmpStr chr:int -> void {
 	store8(str.data + str.used, chr);
 	str.used = str.used + 1;
@@ -208,7 +214,7 @@ proc lexer_lex
 				tmp_tok = Token(TokenTypeIdent, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data, FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
-			tmp_str = new_tmp_str(str_arena, 56);
+			tmp_str_realloc(tmp_str, str_arena, 56);
 		}
 		elif(lexer_peek(lxr) == '(') {
 			tmp_tok = Token(TokenTypeOpenParen, line_count, lxr.col - 1, "", FILE_PATH);
@@ -246,7 +252,7 @@ proc lexer_lex
 			}
 			tmp_tok = Token(TokenTypeIntLiteral, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data, FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
-			tmp_str = new_tmp_str(str_arena, 56);
+			tmp_str_realloc(tmp_str, str_arena, 56);
 		}
 		elif(lexer_peek(lxr) == '\n') {
 			line_count = line_count + 1;
