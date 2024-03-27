@@ -794,14 +794,16 @@ public:
 		end_scope();
 	}
 
-	void gen_scope_sp(const NodeScope* scope, size_t psize = 0, size_t ps = 0)
+	/*generate scope start procedure*/
+	void gen_scope_sp(const NodeScope* scope, const std::vector<std::pair<std::string, DataType>>& params)
 	{
-		consume_un(psize);
-		begin_scope(ps + collect_alligns(scope));
-		int rev_i = 0;
-		for(int i = ps - 1;i > -1;--i, rev_i++) {
-			m_output << "    mov edx, dword [ebp+" << rev_i * 4 + 8 << "]\n";
-			m_output << "    mov dword [ebp-" << rev_i * 4 + 4 << "], edx\n";
+		begin_scope(params.size() + collect_alligns(scope));
+		for(int i = 0;i < static_cast<int>(params.size());++i) {
+			create_var_va(params[i].first, params[i].second, m_cur_proc.value().def);
+		}
+		for(int i = 0;i < static_cast<int>(params.size());++i) {
+			m_output << "    mov edx, dword [ebp+" << i * 4 + 8 << "]\n";
+			m_output << "    mov dword [ebp-" << i * 4 + 4 << "], edx\n";
 		}
 		for (const NodeStmt* stmt : scope->stmts) {
 			gen_stmt(stmt);
@@ -892,9 +894,6 @@ public:
 				}
 				size_t fsz = gen.collect_alligns(stmt_proc->scope);
 				gen.m_procs.push_back({ .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs , .def = stmt_proc->def });
-				for(int i = 0;i < static_cast<int>(stmt_proc->params.size());++i) {
-					gen.create_var_va(stmt_proc->params[i].first, stmt_proc->params[i].second, stmt_proc->def);
-				}
 				std::vector<ProcAttr> attrs = stmt_proc->attrs; 
 				bool noprolog = std::find(attrs.begin(), attrs.end(), ProcAttr::noprolog) != attrs.end();
 				gen.m_output << stmt_proc->name << ":\n";
@@ -902,19 +901,11 @@ public:
 					gen.m_output << "    push ebp\n";
 					gen.m_output << "    mov ebp, esp\n";
 				}
-				size_t scope_size = stmt_proc->params.size();
-				bool nostdargs = std::find(attrs.begin(), attrs.end(), ProcAttr::nostdargs) != attrs.end();
-				if(noprolog && !nostdargs) {
-					gen.GeneratorError(stmt_proc->def, "attribute noprolog without nostdargs\nNOTE: it should cause a error in runtime");
-				}
-				if(nostdargs) {
-					scope_size -= stmt_proc->params.size();
-				}
 				gen.m_cur_proc = gen.m_procs[gen.m_procs.size() - 1];
 				if(stmt_proc->name == "main") {
 					gen.m_output << "    call _BPM_init_\n";
 				}
-				gen.gen_scope_sp(stmt_proc->scope, scope_size, stmt_proc->params.size());
+				gen.gen_scope_sp(stmt_proc->scope, stmt_proc->params);
 				gen.m_cur_proc = std::nullopt;
 				if(stmt_proc->name == "main") {
 					gen.m_output << "    xor eax, eax\n";
@@ -923,7 +914,6 @@ public:
 					gen.m_output << "    pop ebp\n";
 				}
 				gen.m_output << "    ret\n\n";
-				gen.m_vars.clear();
 				gen.m_var_index = 0U;
 			}
 
