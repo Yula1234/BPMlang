@@ -218,7 +218,3 @@ proc input_string addr:ptr -> void
 	asm "call scanf";
 	asm "add esp, 8";
 }
-
-proc nth_argv argv:ptr nth:int -> ptr {
-	return cast(ptr, rd32(argv + nth * 4));
-}

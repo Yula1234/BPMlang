@@ -63,3 +63,7 @@ proc cputu number:int -> void
 	asm "call printf";
 	asm "add esp, 8";
 }
+
+proc nth_argv argv:ptr nth:int -> ptr {
+	return cast(ptr, rd32(argv + nth * 4));
+}
