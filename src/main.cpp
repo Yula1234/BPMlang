@@ -12,6 +12,7 @@
 #include <variant>
 #include <filesystem>
 #include <algorithm>
+#include <unordered_map>
 
 #include "argsparser.hpp"
 #include "generation.hpp"

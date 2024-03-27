@@ -67,11 +67,9 @@ public:
 	/*procedure lookup on only last scope.
 	creating var (keyword `let`) use it function*/
 	std::optional<Var> var_lookup_cs(std::string name) {
-		std::vector<Var>& vrs = last_scope();
-		for(int i = 0;i < static_cast<int>(vrs.size());++i) {
-			if(vrs[i].name == name) {
-				return vrs[i];
-			}
+		std::unordered_map<std::string, Var>& vrs = last_scope();
+		if(vrs.find(name) != vrs.end()) {
+			return vrs[name];
 		}
 		return std::nullopt;
 	}
@@ -81,11 +79,10 @@ public:
 	std::optional<Var> var_lookup(std::string name) {
 		// i = scope than contains vars of current nth scope
 		for(int i = static_cast<int>(m_vars.size()) - 1;i > -1;--i) {
-			for(int j = 0;j < static_cast<int>(m_vars[i].size());++j) {
-				if(m_vars[i][j].name == name) {
-					return m_vars[i][j];
-				}
+			if(m_vars[i].find(name) != m_vars[i].end()) {
+				return m_vars[i][name];
 			}
+
 		}
 		return std::nullopt;
 	}
@@ -98,7 +95,7 @@ public:
 		return v.value();
 	}
 
-	std::vector<Var>& last_scope() {
+	std::unordered_map<std::string, Var>& last_scope() {
 		return m_vars[m_vars.size() - 1ULL];
 	}
 
@@ -814,7 +811,7 @@ public:
 			GeneratorError(where, "name `" + name + "` already in use");
 		}
 		DataType vartype = type_of_expr(value);
-		last_scope().push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = vartype });
+		last_scope()[name] = { .name = name, .stack_loc = ++m_var_index * 4 , .type = vartype };
 		gen_expr(value);
 		m_output << "    pop ecx\n";
 		m_output << "    mov dword [ebp-" << m_var_index * 4 << "], ecx\n";
@@ -825,7 +822,7 @@ public:
 		if(ivar.has_value()) {
 			GeneratorError(where, "name `" + name + "` already in use");
 		}
-		last_scope().push_back({ .name = name, .stack_loc = ++m_var_index * 4 , .type = type });
+		last_scope()[name] = { .name = name, .stack_loc = ++m_var_index * 4 , .type = type };
 	}
 
 	void create_var_va_wid(const std::string name, DataType type, Token where) {
@@ -833,7 +830,7 @@ public:
 		if(ivar.has_value()) {
 			GeneratorError(where, "name `" + name + "` already in use");
 		}
-		last_scope().push_back({ .name = name, .stack_loc = m_var_index * 4 , .type = type });
+		last_scope()[name] = { .name = name, .stack_loc = m_var_index * 4 , .type = type };
 	}
 
 	void gen_if_pred(const NodeIfPred* pred, const std::string& end_label)
@@ -1312,7 +1309,7 @@ private:
 	const NodeProg m_prog;
 	const AsmGen asmg { .gen = this };
 	std::stringstream		 m_output;
-	std::vector<std::vector<Var>> m_vars;
+	std::vector<std::unordered_map<std::string, Var>> m_vars;
 	std::vector<String>	     m_strings;
 	std::vector<Procedure>   m_procs;
 	std::vector<Struct>      m_structs;
