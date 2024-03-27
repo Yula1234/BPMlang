@@ -437,6 +437,10 @@ public:
                             buf.erase(buf.begin()+i);
                             buf[i] = '\n';
                         }
+                        else if(buf[i+1] == '"') {
+                            buf.erase(buf.begin()+i);
+                            buf[i] = '"';
+                        }
                     }
                 }
                 tokens.push_back({ .type = TokenType::string_lit, .line = line_count , .col = m_col - static_cast<int>(buf.size()), .value = buf, .file = file });
@@ -454,6 +458,10 @@ public:
                         if(buf[i+1] == 'n') {
                             buf.erase(buf.begin()+i);
                             buf[i] = '\n';
+                        }
+                        else if(buf[i+1] == '"') {
+                            buf.erase(buf.begin()+i);
+                            buf[i] = '"';
                         }
                     }
                 }
