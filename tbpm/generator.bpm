@@ -41,6 +41,7 @@ proc delete_generator gen:Generator -> void {
 }
 
 proc gen_generate_expr expr:NodeExpr gen:Generator -> void {
+	static_assert(NodeKindsCount == 6, "Please update this place");
 	if(expr.kind == NodeKindInt) {
 		format_fprint(gen.asm_file.desc, "    push dword %s\n", expr.data);
 	}
@@ -132,6 +133,7 @@ proc gen_generate_let stmt:NodeStmtLet gen:Generator -> void {
 
 proc gen_stmt _stmt:ptr gen:Generator -> void {
 	let stmt = cast(NodeStmt, _stmt);
+	static_assert(StmtKindsCount == 5, "Please update this place");
 	if(stmt.kind == StmtKindExit) {
 		let stmt_exit = cast(NodeStmtExit, stmt.data);
 		gen_generate_exit(stmt_exit, gen);

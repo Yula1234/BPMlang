@@ -68,6 +68,9 @@ proc isspace chr:int -> int {
 	if(chr == ' ') {
 		return true;
 	}
+	if(chr == 9) {
+		return true;
+	}
 	return false;
 }
 
@@ -114,6 +117,9 @@ const TokenTypeSlash      iota;
 const TokenTypePrint      iota;
 const TokenTypeLet        iota;
 const TokenTypeEq         iota;
+const TokenTypeIf         iota;
+const TokenTypeOpenCurly  iota;
+const TokenTypeCloseCurly iota;
 const TokenTypesCount     reset;
 
 struct Token {
@@ -139,17 +145,17 @@ proc tokentype2str type:int -> ptr {
 	elif(type == TokenTypeCloseParen) {
 		return "`)`";
 	}
+	elif(type == TokenTypeOpenCurly) {
+		return "`{`";
+	}
+	elif(type == TokenTypeCloseCurly) {
+		return "`}`";
+	}
 	elif(type == TokenTypeExit) {
 		return "`exit`";
 	}
-	elif(type == TokenTypeOpenParen) {
-		return "`(`";
-	}
 	elif(type == TokenTypeIntLiteral) {
 		return "`int literal`";
-	}
-	elif(type == TokenTypeOpenParen) {
-		return "`(`";
 	}
 	elif(type == TokenTypeSemi) {
 		return "`;`";
@@ -175,6 +181,10 @@ proc tokentype2str type:int -> ptr {
 	elif(type == TokenTypeEq) {
 		return "`=`";
 	}
+	elif(type == TokenTypeIf) {
+		return "`if`";
+	}
+	static_assert(TokenTypesCount == 16, "Please update this place");
 	format_print("tokentype2str error: unkown TokenType `%d`\n", type);
 	exit(0);
 }
@@ -217,6 +227,7 @@ proc lexer_lex
 	let line_count = 1;
 	let tmp_tok: Token;
 	let tmp_str = new_tmp_str(str_arena, 56);
+	static_assert(TokenTypesCount == 16, "Please update this place");
 	while(lexer_peek(lxr) != NULL_PEEK) {
 		if(is_identif(lexer_peek(lxr))) {
 			while(is_identif(lexer_peek(lxr))) {
@@ -234,6 +245,10 @@ proc lexer_lex
 				tmp_tok = Token(TokenTypeLet, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
+			elif(streq(tmp_str.data, "if")) {
+				tmp_tok = Token(TokenTypeIf, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				push_token(tokens, &tokens_count, tmp_tok);
+			}
 			else {
 				tmp_tok = Token(TokenTypeIdent, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data, FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
@@ -247,6 +262,16 @@ proc lexer_lex
 		}
 		elif(lexer_peek(lxr) == ')') {
 			tmp_tok = Token(TokenTypeCloseParen, line_count, lxr.col - 1, "", FILE_PATH);
+			push_token(tokens, &tokens_count, tmp_tok);
+			lexer_consume(lxr);
+		}
+		elif(lexer_peek(lxr) == '{') {
+			tmp_tok = Token(TokenTypeOpenCurly, line_count, lxr.col - 1, "", FILE_PATH);
+			push_token(tokens, &tokens_count, tmp_tok);
+			lexer_consume(lxr);
+		}
+		elif(lexer_peek(lxr) == '}') {
+			tmp_tok = Token(TokenTypeCloseCurly, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
