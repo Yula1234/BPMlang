@@ -1,8 +1,0 @@
-include "std"
-include "fsys"
-
-proc main -> void {
-	let file = openf("test.txt", "w");
-	fputs(file.desc, "Hello, World!\n");
-	closef(file);
-}
