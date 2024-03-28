@@ -1240,6 +1240,27 @@ public:
             return stmt;
         }
 
+        if(auto _st_assert = try_consume(TokenType::_static_assert)) {
+            m_proprocessor_stmt = true;
+            try_consume_err(TokenType::open_paren);
+            bool _static_condition = false;
+            if(auto _expr = parse_expr()) {
+                _static_condition = static_cast<bool>(eval_int_value(_expr.value()));
+            } else {
+                error_expected("expression");
+            }
+            try_consume_err(TokenType::comma);
+            std::string _err_str = try_consume_err(TokenType::string_lit).value.value();
+            try_consume_err(TokenType::close_paren);
+            if(!_static_condition) {
+                putloc(_st_assert.value());
+                std::cerr << " Assertion Failed: " << _err_str << "\n";
+                exit(1);
+            }
+            try_consume_err(TokenType::semi);
+            return {};
+        }
+
         if(auto del = try_consume(TokenType::_delete)) {
             Token def = del.value();
             auto stmt_delete = m_allocator.emplace<NodeStmtDelete>();

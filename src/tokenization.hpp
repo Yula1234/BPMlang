@@ -58,6 +58,7 @@ enum class TokenType {
     minus_eq,
     star_eq,
     fslash_eq,
+    _static_assert,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -177,6 +178,8 @@ std::string tok_to_string(const TokenType type)
         return "`*=`";
     case TokenType::fslash_eq:
         return "`/=`";
+    case TokenType::_static_assert:
+        return "`static_assert`";
     }
     assert(false);
 }
@@ -368,6 +371,10 @@ public:
                 }
                 else if (buf == "break") {
                     tokens.push_back({ .type = TokenType::_break, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "static_assert") {
+                    tokens.push_back({ .type = TokenType::_static_assert, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {
