@@ -105,7 +105,7 @@ proc parser_parse_term prs:parser -> NodeExpr {
 		let fexpr = NodeExpr(NodeKindIdent, cast(ptr, expr_ident));
 		return fexpr;
 	}
-	static_assert(TokenTypesCount == 17, "Please update this place");
+	static_assert(TokenTypesCount == 18, "Please update this place");
 	putu(parser_peek(prs).type);
 	puts("Parser error (parse_term)\n");
 	exit(1);
@@ -124,7 +124,7 @@ proc is_bin_operator toktype:int -> int {
 	elif(toktype == TokenTypeSlash) {
 		return true;
 	}
-	static_assert(TokenTypesCount == 17, "Please update this place");
+	static_assert(TokenTypesCount == 18, "Please update this place");
 	return false;
 }
 
@@ -133,7 +133,7 @@ proc parser_parse_expr prs:parser -> NodeExpr {
 	if(is_bin_operator(parser_peek(prs).type) != 1) {
 		return left_term;
 	}
-	static_assert(TokenTypesCount == 17, "Please update this place");
+	static_assert(TokenTypesCount == 18, "Please update this place");
 	let bin_def = parser_peek(prs);
 	parser_consume(prs);
 	let right_expr = parser_parse_expr(prs);
@@ -195,10 +195,17 @@ struct NodeStmtBlock {
 }
 
 const PredKindElse iota;
+const PredKindElif iota;
 const IfPredsCount reset;
 
 struct IfPredElse {
 	block:NodeStmtBlock
+}
+
+struct IfPredElif {
+	block:NodeStmtBlock,
+	condition:NodeExpr,
+	pred:ptr
 }
 
 struct NodeIfPred {
@@ -245,11 +252,25 @@ proc parse_if_pred prs:parser -> ptr {
 		let else_pred = IfPredElse(else_block);
 		return cast(ptr, NodeIfPred(PredKindElse, cast(ptr, else_pred)));
 	}
+	elif(parser_peek(prs).type == TokenTypeElif) {
+		parser_consume(prs);
+		parser_consume_err(prs, TokenTypeOpenParen);
+		let _condition = parser_parse_expr(prs);
+		parser_consume_err(prs, TokenTypeCloseParen);
+		let elif_block = parser_parse_block(prs);
+		let elif_pred = IfPredElif(elif_block, _condition, cast(ptr, 0));
+		if(cast(int, parser_peek(prs)) != 0) {
+			let pd = parse_if_pred(prs);
+			elif_pred.pred = pd;
+		}
+		return cast(ptr, NodeIfPred(PredKindElif, cast(ptr, elif_pred)));
+	}
+	return cast(ptr, 0);
 }
 
 proc parser_parse_stmt prs:parser -> int {
 	let def_tok: Token;
-	static_assert(TokenTypesCount == 17, "Please update this place");
+	static_assert(TokenTypesCount == 18, "Please update this place");
 	static_assert(StmtKindsCount == 4, "Please update this place");
 	if(parser_peek(prs).type == TokenTypeExit) {
 		def_tok = parser_consume(prs);

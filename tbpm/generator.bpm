@@ -156,6 +156,10 @@ proc gen_if_pred pred:NodeIfPred endlab:ptr gen:Generator -> void {
 		let else_pred = cast(IfPredElse, pred.data);
 		gen_block(else_pred.block, gen);
 	}
+	elif(pred.kind == PredKindElif) {
+		puts("TODO: generation for elif not implemented yet\n");
+		exit(1);
+	}
 }
 
 proc gen_generate_if stmt:NodeStmtIf gen:Generator -> void {
