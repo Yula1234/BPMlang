@@ -840,8 +840,16 @@ public:
             return {};
         }
         auto scope = m_allocator.emplace<NodeScope>();
-        while (auto stmt = parse_stmt()) {
-            scope->stmts.push_back(stmt.value());
+        while (true) {
+            auto stmt = parse_stmt();
+            if(m_proprocessor_stmt) {
+                m_proprocessor_stmt = false;
+            } else {
+                if(!stmt.has_value()) {
+                    break;
+                }
+                scope->stmts.push_back(stmt.value());
+            }
         }
         try_consume_err(TokenType::close_curly);
         return scope;
