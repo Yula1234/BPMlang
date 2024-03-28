@@ -1261,7 +1261,9 @@ public:
                 std::cerr << " Assertion Failed: " << _err_str << "\n";
                 exit(1);
             }
+
             try_consume_err(TokenType::semi);
+            
             return {};
         }
 
