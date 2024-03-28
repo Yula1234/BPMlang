@@ -3,6 +3,7 @@ include "string"
 include "string_view"
 include "tbpm/arena"
 include "tbpm/lexer"
+include "dynamic_array"
 
 proc push_ast ast:ptr index:ptr element:ptr -> void {
 	store32(ast + (rd32(index) * 4), element);
@@ -87,8 +88,8 @@ const NodeKindDiv   iota;
 const NodeKindIdent iota;
 const NodeKindsCount reset;
 
-proc Error str:ptr line:int col:int -> void {
-	format_print("ERROR %d:%d: %s\n", line, col, str);
+proc Error str:ptr file:ptr line:int col:int -> void {
+	format_print("%s:%d:%d ERROR: %s\n", file, line, col, str);
 	exit(1);
 }
 
@@ -104,6 +105,7 @@ proc parser_parse_term prs:parser -> NodeExpr {
 		let fexpr = NodeExpr(NodeKindIdent, cast(ptr, expr_ident));
 		return fexpr;
 	}
+	static_assert(TokenTypesCount == 16, "Please update this place");
 	putu(parser_peek(prs).type);
 	puts("Parser error (parse_term)\n");
 	exit(1);
@@ -122,6 +124,7 @@ proc is_bin_operator toktype:int -> int {
 	elif(toktype == TokenTypeSlash) {
 		return true;
 	}
+	static_assert(TokenTypesCount == 16, "Please update this place");
 	return false;
 }
 
@@ -130,6 +133,7 @@ proc parser_parse_expr prs:parser -> NodeExpr {
 	if(is_bin_operator(parser_peek(prs).type) != 1) {
 		return left_term;
 	}
+	static_assert(TokenTypesCount == 16, "Please update this place");
 	let bin_def = parser_peek(prs);
 	parser_consume(prs);
 	let right_expr = parser_parse_expr(prs);
@@ -149,7 +153,7 @@ proc parser_parse_expr prs:parser -> NodeExpr {
 		let bin_div = NodeExprDiv(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
 		return NodeExpr(NodeKindDiv, cast(ptr, bin_div));
 	}
-	Error("parser_parse_expr unreacheable", bin_def.line, bin_def.col);
+	Error("parser_parse_expr unreacheable", bin_def.file_loc, bin_def.line, bin_def.col);
 }
 
 proc parser_consume_err prs:parser type:int -> Token {
@@ -186,22 +190,54 @@ struct NodeStmtLet {
 	def:Token
 }
 
+struct NodeStmtBlock {
+	stmts:DynamicArray
+}
+
+struct NodeStmtIf {
+	block:NodeStmtBlock,
+	condition:NodeExpr
+}
+
 const StmtKindExit  iota;
 const StmtKindPrint iota;
 const StmtKindLet   iota;
+const StmtKindIf    iota;
 const StmtKindsCount reset;
 
-proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
+proc parser_parse_stmt prs:parser -> int;
+
+proc parser_parse_block prs:parser -> NodeStmtBlock {
+	if(parser_peek(prs).type != TokenTypeOpenCurly) {
+		let tok = parser_peek(prs);
+		Error("excepted {", tok.file_loc, tok.line, tok.col);
+	}
+	parser_consume(prs);
+	let block = NodeStmtBlock(new_dynarray(8));
+	while(true) {
+		let _stmt = parser_parse_stmt(prs);
+		if(_stmt == 0) {
+			break;
+		}
+		dynarray_push(block.stmts, _stmt);
+	}
+	parser_consume_err(prs, TokenTypeCloseCurly);
+	return block;
+}
+
+proc parser_parse_stmt prs:parser -> int {
 	let def_tok: Token;
+	static_assert(TokenTypesCount == 16, "Please update this place");
+	static_assert(StmtKindsCount == 4, "Please update this place");
 	if(parser_peek(prs).type == TokenTypeExit) {
 		def_tok = parser_consume(prs);
 		parser_consume_err(prs, TokenTypeOpenParen);
 		let expr_exit = cast(ptr, parser_parse_expr(prs));
 		let stmt_exit = NodeStmtExit(expr_exit);
 		let stmt = NodeStmt(StmtKindExit, cast(ptr, stmt_exit));
-		push_ast(ast, ast_level, cast(ptr, stmt));
 		parser_consume_err(prs, TokenTypeCloseParen);
 		parser_consume_err(prs, TokenTypeSemi);
+		return cast(int, stmt);
 	}
 	elif(parser_peek(prs).type == TokenTypePrint) {
 		def_tok = parser_consume(prs);
@@ -209,9 +245,9 @@ proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
 		let expr_print = cast(ptr, parser_parse_expr(prs));
 		let stmt_print = NodeStmtPrint(expr_print);
 		let stmt = NodeStmt(StmtKindPrint, cast(ptr, stmt_print));
-		push_ast(ast, ast_level, cast(ptr, stmt));
 		parser_consume_err(prs, TokenTypeCloseParen);
 		parser_consume_err(prs, TokenTypeSemi);
+		return cast(int, stmt);
 	}
 	elif(parser_peek(prs).type == TokenTypeLet) {
 		def_tok = parser_consume(prs);
@@ -220,19 +256,35 @@ proc parser_parse_stmt prs:parser ast:ptr ast_level:ptr -> void {
 		let expr_let = cast(ptr, parser_parse_expr(prs));
 		let stmt_let = NodeStmtLet(ident_tok.value, expr_let, def_tok);
 		let stmt = NodeStmt(StmtKindLet, cast(ptr, stmt_let));
-		push_ast(ast, ast_level, cast(ptr, stmt));
 		parser_consume_err(prs, TokenTypeSemi);
+		return cast(int, stmt);
+	}
+	elif(parser_peek(prs).type == TokenTypeIf) {
+		parser_consume(prs); // skip IF keyword
+		parser_consume_err(prs, TokenTypeOpenParen);
+		let _condition = parser_parse_expr(prs);
+		parser_consume_err(prs, TokenTypeCloseParen);
+		let block = parser_parse_block(prs);
+		let stmt_if = NodeStmtIf(block, _condition);
+		let stmt = NodeStmt(StmtKindIf, cast(ptr, stmt_if));
+		return cast(int, stmt);
 	}
 	else {
-		Error("parser_parse_stmt unkown stmt\n", parser_peek(prs).line, parser_peek(prs).col);
-		exit(1);
+		return 0;
 	}
+	return 0;
 }
 
 proc parser_parse prs:parser ast:ptr -> void {
 	let ast_level = 0;
+	static_assert(StmtKindsCount == 4, "Please update this place");
 	while(cast(int, parser_peek(prs)) != 0) {
-		parser_parse_stmt(prs, ast, &ast_level);
+		let stmt = parser_parse_stmt(prs);
+		if(stmt == 0) {
+			let tok = parser_peek(prs);
+			Error("excepted statement", tok.file_loc, tok.line, tok.col);
+		}
+		push_ast(ast, &ast_level, cast(ptr, stmt));
 	}
 	store32(ast + (ast_level * 4), 0);
 }

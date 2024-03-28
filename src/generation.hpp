@@ -65,6 +65,7 @@ public:
 		size_t stack_allign;
 		std::vector<ProcAttr> attrs;
 		Token def;
+		bool prototype;
 	};
 	struct String {
 		std::string value {};
@@ -122,12 +123,12 @@ public:
 	}
 
 	std::optional<Constant> const_lookup(std::string name) {
-        const auto& search = m_consts->find(name);
-        if(search != m_consts->end()) {
-        	return search->second;
-        }
-        return std::nullopt;
-    }
+		const auto& search = m_consts->find(name);
+		if(search != m_consts->end()) {
+			return search->second;
+		}
+		return std::nullopt;
+	}
 
 	std::optional<Procedure> proc_lookup(std::string name) {
 		const auto& search = m_procs.find(name);
@@ -796,9 +797,13 @@ public:
 		return fsz;
 	}
 
-	void gen_scope(const NodeScope* scope, size_t psize = 0)
+	void gen_scope(const NodeScope* scope, size_t psize = 0, bool wbreak = false)
 	{
-		begin_scope(psize + collect_alligns(scope));
+		size_t sz = psize + collect_alligns(scope);
+		if(wbreak) {
+			m_break_scopes.push_back(sz);
+		}
+		begin_scope(sz);
 		for (const NodeStmt* stmt : scope->stmts) {
 			gen_stmt(stmt);
 		}
@@ -899,12 +904,26 @@ public:
 			void operator()(const NodeStmtProc* stmt_proc)
 			{
 				std::optional<Procedure> proc = gen.proc_lookup(stmt_proc->name);
-				if(proc.has_value()) {
+				if(proc.has_value() && !proc.value().prototype) {
 					Token pdef = proc.value().def;
 					gen.GeneratorError(stmt_proc->def, "procedure `" + stmt_proc->name + "` redefenition.\nNOTE: first defenition here " + loc_of(pdef) + ".");
 				}
-				size_t fsz = gen.collect_alligns(stmt_proc->scope);
-				gen.m_procs[stmt_proc->name] = { .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs , .def = stmt_proc->def };
+				else if(proc.has_value() && proc.value().prototype) {
+					if(proc.value().params.size() != stmt_proc->params.size()) {
+						gen.GeneratorError(stmt_proc->def, "prototype of function and definition have different params sizes.\nNOTE: except `" + std::to_string(proc.value().params.size()) + "` but got `" + std::to_string(stmt_proc->params.size()) + "`.");
+					}
+					if(proc.value().rettype != stmt_proc->rettype) {
+						gen.GeneratorError(stmt_proc->def, "prototype of function and defenition have other return types.\nNOTE: prototype return type - " + proc.value().rettype.to_string() + "\nNOTE: defenition return type - " + stmt_proc->rettype.to_string());
+					}
+				}
+				size_t fsz = 0;
+				if(!stmt_proc->prototype) {
+					fsz = gen.collect_alligns(stmt_proc->scope);
+				}
+				gen.m_procs[stmt_proc->name] = { .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs , .def = stmt_proc->def, .prototype = stmt_proc->prototype };
+				if(stmt_proc->prototype) {
+					return;
+				}
 				std::vector<ProcAttr> attrs = stmt_proc->attrs; 
 				bool noprolog = std::find(attrs.begin(), attrs.end(), ProcAttr::noprolog) != attrs.end();
 				gen.m_output << stmt_proc->name << ":\n";
@@ -1139,17 +1158,23 @@ public:
 				auto preiflab = gen.create_label();
 				auto blocklab = gen.create_label();
 				auto breaklab = gen.create_label();
+				auto endlab = gen.create_label();
 				gen.m_breaks.push_back(breaklab);
 				gen.m_output << "    " << preiflab << ":\n";
 				gen.gen_expr(stmt_while->expr);
 				gen.m_output << "    pop eax\n";
 				gen.m_output << "    test eax, eax\n";
-				gen.m_output << "    jz " << breaklab << "\n";
+				gen.m_output << "    jz " << endlab << "\n";
 				gen.m_output << "    " << blocklab << ":\n";
-				gen.gen_scope(stmt_while->scope);
+				gen.gen_scope(stmt_while->scope, 0, true);
 				gen.m_output << "    jmp " << preiflab << "\n";
 				gen.m_output << "    " << breaklab << ":\n";
+				if(gen.m_break_scopes[gen.m_break_scopes.size() - 1] != 0ULL) {
+					gen.m_output << "    add esp, " << gen.m_break_scopes[gen.m_break_scopes.size() - 1] * 4 << "\n";
+				}
+				gen.m_output << "    " << endlab << ":\n";
 				gen.m_breaks.pop_back();
+				gen.m_break_scopes.pop_back();
 			}
 
 			void operator()(const NodeStmtBreak* stmt_break)
@@ -1332,8 +1357,9 @@ private:
 	std::unordered_map<std::string, Struct> m_structs;
 	std::optional<Procedure> m_cur_proc;
 	std::vector<std::string> m_breaks;
-	VectorSim<size_t>        m_scopes;
-	VectorSim<size_t>        m_scopes_vi;
+	VectorSim<size_t>		m_scopes;
+	VectorSim<size_t>		m_scopes_vi;
+	VectorSim<size_t>		m_break_scopes;
 	std::unordered_map<std::string, Constant>* m_consts;
 	std::vector<std::string> m_cexterns = {
 		"ExitProcess@4",
