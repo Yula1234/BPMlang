@@ -215,12 +215,16 @@ proc parser_parse_block prs:parser -> NodeStmtBlock {
 	parser_consume(prs); // skip {
 	let arr = new_dynarray(32);
 	let block = NodeStmtBlock(arr);
+	let _stmt: int;
+	let i = 0;
 	while(true) {
-		let _stmt = parser_parse_stmt(prs);
+		_stmt = parser_parse_stmt(prs);
 		if(_stmt == 0) {
 			break;
 		}
+		putu(i);
 		dynarray_push(block.stmts, _stmt);
+		i += 1;
 	}
 	parser_consume_err(prs, TokenTypeCloseCurly);
 	return block;
@@ -260,14 +264,15 @@ proc parser_parse_stmt prs:parser -> int {
 		return cast(int, stmt);
 	}
 	elif(parser_peek(prs).type == TokenTypeIf) {
-		parser_consume(prs); // skip if keyword
-		parser_consume_err(prs, TokenTypeOpenParen);
-		let _condition = parser_parse_expr(prs);
-		parser_consume_err(prs, TokenTypeCloseParen);
-		puts("here\n");
-		let block = parser_parse_block(prs);
-		let stmt_if = NodeStmtIf(block, _condition);
-		return cast(int, NodeStmt(StmtKindIf, cast(ptr, stmt_if)));
+		puts("parsing IF is not implemented yet\n");
+		exit(1);
+		//parser_consume(prs); // skip if keyword
+		//parser_consume_err(prs, TokenTypeOpenParen);
+		//let _condition = parser_parse_expr(prs);
+		//parser_consume_err(prs, TokenTypeCloseParen);
+		//let block = parser_parse_block(prs);
+		//let stmt_if = NodeStmtIf(block, _condition);
+		//return cast(int, NodeStmt(StmtKindIf, cast(ptr, stmt_if)));
 	}
 	else {
 		return 0;
