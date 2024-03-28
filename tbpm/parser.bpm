@@ -238,6 +238,15 @@ proc parser_parse_block prs:parser -> NodeStmtBlock {
 	return block;
 }
 
+proc parse_if_pred prs:parser -> ptr {
+	if(parser_peek(prs).type == TokenTypeElse) {
+		parser_consume(prs);
+		let else_block = parser_parse_block(prs);
+		let else_pred = IfPredElse(else_block);
+		return cast(ptr, NodeIfPred(PredKindElse, cast(ptr, else_pred)));
+	}
+}
+
 proc parser_parse_stmt prs:parser -> int {
 	let def_tok: Token;
 	static_assert(TokenTypesCount == 17, "Please update this place");
@@ -280,12 +289,7 @@ proc parser_parse_stmt prs:parser -> int {
 		let block = parser_parse_block(prs);
 		let stmt_if = NodeStmtIf(block, _condition, cast(ptr, 0));
 		if(cast(int, parser_peek(prs)) != 0) {
-			if(parser_peek(prs).type == TokenTypeElse) {
-				parser_consume(prs);
-				let else_block = parser_parse_block(prs);
-				let else_pred = IfPredElse(else_block);
-				stmt_if.pred = cast(ptr, NodeIfPred(PredKindElse, cast(ptr, else_pred)));
-			}
+			stmt_if.pred = parse_if_pred(prs);
 		}
 		let stmt = NodeStmt(StmtKindIf, cast(ptr, stmt_if));
 		return cast(int, stmt);

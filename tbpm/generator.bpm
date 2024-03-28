@@ -151,6 +151,13 @@ proc gen_block block:NodeStmtBlock gen:Generator -> void {
 	}
 }
 
+proc gen_if_pred pred:NodeIfPred endlab:ptr gen:Generator -> void {
+	if(pred.kind == PredKindElse) {
+		let else_pred = cast(IfPredElse, pred.data);
+		gen_block(else_pred.block, gen);
+	}
+}
+
 proc gen_generate_if stmt:NodeStmtIf gen:Generator -> void {
 	gen_generate_expr(stmt.condition, gen);
 	let endlab = gen_create_label(gen);
@@ -163,10 +170,7 @@ proc gen_generate_if stmt:NodeStmtIf gen:Generator -> void {
 	format_fprint(gen.asm_file.desc, "    %s:\n", elselab);
 	if(cast(int, stmt.pred) != 0) {
 		let pred = cast(NodeIfPred, stmt.pred);
-		if(pred.kind == PredKindElse) {
-			let else_pred = cast(IfPredElse, pred.data);
-			gen_block(else_pred.block, gen);
-		}
+		gen_if_pred(pred, endlab, gen);
 	}
 	format_fprint(gen.asm_file.desc, "    %s:\n", endlab);
 }
