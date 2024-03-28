@@ -116,6 +116,7 @@ const TokenTypeEq         iota;
 const TokenTypeIf         iota;
 const TokenTypeCloseCurly iota;
 const TokenTypeOpenCurly  iota;
+const TokenTypeElse       iota;
 const TokenTypesCount     reset;
 
 struct Token {
@@ -132,7 +133,7 @@ proc push_token tokens:ptr index:ptr tok:Token -> void {
 }
 
 proc tokentype2str type:int -> ptr {
-	static_assert(TokenTypesCount == 16, "Please update this place");
+	static_assert(TokenTypesCount == 17, "Please update this place");
 	if(type == TokenTypeIdent) {
 		return "`ident`";
 	}
@@ -181,6 +182,9 @@ proc tokentype2str type:int -> ptr {
 	elif(type == TokenTypeIf) {
 		return "`if`";
 	}
+	elif(type == TokenTypeElse) {
+		return "`else`";
+	}
 	format_print("tokentype2str error: unkown TokenType `%d`\n", type);
 	exit(0);
 }
@@ -223,7 +227,7 @@ proc lexer_lex
 	let line_count = 1;
 	let tmp_tok: Token;
 	let tmp_str = new_tmp_str(str_arena, 56);
-	static_assert(TokenTypesCount == 16, "Please update this place");
+	static_assert(TokenTypesCount == 17, "Please update this place");
 	while(lexer_peek(lxr) != NULL_PEEK) {
 		if(is_identif(lexer_peek(lxr))) {
 			while(is_identif(lexer_peek(lxr))) {
@@ -243,6 +247,10 @@ proc lexer_lex
 			}
 			elif(streq(tmp_str.data, "if")) {
 				tmp_tok = Token(TokenTypeIf, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				push_token(tokens, &tokens_count, tmp_tok);
+			}
+			elif(streq(tmp_str.data, "else")) {
+				tmp_tok = Token(TokenTypeElse, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			else {

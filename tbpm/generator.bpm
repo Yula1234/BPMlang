@@ -143,19 +143,32 @@ proc gen_create_label gen:Generator -> ptr {
 
 proc gen_stmt _stmt:ptr gen:Generator -> void;
 
-proc gen_generate_if stmt:NodeStmtIf gen:Generator -> void {
-	gen_generate_expr(stmt.condition, gen);
-	let endlabel = gen_create_label(gen);
-	fputs(gen.asm_file.desc, "    pop eax\n");
-	fputs(gen.asm_file.desc, "    test eax, eax\n");
-	format_fprint(gen.asm_file.desc, "    jz %s\n", endlabel);
+proc gen_block block:NodeStmtBlock gen:Generator -> void {
 	let i = 0;
-	let stmts = stmt.block.stmts;
-	while(i < stmts.size) {
-		gen_stmt(cast(ptr, dynarray_get(stmts, i)), gen);
+	while(i < block.stmts.size) {
+		gen_stmt(cast(ptr, dynarray_get(block.stmts, i)), gen);
 		i += 1;
 	}
-	format_fprint(gen.asm_file.desc, "    %s:\n", endlabel);
+}
+
+proc gen_generate_if stmt:NodeStmtIf gen:Generator -> void {
+	gen_generate_expr(stmt.condition, gen);
+	let endlab = gen_create_label(gen);
+	let elselab = gen_create_label(gen);
+	fputs(gen.asm_file.desc, "    pop eax\n");
+	fputs(gen.asm_file.desc, "    test eax, eax\n");
+	format_fprint(gen.asm_file.desc, "    jz %s\n", elselab);
+	gen_block(stmt.block, gen);
+	format_fprint(gen.asm_file.desc, "    jmp %s\n", endlab);
+	format_fprint(gen.asm_file.desc, "    %s:\n", elselab);
+	if(cast(int, stmt.pred) != 0) {
+		let pred = cast(NodeIfPred, stmt.pred);
+		if(pred.kind == PredKindElse) {
+			let else_pred = cast(IfPredElse, pred.data);
+			gen_block(else_pred.block, gen);
+		}
+	}
+	format_fprint(gen.asm_file.desc, "    %s:\n", endlab);
 }
 
 proc gen_stmt _stmt:ptr gen:Generator -> void {

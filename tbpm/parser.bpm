@@ -105,7 +105,7 @@ proc parser_parse_term prs:parser -> NodeExpr {
 		let fexpr = NodeExpr(NodeKindIdent, cast(ptr, expr_ident));
 		return fexpr;
 	}
-	static_assert(TokenTypesCount == 16, "Please update this place");
+	static_assert(TokenTypesCount == 17, "Please update this place");
 	putu(parser_peek(prs).type);
 	puts("Parser error (parse_term)\n");
 	exit(1);
@@ -124,7 +124,7 @@ proc is_bin_operator toktype:int -> int {
 	elif(toktype == TokenTypeSlash) {
 		return true;
 	}
-	static_assert(TokenTypesCount == 16, "Please update this place");
+	static_assert(TokenTypesCount == 17, "Please update this place");
 	return false;
 }
 
@@ -133,7 +133,7 @@ proc parser_parse_expr prs:parser -> NodeExpr {
 	if(is_bin_operator(parser_peek(prs).type) != 1) {
 		return left_term;
 	}
-	static_assert(TokenTypesCount == 16, "Please update this place");
+	static_assert(TokenTypesCount == 17, "Please update this place");
 	let bin_def = parser_peek(prs);
 	parser_consume(prs);
 	let right_expr = parser_parse_expr(prs);
@@ -194,9 +194,22 @@ struct NodeStmtBlock {
 	stmts:DynamicArray
 }
 
+const PredKindElse iota;
+const IfPredsCount reset;
+
+struct IfPredElse {
+	block:NodeStmtBlock
+}
+
+struct NodeIfPred {
+	kind:int,
+	data:ptr
+}
+
 struct NodeStmtIf {
 	block:NodeStmtBlock,
-	condition:NodeExpr
+	condition:NodeExpr,
+	pred:ptr
 }
 
 const StmtKindExit  iota;
@@ -227,7 +240,7 @@ proc parser_parse_block prs:parser -> NodeStmtBlock {
 
 proc parser_parse_stmt prs:parser -> int {
 	let def_tok: Token;
-	static_assert(TokenTypesCount == 16, "Please update this place");
+	static_assert(TokenTypesCount == 17, "Please update this place");
 	static_assert(StmtKindsCount == 4, "Please update this place");
 	if(parser_peek(prs).type == TokenTypeExit) {
 		def_tok = parser_consume(prs);
@@ -265,7 +278,15 @@ proc parser_parse_stmt prs:parser -> int {
 		let _condition = parser_parse_expr(prs);
 		parser_consume_err(prs, TokenTypeCloseParen);
 		let block = parser_parse_block(prs);
-		let stmt_if = NodeStmtIf(block, _condition);
+		let stmt_if = NodeStmtIf(block, _condition, cast(ptr, 0));
+		if(cast(int, parser_peek(prs)) != 0) {
+			if(parser_peek(prs).type == TokenTypeElse) {
+				parser_consume(prs);
+				let else_block = parser_parse_block(prs);
+				let else_pred = IfPredElse(else_block);
+				stmt_if.pred = cast(ptr, NodeIfPred(PredKindElse, cast(ptr, else_pred)));
+			}
+		}
 		let stmt = NodeStmt(StmtKindIf, cast(ptr, stmt_if));
 		return cast(int, stmt);
 	}
