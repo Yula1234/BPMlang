@@ -1,0 +1,10 @@
+include "std"
+
+proc main argc:int argv:ptr -> void {
+	let i = 0;
+	while(i < argc) {
+		format_print("%s ", nth_argv(argv, i));
+		i = i + 1;
+	}
+	putc('\n');
+}
