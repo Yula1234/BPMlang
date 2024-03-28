@@ -65,6 +65,7 @@ public:
 		size_t stack_allign;
 		std::vector<ProcAttr> attrs;
 		Token def;
+		bool prototype;
 	};
 	struct String {
 		std::string value {};
@@ -899,12 +900,26 @@ public:
 			void operator()(const NodeStmtProc* stmt_proc)
 			{
 				std::optional<Procedure> proc = gen.proc_lookup(stmt_proc->name);
-				if(proc.has_value()) {
+				if(proc.has_value() && !proc.value().prototype) {
 					Token pdef = proc.value().def;
 					gen.GeneratorError(stmt_proc->def, "procedure `" + stmt_proc->name + "` redefenition.\nNOTE: first defenition here " + loc_of(pdef) + ".");
 				}
-				size_t fsz = gen.collect_alligns(stmt_proc->scope);
-				gen.m_procs[stmt_proc->name] = { .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs , .def = stmt_proc->def };
+				else if(proc.has_value() && proc.value().prototype) {
+					if(proc.value().params.size() != stmt_proc->params.size()) {
+						gen.GeneratorError(stmt_proc->def, "prototype of function and definition have different params sizes.\nNOTE: except `" + std::to_string(proc.value().params.size()) + "` but got `" + std::to_string(stmt_proc->params.size()) + "`.");
+					}
+					if(proc.value().rettype != stmt_proc->rettype) {
+						gen.GeneratorError(stmt_proc->def, "prototype of function and defenition have other return types.\nNOTE: prototype return type - " + proc.value().rettype.to_string() + "\nNOTE: defenition return type - " + stmt_proc->rettype.to_string());
+					}
+				}
+				size_t fsz = 0;
+				if(!stmt_proc->prototype) {
+					fsz = gen.collect_alligns(stmt_proc->scope);
+				}
+				gen.m_procs[stmt_proc->name] = { .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs , .def = stmt_proc->def, .prototype = stmt_proc->prototype };
+				if(stmt_proc->prototype) {
+					return;
+				}
 				std::vector<ProcAttr> attrs = stmt_proc->attrs; 
 				bool noprolog = std::find(attrs.begin(), attrs.end(), ProcAttr::noprolog) != attrs.end();
 				gen.m_output << stmt_proc->name << ":\n";

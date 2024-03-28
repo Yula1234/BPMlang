@@ -348,6 +348,7 @@ struct NodeStmtProc {
     std::vector<ProcAttr> attrs;
     std::vector<std::pair<std::string, DataType>> params;
     NodeScope* scope {};
+    bool prototype = false;
 };
 
 struct NodeStmtCall {
@@ -1028,6 +1029,13 @@ public:
                     stmt_proc->attrs.push_back(cur_attr.value());
                 }
                 try_consume_err(TokenType::close_bracket);
+            }
+            if(peek().has_value() && peek().value().type == TokenType::semi) {
+                stmt_proc->scope = NULL;
+                stmt_proc->prototype = true;
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_proc);
+                consume();
+                return stmt;
             }
             if (const auto scope = parse_scope()) {
                 stmt_proc->scope = scope.value();
