@@ -3,6 +3,7 @@ include "string"
 include "string_view"
 include "tbpm/arena"
 include "tbpm/lexer"
+include "dynamic_array"
 
 proc push_ast ast:ptr index:ptr element:ptr -> void {
 	store32(ast + (rd32(index) * 4), element);
@@ -204,17 +205,25 @@ const StmtKindBlock iota;
 const StmtKindIf    iota;
 const StmtKindsCount reset;
 
+proc parser_parse_stmt prs:parser -> int;
+
 proc parser_parse_block prs:parser -> NodeStmtBlock {
 	if(parser_peek(prs).type != TokenTypeOpenCurly) {
 		let tok = parser_peek(prs);
 		Error("excepted {", tok.file_loc, tok.line, tok.col);
 	}
 	parser_consume(prs); // skip {
-	let block = NodeStmtBlock(new_dynarray(32));
+	let arr = new_dynarray(32);
+	let block = NodeStmtBlock(arr);
 	while(true) {
-		let stmt = // TODO IMPLEMENT PROTOTYPES
+		let _stmt = parser_parse_stmt(prs);
+		if(_stmt == 0) {
+			break;
+		}
+		dynarray_push(block.stmts, _stmt);
 	}
-	exit(1);
+	parser_consume_err(prs, TokenTypeCloseCurly);
+	return block;
 }
 
 proc parser_parse_stmt prs:parser -> int {
@@ -255,6 +264,7 @@ proc parser_parse_stmt prs:parser -> int {
 		parser_consume_err(prs, TokenTypeOpenParen);
 		let _condition = parser_parse_expr(prs);
 		parser_consume_err(prs, TokenTypeCloseParen);
+		puts("here\n");
 		let block = parser_parse_block(prs);
 		let stmt_if = NodeStmtIf(block, _condition);
 		return cast(int, NodeStmt(StmtKindIf, cast(ptr, stmt_if)));
