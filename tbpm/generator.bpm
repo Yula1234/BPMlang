@@ -5,11 +5,11 @@ include "fsys"
 include "tbpm/arena"
 include "tbpm/lexer"
 include "tbpm/parser"
+include "dynamic_array"
 
 struct Generator {
 	asm_file:FILE,
-	vars:ptr,
-	vars_size:int,
+	vars:DynamicArray,
 	vars_index:int
 }
 
@@ -21,7 +21,7 @@ struct Var {
 proc gen_var_lookup name:ptr gen:Generator -> int {
 	let i = 0;
 	while(i < gen.vars_index) {
-		let var = cast(Var, rd32(gen.vars + (i * 4)));
+		let var = cast(Var, dynarray_get(gen.vars, i));
 		if(streq(var.name, name)) {
 			return cast(int, var);
 		}
@@ -31,12 +31,12 @@ proc gen_var_lookup name:ptr gen:Generator -> int {
 }
 
 proc new_generator asm_file:FILE -> Generator {
-	return Generator(asm_file, memalloc(1024*4), 0, 0);
+	return Generator(asm_file, new_dynarray(1024), 0);
 }
 
 proc delete_generator gen:Generator -> void {
 	closef(gen.asm_file);
-	memfree(gen.vars);
+	delete_dynarray(gen.vars);
 	delete gen;
 }
 
@@ -103,9 +103,9 @@ proc gen_generate_expr expr:NodeExpr gen:Generator -> void {
 /* variables tools */
 proc gen_create_var gen:Generator name:ptr def:Token -> void {
 	let var = Var(name, (gen.vars_index * 4) + 4);
+	let i = gen.vars_index;
 	gen.vars_index += 1;
-	store32(gen.vars + gen.vars_size, var);
-	gen.vars_size += 1;
+	dynarray_set(gen.vars, i, var);
 }
 
 proc gen_generate_exit stmt:NodeStmtExit gen:Generator -> void {
