@@ -1249,9 +1249,13 @@ public:
             } else {
                 error_expected("expression");
             }
+
             try_consume_err(TokenType::comma);
+            
             std::string _err_str = try_consume_err(TokenType::string_lit).value.value();
+            
             try_consume_err(TokenType::close_paren);
+            
             if(!_static_condition) {
                 putloc(_st_assert.value());
                 std::cerr << " Assertion Failed: " << _err_str << "\n";
