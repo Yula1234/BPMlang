@@ -797,9 +797,13 @@ public:
 		return fsz;
 	}
 
-	void gen_scope(const NodeScope* scope, size_t psize = 0)
+	void gen_scope(const NodeScope* scope, size_t psize = 0, bool wbreak = false)
 	{
-		begin_scope(psize + collect_alligns(scope));
+		size_t sz = psize + collect_alligns(scope);
+		if(wbreak) {
+			m_break_scopes.push_back(sz);
+		}
+		begin_scope(sz);
 		for (const NodeStmt* stmt : scope->stmts) {
 			gen_stmt(stmt);
 		}
@@ -1154,17 +1158,23 @@ public:
 				auto preiflab = gen.create_label();
 				auto blocklab = gen.create_label();
 				auto breaklab = gen.create_label();
+				auto endlab = gen.create_label();
 				gen.m_breaks.push_back(breaklab);
 				gen.m_output << "    " << preiflab << ":\n";
 				gen.gen_expr(stmt_while->expr);
 				gen.m_output << "    pop eax\n";
 				gen.m_output << "    test eax, eax\n";
-				gen.m_output << "    jz " << breaklab << "\n";
+				gen.m_output << "    jz " << endlab << "\n";
 				gen.m_output << "    " << blocklab << ":\n";
-				gen.gen_scope(stmt_while->scope);
+				gen.gen_scope(stmt_while->scope, 0, true);
 				gen.m_output << "    jmp " << preiflab << "\n";
 				gen.m_output << "    " << breaklab << ":\n";
+				if(gen.m_break_scopes[gen.m_break_scopes.size() - 1] != 0ULL) {
+					gen.m_output << "    add esp, " << gen.m_break_scopes[gen.m_break_scopes.size() - 1] * 4 << "\n";
+				}
+				gen.m_output << "    " << endlab << ":\n";
 				gen.m_breaks.pop_back();
+				gen.m_break_scopes.pop_back();
 			}
 
 			void operator()(const NodeStmtBreak* stmt_break)
@@ -1349,6 +1359,7 @@ private:
 	std::vector<std::string> m_breaks;
 	VectorSim<size_t>        m_scopes;
 	VectorSim<size_t>        m_scopes_vi;
+	VectorSim<size_t>        m_break_scopes;
 	std::unordered_map<std::string, Constant>* m_consts;
 	std::vector<std::string> m_cexterns = {
 		"ExitProcess@4",
