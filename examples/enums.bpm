@@ -1,0 +1,34 @@
+include "std"
+
+const MON iota;
+const TUE iota;
+const WEN iota;
+const FRI iota;
+const SAT iota;
+const SUN iota;
+const DaysCount reset;
+
+proc day_to_str day:int -> ptr {
+	if(day == MON) {
+		return "monday";
+	}
+	elif(day == TUE) {
+		return "tuesday";
+	}
+	elif(day == WEN) {
+		return "wensday";
+	}
+	elif(day == FRI) {
+		return "friday";
+	}
+	elif(day == SAT) {
+		return "saturday";
+	}
+	elif(day == SUN) {
+		return "sunday";
+	}
+}
+
+proc main -> void {
+	puts(day_to_str(MON));
+}
