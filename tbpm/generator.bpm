@@ -157,8 +157,22 @@ proc gen_if_pred pred:NodeIfPred endlab:ptr gen:Generator -> void {
 		gen_block(else_pred.block, gen);
 	}
 	elif(pred.kind == PredKindElif) {
-		puts("TODO: generation for elif not implemented yet\n");
-		exit(1);
+		let elif_pred = cast(IfPredElif, pred.data);
+		gen_generate_expr(elif_pred.condition, gen);
+		let elselab = gen_create_label(gen);
+		fputs(gen.asm_file.desc, "    pop eax\n");
+		fputs(gen.asm_file.desc, "    test eax, eax\n");
+		format_fprint(gen.asm_file.desc, "    jz %s\n", elselab);
+		gen_block(elif_pred.block, gen);
+		format_fprint(gen.asm_file.desc, "    jmp %s\n", endlab);
+		format_fprint(gen.asm_file.desc, "    %s:\n", elselab);
+		if(cast(int, elif_pred.pred) != 0) {
+			let pred = cast(NodeIfPred, elif_pred.pred);
+			gen_if_pred(pred, endlab, gen);
+		}
+	}
+	else {
+		format_print("gen_if_pred unkown if pred kind %d\n", pred.kind);
 	}
 }
 
