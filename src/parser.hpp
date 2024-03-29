@@ -260,6 +260,11 @@ struct NodeBinExprMod {
 	NodeExpr* rhs;
 };
 
+struct NodeBinExprAnd {
+	NodeExpr* lhs;
+	NodeExpr* rhs;
+};
+
 struct NodeBinExprArgs {
 	std::vector<NodeExpr*> args;
 };
@@ -271,7 +276,7 @@ struct NodeBinExprDot {
 
 struct NodeBinExpr {
 	Token def;
-	std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*, NodeBinExprMod*, NodeBinExprDot*> var;
+	std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*, NodeBinExprMod*, NodeBinExprDot*, NodeBinExprAnd*> var;
 };
 
 struct NodeTerm {
@@ -565,6 +570,10 @@ public:
 				NodeBinExprAbove* nabove = std::get<NodeBinExprAbove*>(nbin->var);
 				return eval_int_value(nabove->lhs) > eval_int_value(nabove->rhs);
 			}
+			if(std::holds_alternative<NodeBinExprAnd*>(nbin->var)) {
+				NodeBinExprAnd* nand = std::get<NodeBinExprAnd*>(nbin->var);
+				return eval_int_value(nand->lhs) > eval_int_value(nand->rhs);
+			}
 		}
 		ParsingError("not constant provided");
 		return result;
@@ -824,6 +833,12 @@ public:
 			else if (type == TokenType::dot) {
 				expr_lhs2->var = expr_lhs->var;
 				auto dot = m_allocator.emplace<NodeBinExprDot>(expr_lhs2, expr_rhs.value());
+				expr->def = ctok;
+				expr->var = dot;
+			}
+			else if (type == TokenType::double_ampersand) {
+				expr_lhs2->var = expr_lhs->var;
+				auto dot = m_allocator.emplace<NodeBinExprAnd>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = dot;
 			}

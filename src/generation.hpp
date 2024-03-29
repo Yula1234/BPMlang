@@ -272,6 +272,9 @@ public:
 			if(std::holds_alternative<NodeBinExprAbove*>(binex->var)) {
 				return type_of_expr(std::get<NodeBinExprAbove*>(binex->var)->lhs);
 			}
+			if(std::holds_alternative<NodeBinExprAnd*>(binex->var)) {
+				return type_of_expr(std::get<NodeBinExprAnd*>(binex->var)->lhs);
+			}
 			if(std::holds_alternative<NodeBinExprDot*>(binex->var)) {
 				NodeBinExprDot* dot = std::get<NodeBinExprDot*>(binex->var);
 				return type_of_dot(dot);
@@ -308,6 +311,9 @@ public:
 		} else if(std::holds_alternative<NodeBinExprAbove*>(expr->var)) {
 			NodeBinExprAbove* above = std::get<NodeBinExprAbove*>(expr->var);
 			return type_of_expr(above->lhs) == type_of_expr(above->rhs);
+		} else if(std::holds_alternative<NodeBinExprAnd*>(expr->var)) {
+			NodeBinExprAnd* band = std::get<NodeBinExprAnd*>(expr->var);
+			return type_of_expr(band->lhs) == type_of_expr(band->rhs);
 		} else if(std::holds_alternative<NodeBinExprDot*>(expr->var)) {
 			return true;
 		} else {
@@ -355,6 +361,10 @@ public:
 				const NodeBinExprNotEq* nq = std::get<NodeBinExprNotEq*>(expr->var);
 				ltype = type_of_expr(nq->lhs);
 				rtype = type_of_expr(nq->rhs);
+			} else if(std::holds_alternative<NodeBinExprAnd*>(expr->var)) {
+				const NodeBinExprAnd* band = std::get<NodeBinExprAnd*>(expr->var);
+				ltype = type_of_expr(band->lhs);
+				rtype = type_of_expr(band->rhs);
 			} else {
 				assert(false);
 			}
@@ -670,11 +680,30 @@ public:
 				gen.m_output << "    push edx\n";
 			}
 
+			void operator()(const NodeBinExprAnd* band) const
+			{
+				gen.gen_expr(band->lhs);
+				const std::string flab = gen.create_label();
+				const std::string elab = gen.create_label();
+				gen.m_output << "    xor eax, eax\n";
+				gen.m_output << "    pop edx\n";
+				gen.m_output << "    cmp edx, 0\n";
+				gen.m_output << "    jz " << flab << "\n";
+				gen.gen_expr(band->rhs);
+				gen.m_output << "    pop edx\n";
+				gen.m_output << "    cmp edx, 0\n";
+				gen.m_output << "    jz " << flab << "\n";
+				gen.m_output << "    mov eax, 1\n";
+				gen.m_output << "    jmp " << elab << "\n";
+				gen.m_output << "    " << flab << ":\n";
+				gen.m_output << "    mov eax, 0\n";
+				gen.m_output << "    " << elab << ":\n";
+				gen.m_output << "    push eax\n";
+			}
+
 			void operator()(const NodeBinExprAbove* above) const
 			{
 				gen.gen_expr(above->lhs);
-				// DON'T COPY PASTE
-				// IN > FIRST GENERATE LEFT OPERAND
 				gen.gen_expr(above->rhs);
 				gen.m_output << "    mov edx, 0\n";
 				gen.m_output << "    mov ecx, 1\n";

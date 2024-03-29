@@ -59,6 +59,7 @@ enum class TokenType {
     star_eq,
     fslash_eq,
     _static_assert,
+    double_ampersand,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -180,6 +181,8 @@ std::string tok_to_string(const TokenType type)
         return "`/=`";
     case TokenType::_static_assert:
         return "`static_assert`";
+    case TokenType::double_ampersand:
+        return "`&&`";
     }
     assert(false);
 }
@@ -188,6 +191,8 @@ int prec_IOTA = 0;
 inline std::optional<int> bin_prec(const TokenType type)
 {
     switch (type) {
+    case TokenType::double_ampersand:
+        return prec_IOTA++;
     case TokenType::dot:
         return prec_IOTA++;
     case TokenType::eqeq:
@@ -394,6 +399,11 @@ public:
                 consume();
                 consume();
                 tokens.push_back({ .type = TokenType::arrow, .line =  line_count, .col = m_col - 2, .file = file });
+            }
+            else if (peek().value() == '&' && peek(1).has_value() && peek(1).value() == '&') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::double_ampersand, .line =  line_count, .col = m_col - 2, .file = file });
             }
             else if (peek().value() == '+' && peek(1).has_value() && peek(1).value() == '=') {
                 consume();
