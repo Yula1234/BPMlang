@@ -265,6 +265,11 @@ struct NodeBinExprAnd {
 	NodeExpr* rhs;
 };
 
+struct NodeBinExprOr {
+	NodeExpr* lhs;
+	NodeExpr* rhs;
+};
+
 struct NodeBinExprArgs {
 	std::vector<NodeExpr*> args;
 };
@@ -276,7 +281,7 @@ struct NodeBinExprDot {
 
 struct NodeBinExpr {
 	Token def;
-	std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*, NodeBinExprMod*, NodeBinExprDot*, NodeBinExprAnd*> var;
+	std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*, NodeBinExprMod*, NodeBinExprDot*, NodeBinExprAnd*, NodeBinExprOr*> var;
 };
 
 struct NodeTerm {
@@ -839,6 +844,12 @@ public:
 			else if (type == TokenType::double_ampersand) {
 				expr_lhs2->var = expr_lhs->var;
 				auto dot = m_allocator.emplace<NodeBinExprAnd>(expr_lhs2, expr_rhs.value());
+				expr->def = ctok;
+				expr->var = dot;
+			}
+			else if (type == TokenType::double_stick) {
+				expr_lhs2->var = expr_lhs->var;
+				auto dot = m_allocator.emplace<NodeBinExprOr>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = dot;
 			}

@@ -275,6 +275,9 @@ public:
 			if(std::holds_alternative<NodeBinExprAnd*>(binex->var)) {
 				return type_of_expr(std::get<NodeBinExprAnd*>(binex->var)->lhs);
 			}
+			if(std::holds_alternative<NodeBinExprOr*>(binex->var)) {
+				return type_of_expr(std::get<NodeBinExprOr*>(binex->var)->lhs);
+			}
 			if(std::holds_alternative<NodeBinExprDot*>(binex->var)) {
 				NodeBinExprDot* dot = std::get<NodeBinExprDot*>(binex->var);
 				return type_of_dot(dot);
@@ -314,6 +317,9 @@ public:
 		} else if(std::holds_alternative<NodeBinExprAnd*>(expr->var)) {
 			NodeBinExprAnd* band = std::get<NodeBinExprAnd*>(expr->var);
 			return type_of_expr(band->lhs) == type_of_expr(band->rhs);
+		} else if(std::holds_alternative<NodeBinExprOr*>(expr->var)) {
+			NodeBinExprOr* bor = std::get<NodeBinExprOr*>(expr->var);
+			return type_of_expr(bor->lhs) == type_of_expr(bor->rhs);
 		} else if(std::holds_alternative<NodeBinExprDot*>(expr->var)) {
 			return true;
 		} else {
@@ -365,6 +371,10 @@ public:
 				const NodeBinExprAnd* band = std::get<NodeBinExprAnd*>(expr->var);
 				ltype = type_of_expr(band->lhs);
 				rtype = type_of_expr(band->rhs);
+			} else if(std::holds_alternative<NodeBinExprOr*>(expr->var)) {
+				const NodeBinExprOr* bor = std::get<NodeBinExprOr*>(expr->var);
+				ltype = type_of_expr(bor->lhs);
+				rtype = type_of_expr(bor->rhs);
 			} else {
 				assert(false);
 			}
@@ -701,6 +711,28 @@ public:
 				gen.m_output << "    push eax\n";
 			}
 
+			void operator()(const NodeBinExprOr* bor) const
+			{
+				const std::string flab = gen.create_label();
+				const std::string elab = gen.create_label();
+				const std::string tlab = gen.create_label();
+				gen.gen_expr(bor->lhs);
+				gen.m_output << "    xor eax, eax\n";
+				gen.m_output << "    pop edx\n";
+				gen.m_output << "    cmp edx, 0\n";
+				gen.m_output << "    jne " << tlab << "\n";
+				gen.gen_expr(bor->rhs);
+				gen.m_output << "    pop edx\n";
+				gen.m_output << "    je " << flab << "\n";
+				gen.m_output << "    " << tlab << ":\n";
+				gen.m_output << "    mov eax, 1\n";
+				gen.m_output << "    jmp " << elab << "\n";
+				gen.m_output << "    " << flab << ":\n";
+				gen.m_output << "    mov eax, 0\n";
+				gen.m_output << "    " << elab << ":\n";
+				gen.m_output << "    push eax\n";
+			}
+
 			void operator()(const NodeBinExprAbove* above) const
 			{
 				gen.gen_expr(above->lhs);
@@ -781,6 +813,10 @@ public:
 			bin_str = "<";
 		} else if(std::holds_alternative<NodeBinExprAbove*>(bin_expr->var)) {
 			bin_str = ">";
+		} else if(std::holds_alternative<NodeBinExprAnd*>(bin_expr->var)) {
+			bin_str = "&&";
+		} else if(std::holds_alternative<NodeBinExprOr*>(bin_expr->var)) {
+			bin_str = "||";
 		}
 		if(!std::holds_alternative<NodeBinExprArgs*>(bin_expr->var)) {
 			typecheck_bin_expr_err(bin_expr, bin_str);
