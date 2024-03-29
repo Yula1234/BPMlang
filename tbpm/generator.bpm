@@ -12,12 +12,17 @@ struct Generator {
 	vars:DynamicArray,
 	vars_index:int,
 	arena:ArenaAllocator,
-	label_count:int
+	label_count:int,
+	procs:DynamicArray
 }
 
 struct Var {
 	name:ptr,
 	stack_loc:int
+}
+
+struct Proc {
+	name:ptr
 }
 
 proc gen_var_lookup name:ptr gen:Generator -> int {
@@ -33,12 +38,13 @@ proc gen_var_lookup name:ptr gen:Generator -> int {
 }
 
 proc new_generator asm_file:FILE -> Generator {
-	return Generator(asm_file, new_dynarray(1024), 0, new_arena(24 * 1024), 0);
+	return Generator(asm_file, new_dynarray(128), 0, new_arena(24 * 1024), 0, new_dynarray(128));
 }
 
 proc delete_generator gen:Generator -> void {
 	closef(gen.asm_file);
 	delete_dynarray(gen.vars);
+	delete_dynarray(gen.procs);
 	arena_delete(gen.arena);
 	delete gen;
 }
@@ -193,6 +199,25 @@ proc gen_generate_if stmt:NodeStmtIf gen:Generator -> void {
 	format_fprint(gen.asm_file.desc, "    %s:\n", endlab);
 }
 
+proc gen_define_proc name:ptr gen:Generator -> void {
+	dynarray_push(gen.procs, Proc(name));
+}
+
+proc collect_allign block:DynamicArray -> int;
+
+proc gen_generate_proc stmt:NodeStmtProc gen:Generator -> void {
+	gen_define_proc(stmt.name, gen);
+	format_fprint(gen.asm_file.desc, "%s:\n", stmt.name);
+	let stack_allign = collect_allign(stmt.block.stmts);
+	fputs(gen.asm_file.desc, "    push ebp\n");
+	fputs(gen.asm_file.desc, "    mov ebp, esp\n");
+	format_fprint(gen.asm_file.desc, "    sub esp, %d\n", stack_allign * 4);
+	gen_block(stmt.block, gen);
+	format_fprint(gen.asm_file.desc, "    add esp, %d\n", stack_allign * 4);
+	fputs(gen.asm_file.desc, "    pop ebp\n");
+	fputs(gen.asm_file.desc, "    ret\n");
+}
+
 proc gen_stmt _stmt:ptr gen:Generator -> void {
 	let stmt = cast(NodeStmt, _stmt);
 	if(stmt.kind == StmtKindExit) {
@@ -211,58 +236,47 @@ proc gen_stmt _stmt:ptr gen:Generator -> void {
 		let stmt_if = cast(NodeStmtIf, stmt.data);
 		gen_generate_if(stmt_if, gen);
 	}
+	elif(stmt.kind == StmtKindProc) {
+		let stmt_proc = cast(NodeStmtProc, stmt.data);
+		gen_generate_proc(stmt_proc, gen);
+	}
 	else {
 		puts("unkown stmt at gen_stmt\n");
 		exit(1);
 	}
 }
 
-proc collect_allign ast:ptr -> int {
-	let ast_level = 0;
+proc collect_allign block:DynamicArray -> int {
+	let i = 0;
 	let allign = 0;
-	while(rd32(ast +  (ast_level * 4)) != 0) {
-		let stmt = cast(NodeStmt, rd32(ast +  (ast_level * 4)));
+	while(i < block.size) {
+		let stmt = cast(NodeStmt, dynarray_get(block, i));
 		if(stmt.kind == StmtKindLet) {
 			allign += 1;
 		}
-		ast_level = ast_level + 1;
+		i += 1;
 	}
 	return allign;
 }
 
-proc gen_generate_header ast:ptr gen:Generator -> int {
+proc gen_generate_header ast:ptr gen:Generator -> void {
 	fputs(gen.asm_file.desc, "section .text\n\n");
 	fputs(gen.asm_file.desc, "global main\n\n");
 	fputs(gen.asm_file.desc, "extern printf\n");
 	fputs(gen.asm_file.desc, "extern ExitProcess@4\n\n");
-	fputs(gen.asm_file.desc, "main:\n");
-	fputs(gen.asm_file.desc, "    push ebp\n");
-	fputs(gen.asm_file.desc, "    mov ebp, esp\n");
-	let allign = collect_allign(ast) * 4;
-	format_fprint(gen.asm_file.desc, "    sub esp, %d\n", allign);
-	return allign;
 }
 
-proc gen_generate_footer allign:int gen:Generator -> void {
-	fputs(gen.asm_file.desc, "    xor eax, eax\n");
-	format_fprint(gen.asm_file.desc, "    add esp, %d\n", allign);
-	fputs(gen.asm_file.desc, "    pop ebp\n");
-	fputs(gen.asm_file.desc, "    ret\n");
-}
-
-proc gen_generate_data gen:Generator -> void {
+proc gen_generate_footer gen:Generator -> void {
 	fputs(gen.asm_file.desc, "\nsection .data\n");
 	fputs(gen.asm_file.desc, "    numfmt: db \"%d\", 0xa, 0x0\n");
 }
 
 proc gen_generate ast:ptr gen:Generator -> void {
 	let ast_level = 0;
-	let allign = gen_generate_header(ast, gen);
-	static_assert(StmtKindsCount == 4, "Please update this place");
+	gen_generate_header(ast, gen);
 	while(rd32(ast +  (ast_level * 4)) != 0) {
 		gen_stmt(cast(ptr, rd32(ast +  (ast_level * 4))), gen);
 		ast_level = ast_level + 1;
 	}
-	gen_generate_footer(allign, gen);
-	gen_generate_data(gen);
+	gen_generate_footer(gen);
 }

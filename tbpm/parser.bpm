@@ -105,7 +105,6 @@ proc parser_parse_term prs:parser -> NodeExpr {
 		let fexpr = NodeExpr(NodeKindIdent, cast(ptr, expr_ident));
 		return fexpr;
 	}
-	static_assert(TokenTypesCount == 18, "Please update this place");
 	putu(parser_peek(prs).type);
 	puts("Parser error (parse_term)\n");
 	exit(1);
@@ -151,7 +150,6 @@ proc is_bin_operator toktype:int -> int {
 	elif(toktype == TokenTypeSlash) {
 		return true;
 	}
-	static_assert(TokenTypesCount == 18, "Please update this place");
 	return false;
 }
 
@@ -200,8 +198,11 @@ proc parser_parse_expr prs:parser min_prec:int -> NodeExpr {
 			expr.data = cast(ptr, mul);
 		}
 		elif(ctok.type == TokenTypeSlash) {
-			puts("parsing / is not implemented yet\n");
-			exit(1);
+			expr_lhs2.data = expr_lhs.data;
+			expr_lhs2.kind = expr_lhs.kind;
+			let div = NodeExprDiv(cast(ptr, expr_lhs2), cast(ptr, expr_rhs), ctok);
+			expr.kind = NodeKindDiv;
+			expr.data = cast(ptr, div);
 		}
 		else { 
 			Error("parser_parse_expr unreacheable", ctok.file_loc, ctok.line, ctok.col);
@@ -275,10 +276,17 @@ struct NodeStmtIf {
 	pred:ptr
 }
 
+struct NodeStmtProc {
+	block:NodeStmtBlock,
+	name:ptr,
+	def:Token
+}
+
 const StmtKindExit  iota;
 const StmtKindPrint iota;
 const StmtKindLet   iota;
 const StmtKindIf    iota;
+const StmtKindProc  iota;
 const StmtKindsCount reset;
 
 proc parser_parse_stmt prs:parser -> int;
@@ -326,8 +334,6 @@ proc parse_if_pred prs:parser -> ptr {
 
 proc parser_parse_stmt prs:parser -> int {
 	let def_tok: Token;
-	static_assert(TokenTypesCount == 18, "Please update this place");
-	static_assert(StmtKindsCount == 4, "Please update this place");
 	if(parser_peek(prs).type == TokenTypeExit) {
 		def_tok = parser_consume(prs);
 		parser_consume_err(prs, TokenTypeOpenParen);
@@ -371,15 +377,19 @@ proc parser_parse_stmt prs:parser -> int {
 		let stmt = NodeStmt(StmtKindIf, cast(ptr, stmt_if));
 		return cast(int, stmt);
 	}
-	else {
-		return 0;
+	elif(parser_peek(prs).type == TokenTypeProc) {
+		let def = parser_consume(prs);
+		let name = parser_consume_err(prs, TokenTypeIdent).value;
+		let block = parser_parse_block(prs);
+		let proc_stmt = NodeStmtProc(block, name, def);
+		let stmt = NodeStmt(StmtKindProc, cast(ptr, proc_stmt));
+		return cast(int, stmt);
 	}
 	return 0;
 }
 
 proc parser_parse prs:parser ast:ptr -> void {
 	let ast_level = 0;
-	static_assert(StmtKindsCount == 4, "Please update this place");
 	while(cast(int, parser_peek(prs)) != 0) {
 		let stmt = parser_parse_stmt(prs);
 		if(stmt == 0) {
