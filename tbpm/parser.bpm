@@ -111,6 +111,33 @@ proc parser_parse_term prs:parser -> NodeExpr {
 	exit(1);
 }
 
+const NULL_PREC 4294967295;
+
+const PLUS_PREC iota;
+const MUL_PREC 	iota;
+const PRECS_COUNT reset;
+
+proc is_bin_operator toktype:int -> int;
+
+proc bin_prec toktype:int -> int {
+	if(is_bin_operator(toktype) != 1) {
+		return NULL_PREC;
+	}
+	if(toktype == TokenTypePlus) {
+		return PLUS_PREC;
+	}
+	elif(toktype == TokenTypeMinus) {
+		return PLUS_PREC;
+	}
+	elif(toktype == TokenTypeStar) {
+		return MUL_PREC;
+	}
+	elif(toktype == TokenTypeSlash) {
+		return MUL_PREC;
+	}
+	return NULL_PREC;
+}
+
 proc is_bin_operator toktype:int -> int {
 	if(toktype == TokenTypePlus) {
 		return true;
@@ -128,32 +155,61 @@ proc is_bin_operator toktype:int -> int {
 	return false;
 }
 
-proc parser_parse_expr prs:parser -> NodeExpr {
-	let left_term = parser_parse_term(prs);
-	if(is_bin_operator(parser_peek(prs).type) != 1) {
-		return left_term;
+proc parser_parse_expr prs:parser min_prec:int -> NodeExpr {
+	let term_lhs = parser_parse_term(prs);
+	let expr_lhs = NodeExpr(term_lhs.kind, term_lhs.data);
+	while(true) {
+		let cur_tok = parser_peek(prs);
+		let prec = NULL_PREC;
+		if(cast(int, cur_tok) != 0) {
+			prec = bin_prec(cur_tok.type);
+			if(prec == NULL_PREC) {
+				break;
+			}
+			if(prec < min_prec) {
+				break;
+			}
+		}
+		else {
+			break;
+		}
+		let ctok = parser_consume(prs);
+		let next_min_prec = min_prec + 1;
+		let expr_rhs = parser_parse_expr(prs, next_min_prec);
+		let expr = NodeExpr();
+		let expr_lhs2 = NodeExpr();
+		if(ctok.type == TokenTypePlus) {
+			expr_lhs2.data = expr_lhs.data;
+			expr_lhs2.kind = expr_lhs.kind;
+			let add = NodeExprAdd(cast(ptr, expr_lhs2), cast(ptr, expr_rhs), ctok);
+			expr.kind = NodeKindPlus;
+			expr.data = cast(ptr, add);
+		}
+		elif(ctok.type == TokenTypeMinus) {
+			expr_lhs2.data = expr_lhs.data;
+			expr_lhs2.kind = expr_lhs.kind;
+			let sub = NodeExprSub(cast(ptr, expr_lhs2), cast(ptr, expr_rhs), ctok);
+			expr.kind = NodeKindMinus;
+			expr.data = cast(ptr, sub);
+		}
+		elif(ctok.type == TokenTypeStar) {
+			expr_lhs2.data = expr_lhs.data;
+			expr_lhs2.kind = expr_lhs.kind;
+			let mul = NodeExprMul(cast(ptr, expr_lhs2), cast(ptr, expr_rhs), ctok);
+			expr.kind = NodeKindMul;
+			expr.data = cast(ptr, mul);
+		}
+		elif(ctok.type == TokenTypeSlash) {
+			puts("parsing / is not implemented yet\n");
+			exit(1);
+		}
+		else { 
+			Error("parser_parse_expr unreacheable", ctok.file_loc, ctok.line, ctok.col);
+		}
+		expr_lhs.data = expr.data;
+		expr_lhs.kind = expr.kind;
 	}
-	static_assert(TokenTypesCount == 18, "Please update this place");
-	let bin_def = parser_peek(prs);
-	parser_consume(prs);
-	let right_expr = parser_parse_expr(prs);
-	if(bin_def.type == TokenTypePlus) {
-		let bin_plus = NodeExprAdd(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
-		return NodeExpr(NodeKindPlus, cast(ptr, bin_plus));
-	}
-	elif(bin_def.type == TokenTypeMinus) {
-		let bin_minus = NodeExprSub(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
-		return NodeExpr(NodeKindMinus, cast(ptr, bin_minus));
-	}
-	elif(bin_def.type == TokenTypeStar) {
-		let bin_mul = NodeExprMul(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
-		return NodeExpr(NodeKindMul, cast(ptr, bin_mul));
-	}
-	elif(bin_def.type == TokenTypeSlash) {
-		let bin_div = NodeExprDiv(cast(ptr, left_term), cast(ptr, right_expr), bin_def);
-		return NodeExpr(NodeKindDiv, cast(ptr, bin_div));
-	}
-	Error("parser_parse_expr unreacheable", bin_def.file_loc, bin_def.line, bin_def.col);
+	return expr_lhs;
 }
 
 proc parser_consume_err prs:parser type:int -> Token {
@@ -255,7 +311,7 @@ proc parse_if_pred prs:parser -> ptr {
 	elif(parser_peek(prs).type == TokenTypeElif) {
 		parser_consume(prs);
 		parser_consume_err(prs, TokenTypeOpenParen);
-		let _condition = parser_parse_expr(prs);
+		let _condition = parser_parse_expr(prs, 0);
 		parser_consume_err(prs, TokenTypeCloseParen);
 		let elif_block = parser_parse_block(prs);
 		let elif_pred = IfPredElif(elif_block, _condition, cast(ptr, 0));
@@ -275,7 +331,7 @@ proc parser_parse_stmt prs:parser -> int {
 	if(parser_peek(prs).type == TokenTypeExit) {
 		def_tok = parser_consume(prs);
 		parser_consume_err(prs, TokenTypeOpenParen);
-		let expr_exit = cast(ptr, parser_parse_expr(prs));
+		let expr_exit = cast(ptr, parser_parse_expr(prs, 0));
 		let stmt_exit = NodeStmtExit(expr_exit);
 		let stmt = NodeStmt(StmtKindExit, cast(ptr, stmt_exit));
 		parser_consume_err(prs, TokenTypeCloseParen);
@@ -285,7 +341,7 @@ proc parser_parse_stmt prs:parser -> int {
 	elif(parser_peek(prs).type == TokenTypePrint) {
 		def_tok = parser_consume(prs);
 		parser_consume_err(prs, TokenTypeOpenParen);
-		let expr_print = cast(ptr, parser_parse_expr(prs));
+		let expr_print = cast(ptr, parser_parse_expr(prs, 0));
 		let stmt_print = NodeStmtPrint(expr_print);
 		let stmt = NodeStmt(StmtKindPrint, cast(ptr, stmt_print));
 		parser_consume_err(prs, TokenTypeCloseParen);
@@ -296,7 +352,7 @@ proc parser_parse_stmt prs:parser -> int {
 		def_tok = parser_consume(prs);
 		let ident_tok = parser_consume_err(prs, TokenTypeIdent);
 		parser_consume_err(prs, TokenTypeEq);
-		let expr_let = cast(ptr, parser_parse_expr(prs));
+		let expr_let = cast(ptr, parser_parse_expr(prs, 0));
 		let stmt_let = NodeStmtLet(ident_tok.value, expr_let, def_tok);
 		let stmt = NodeStmt(StmtKindLet, cast(ptr, stmt_let));
 		parser_consume_err(prs, TokenTypeSemi);
@@ -305,7 +361,7 @@ proc parser_parse_stmt prs:parser -> int {
 	elif(parser_peek(prs).type == TokenTypeIf) {
 		parser_consume(prs); // skip IF keyword
 		parser_consume_err(prs, TokenTypeOpenParen);
-		let _condition = parser_parse_expr(prs);
+		let _condition = parser_parse_expr(prs, 0);
 		parser_consume_err(prs, TokenTypeCloseParen);
 		let block = parser_parse_block(prs);
 		let stmt_if = NodeStmtIf(block, _condition, cast(ptr, 0));
