@@ -61,6 +61,8 @@ enum class TokenType {
     _static_assert,
     double_ampersand,
     double_stick,
+    hash_sign,
+    _define,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -186,6 +188,10 @@ std::string tok_to_string(const TokenType type)
         return "`&&`";
     case TokenType::double_stick:
         return "`||`";
+    case TokenType::hash_sign:
+        return "`#`";
+    case TokenType::_define:
+        return "`define`";
     }
     assert(false);
 }
@@ -386,6 +392,10 @@ public:
                     tokens.push_back({ .type = TokenType::_static_assert, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
+                else if (buf == "define") {
+                    tokens.push_back({ .type = TokenType::_define, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
                 else {
                     tokens.push_back({ .type = TokenType::ident, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .value = buf, .file = file });
                     buf.clear();
@@ -568,6 +578,10 @@ public:
             else if (peek().value() == '&') {
                 consume();
                 tokens.push_back({ .type = TokenType::ampersand, .line = line_count, .col = m_col - 1, .file = file });
+            }
+            else if (peek().value() == '#') {
+                consume();
+                tokens.push_back({ .type = TokenType::hash_sign, .line = line_count, .col = m_col - 1, .file = file });
             }
             else if (peek().value() == ':') {
                 consume();

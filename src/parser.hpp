@@ -484,6 +484,12 @@ struct Constant {
 	int value;
 };
 
+struct Macro {
+	std::string name;
+	std::vector<std::string> args;
+	std::vector<Token> body;
+};
+
 class Parser {
 public:
 
@@ -494,8 +500,17 @@ public:
 	}
 
 	std::optional<Constant> const_lookup(std::string name) {
-		if(m_consts.find(name) != m_consts.end()) {
-			return m_consts[name];
+		const auto& search = m_consts.find(name);
+		if(search != m_consts.end()) {
+			return search->second;
+		}
+		return std::nullopt;
+	}
+
+	std::optional<Macro> macro_lookup(std::string name) {
+		const auto& search = m_macroses.find(name);
+		if(search != m_macroses.end()) {
+			return search->second;
 		}
 		return std::nullopt;
 	}
@@ -612,6 +627,75 @@ public:
 		return res;
 	}
 
+	std::vector<std::vector<Token>*>* parse_macro_args() {
+		std::vector<std::vector<Token>*>* __args = m_allocator.alloc<std::vector<std::vector<Token>*>>();
+		__args->push_back(m_allocator.alloc<std::vector<Token>>());
+		size_t nest_lvl = 0ULL;
+		while(true) {
+			if(peek().value().type == TokenType::open_paren) {
+				nest_lvl += 1ULL;
+				if(nest_lvl == 1) {
+					consume();
+					continue;
+				}
+			}
+			else if(peek().value().type == TokenType::close_paren) {
+				nest_lvl -= 1ULL;
+				if(nest_lvl == 0) {
+					break;
+				}
+			}
+			Token cp = consume();
+			if(cp.type == TokenType::comma && nest_lvl == 1) {
+				__args->push_back(m_allocator.alloc<std::vector<Token>>());
+			} else {
+				__args->operator[](__args->size() - 1)->push_back(cp);
+			}
+		}
+		consume();
+		return __args;
+	}
+
+	void print_macro_args(std::vector<std::vector<Token>*>* __args) {
+		for(int i = 0;i < static_cast<int>(__args->size());++i) {
+			std::cout << "-------------\n";
+			std::vector<Token>* L_args = __args->operator[](i);
+			for(int j = 0;j < static_cast<int>(L_args->size());++j) {
+				std::cout << L_args->operator[](j) << std::endl;
+			}
+			std::cout << "-------------\n";
+		}
+	}
+
+	std::optional<size_t> __macro_arg_pos(Macro& __macro, std::string __arg) {
+		for(int i = 0;i < static_cast<int>(__macro.args.size());++i) {
+			if(__macro.args[i] == __arg) {
+				return i;
+			}
+		}
+		return std::nullopt;
+	}
+
+	void expand_macro(Macro& _macro, std::vector<std::vector<Token>*>* __args, Token __at) {
+		if(_macro.args.size() != __args->size() && __args->size() != 1ULL) {
+			ParsingError("macro `" + _macro.name + "` except " + std::to_string(_macro.args.size()) + " args, but got " + std::to_string(__args->size()));
+		}
+		std::vector<Token> body = _macro.body;
+		for(int i = 0;i < static_cast<int>(body.size());++i) {
+			body[i].line = __at.line;
+			body[i].col = __at.col;
+			body[i].file = __at.file;
+			if(body[i].type == TokenType::ident) {
+				std::optional<size_t> __arg = __macro_arg_pos(_macro, body[i].value.value());
+				if(__arg.has_value()) {
+					body.erase(body.begin() + i);
+					body.insert(body.begin() + i, __args->operator[](__arg.value())->begin(), __args->operator[](__arg.value())->end());
+				}
+			}
+		}
+		m_tokens.insert(m_tokens.begin() + m_index, body.begin(), body.end());
+	}
+
 	std::optional<NodeTerm*> parse_term() // NOLINT(*-no-recursion)
 	{
 		if (auto int_lit = try_consume(TokenType::int_lit)) {
@@ -700,8 +784,15 @@ public:
 		}
 		if(peek().has_value() && peek().value().type == TokenType::ident
 			&& peek(1).has_value() && peek(1).value().type == TokenType::open_paren) {
-			auto expr_call = m_allocator.emplace<NodeTermCall>();
 			Token identif = try_consume_err(TokenType::ident);
+			std::optional<Macro> __macro = macro_lookup(identif.value.value());
+			if(__macro.has_value()) {
+				std::vector<std::vector<Token>*>* __args = parse_macro_args();
+				Macro _macro = __macro.value();
+				expand_macro(_macro, __args, identif);
+				return parse_term();
+			}
+			auto expr_call = m_allocator.emplace<NodeTermCall>();
 			expr_call->def = identif;
 			expr_call->name = identif.value.value();
 			try_consume_err(TokenType::open_paren);
@@ -869,8 +960,8 @@ public:
 		auto scope = m_allocator.emplace<NodeScope>();
 		while (true) {
 			auto stmt = parse_stmt();
-			if(m_proprocessor_stmt) {
-				m_proprocessor_stmt = false;
+			if(m_preprocessor_stmt) {
+				m_preprocessor_stmt = false;
 			} else {
 				if(!stmt.has_value()) {
 					break;
@@ -1182,7 +1273,7 @@ public:
 			else {
 				ParsingError("file not found at `include` - `" + fname + "`");
 			}
-			m_proprocessor_stmt = true;
+			m_preprocessor_stmt = true;
 			if(m_includes.find(path) != m_includes.end()) {
 				return {};
 			}
@@ -1241,7 +1332,7 @@ public:
 		}
 
 		if(auto _cns = try_consume(TokenType::_const)) {
-			m_proprocessor_stmt = true;
+			m_preprocessor_stmt = true;
 			Token name = try_consume_err(TokenType::ident);
 			if(auto expr = parse_expr()) {
 				int _value = eval_int_value(expr.value());
@@ -1283,7 +1374,7 @@ public:
 		}
 
 		if(auto _st_assert = try_consume(TokenType::_static_assert)) {
-			m_proprocessor_stmt = true;
+			m_preprocessor_stmt = true;
 			try_consume_err(TokenType::open_paren);
 			bool _static_condition = false;
 			if(auto _expr = parse_expr()) {
@@ -1333,6 +1424,33 @@ public:
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_break;
 			return stmt;
+		}
+
+		if(auto _hash = try_consume(TokenType::hash_sign)) {
+			Token _prep = consume();
+			if(_prep.type == TokenType::_define) {
+				m_preprocessor_stmt = true;
+				std::string mname = try_consume_err(TokenType::ident).value.value();
+				std::vector<std::string> __args;
+				if(peek().has_value() && peek().value().type == TokenType::open_paren) {
+					consume();
+					while(peek().has_value() && peek().value().type != TokenType::close_paren) {
+						std::string name = try_consume_err(TokenType::ident).value.value();
+						__args.push_back(name);
+					}
+					consume();
+				}
+				Macro __macro = { .name = mname, .args = __args, .body = {} };
+				while(peek().has_value() && peek().value().type != TokenType::semi) {
+					__macro.body.push_back(consume());
+				}
+				consume();
+				m_macroses[mname] = __macro;
+
+			}
+			else {
+				error_expected("preprocessor command");
+			}
 		}
 
 		if(auto lvalue = parse_expr()) {
@@ -1429,8 +1547,8 @@ public:
 				prog.stmts.push_back(stmt.value());
 			}
 			else {
-				if(m_proprocessor_stmt) {
-					m_proprocessor_stmt = false;
+				if(m_preprocessor_stmt) {
+					m_preprocessor_stmt = false;
 				} else {
 					error_expected("statement");
 				}
@@ -1477,7 +1595,8 @@ private:
 	std::vector<Token>	   m_tokens;
 	std::unordered_set<std::string> m_includes;
 	std::unordered_map<std::string, Constant> m_consts;
-	bool m_proprocessor_stmt = false;
+	std::unordered_map<std::string, Macro> m_macroses;
+	bool m_preprocessor_stmt = false;
 	size_t m_index = 0ULL;
 	size_t CTX_IOTA = 0ULL;
 	ArenaAllocator m_allocator;
