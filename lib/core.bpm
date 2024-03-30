@@ -14,6 +14,11 @@ const EXIT_FAILURE 1;
 const true 1;
 const false 0;
 
+#define rd32_as(__pointer __type) cast(__type, rd32(__pointer));
+#define rd16_as(__pointer __type) cast(__type, rd16(__pointer));
+
+#define neg(__as_positive_value) (0 - __as_positive_value);
+
 cextern "printf";
 
 proc memcopy src:ptr dst:ptr size:int -> void {
@@ -46,7 +51,8 @@ proc wrapper_write
 
 cextern "memcpy";
 
-proc cmemcpy src:ptr dst:ptr size:int -> void {
+proc cmemcpy src:ptr dst:ptr size:int -> void
+[nostdargs] {
 	asm "push dword [ebp+16]";
 	asm "push dword [ebp+12]";
 	asm "push dword [ebp+8]";
@@ -65,10 +71,5 @@ proc cputu number:int -> void
 }
 
 proc nth_argv argv:ptr nth:int -> ptr {
-	return cast(ptr, rd32(argv + nth * 4));
+	return rd32_as(argv + nth * 4, ptr);
 }
-
-#define rd32_as(__pointer __type) cast(__type, rd32(__pointer));
-#define rd16_as(__pointer __type) cast(__type, rd16(__pointer));
-
-#define neg(__as_positive_value) (0 - __as_positive_value);

@@ -58,6 +58,10 @@ public:
 		size_t stack_loc {};
 		DataType type;
 	};
+	struct GVar {
+		std::string name;
+		DataType type;
+	};
 	struct Procedure {
 		std::string name {};
 		std::vector<std::pair<std::string, DataType>> params {};
@@ -125,6 +129,14 @@ public:
 	std::optional<Constant> const_lookup(std::string name) {
 		const auto& search = m_consts->find(name);
 		if(search != m_consts->end()) {
+			return search->second;
+		}
+		return std::nullopt;
+	}
+
+	std::optional<GVar> gvar_lookup(std::string name) {
+		const auto& search = m_global_vars.find(name);
+		if(search != m_global_vars.end()) {
 			return search->second;
 		}
 		return std::nullopt;
@@ -235,6 +247,10 @@ public:
 				std::optional<Var> svar = var_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
 				if(svar.has_value()) {
 					return svar.value().type;
+				}
+				std::optional<GVar> glvar = gvar_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
+				if(glvar.has_value()) {
+					return glvar.value().type;
 				}
 				std::optional<Constant> scns = const_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
 				if(scns.has_value()) {
@@ -463,6 +479,16 @@ public:
 						exit(1);
 					}
 					gen.m_output << "    push dword " << cns.value().value << "\n";
+					return;
+				}
+				std::optional<GVar> ivar = gen.gvar_lookup(term_ident->ident.value.value());
+				if(ivar.has_value()) {
+					if(lvalue) {
+						gen.m_output << "    push dword v_" << ivar.value().name << "\n";
+					}
+					else {
+						gen.m_output << "    push dword [v_" << ivar.value().name << "]\n";
+					}
 					return;
 				}
 				gen.GeneratorError(term_ident->ident, "unkown word `" + term_ident->ident.value.value() + "`");
@@ -876,15 +902,15 @@ public:
 	}
 
 	/*generate scope start procedure*/
-	void gen_scope_sp(const NodeScope* scope, const std::vector<std::pair<std::string, DataType>>& params)
+	void gen_scope_sp(const NodeScope* scope, const NodeStmtProc* proc)
 	{
-		begin_scope(params.size() + collect_alligns(scope));
-		for(int i = 0;i < static_cast<int>(params.size());++i) {
-			create_var_va(params[i].first, params[i].second, m_cur_proc.value().def);
-		}
-		for(int i = 0;i < static_cast<int>(params.size());++i) {
-			m_output << "    mov edx, dword [ebp+" << i * 4 + 8 << "]\n";
-			m_output << "    mov dword [ebp-" << i * 4 + 4 << "], edx\n";
+		begin_scope(proc->params.size() + collect_alligns(scope));
+		if(std::find(proc->attrs.begin(), proc->attrs.end(), ProcAttr::nostdargs) == proc->attrs.end()) {
+			for(int i = 0;i < static_cast<int>(proc->params.size());++i) {
+				create_var_va(proc->params[i].first, proc->params[i].second, proc->def);
+				m_output << "    mov edx, dword [ebp+" << i * 4 + 8 << "]\n";
+				m_output << "    mov dword [ebp-" << i * 4 + 4 << "], edx\n";
+			}
 		}
 		for (const NodeStmt* stmt : scope->stmts) {
 			gen_stmt(stmt);
@@ -893,6 +919,9 @@ public:
 	}
 
 	void create_var(const std::string name, NodeExpr* value, Token where) {
+		if(m_scopes_vi.size() == 0ULL) {
+			GeneratorError(where, "can't create global variable with assignment");
+		}
 		std::optional<Var> ivar = var_lookup_cs(name);
 		if(ivar.has_value()) {
 			GeneratorError(where, "name `" + name + "` already in use");
@@ -905,6 +934,14 @@ public:
 	}
 
 	void create_var_va(const std::string name, DataType type, Token where) {
+		if(m_scopes_vi.size() == 0ULL) {
+			std::optional<GVar> ivar = gvar_lookup(name);
+			if(ivar.has_value()) {
+				GeneratorError(where, "name `" + name + "` already in use");
+			}
+			m_global_vars[name] = { .name = name, .type = type };
+			return;
+		}
 		std::optional<Var> ivar = var_lookup_cs(name);
 		if(ivar.has_value()) {
 			GeneratorError(where, "name `" + name + "` already in use");
@@ -1000,7 +1037,7 @@ public:
 				if(stmt_proc->name == "main") {
 					gen.m_output << "    call _BPM_init_\n";
 				}
-				gen.gen_scope_sp(stmt_proc->scope, stmt_proc->params);
+				gen.gen_scope_sp(stmt_proc->scope, stmt_proc);
 				gen.m_cur_proc = std::nullopt;
 				if(stmt_proc->name == "main") {
 					gen.m_output << "    xor eax, eax\n";
@@ -1113,13 +1150,6 @@ public:
 
 			void operator()(const NodeStmtMulBy* stmt_assign) const
 			{
-				if(auto ident = ptools::get::ident(stmt_assign->lvalue)) {
-					Var vr = gen.var_lookup_err(ident.value()->ident.value.value(), stmt_assign->def);
-					gen.gen_expr(stmt_assign->expr);
-					gen.asmg.pop("edi");
-					gen.asmg.mul(gen._ref_to(vr), "edi");
-					return;
-				}
 				gen.gen_expr(stmt_assign->lvalue, true);
 				gen.gen_expr(stmt_assign->expr);
 				gen.pop("ecx");
@@ -1358,6 +1388,10 @@ public:
 		m_output << "\nsection .bss\n";
 		m_output << "    tmp_stor: resd 1024\n";
 		m_output << "    tmp_p: resd 1\n";
+		for(const auto& pairs : m_global_vars) {
+			const GVar& ivar = pairs.second;
+			m_output << "    v_" << ivar.name << ": resd 1\n";
+		}
 		result << m_output.str();
 		return result.str();
 	}
@@ -1420,6 +1454,7 @@ private:
 	std::unordered_map<std::string, String> m_strings;
 	std::unordered_map<std::string, Procedure> m_procs;
 	std::unordered_map<std::string, Struct> m_structs;
+	std::unordered_map<std::string, GVar> m_global_vars;
 	std::optional<Procedure> m_cur_proc;
 	std::vector<std::string> m_breaks;
 	VectorSim<size_t>		m_scopes;
