@@ -78,6 +78,7 @@ public:
 	struct Struct {
 		std::string name;
 		std::vector<std::pair<std::string, DataType>> fields;
+		std::optional<std::string> __allocator;
 	};
 
 	explicit Generator(NodeProg prog)
@@ -559,7 +560,12 @@ public:
 						return;
 					}
 					gen.m_output << "    push dword " << objectSize * 4U << "\n";
-					gen.m_output << "    call malloc\n";
+					if(st.value().__allocator.has_value()) {
+						gen.m_output << "    call " << st.value().__allocator.value() << "\n";
+					}
+					else { 
+						gen.m_output << "    call malloc\n";
+					}
 					gen.m_output << "    add esp, 4\n";
 					bool eax_break = false;
 					std::vector<NodeExpr*> iargs;
@@ -1100,12 +1106,20 @@ public:
 						NodeTermIdent* lvident = std::get<NodeTermIdent*>(lvterm->var);
 						std::string name = lvident->ident.value.value();
 						std::optional<Var> var = gen.var_lookup(name);
-						if(!var.has_value()) {
-							gen.GeneratorError(stmt_assign->def, "unkown variable `" + name + "` at assignment");
+						if(var.has_value()) {
+							gen.gen_expr(stmt_assign->expr);
+							gen.pop("edx");
+							gen.m_output << "    mov dword [ebp-" << var.value().stack_loc << "], edx\n";
+							return;
 						}
-						gen.gen_expr(stmt_assign->expr);
-						gen.pop("edx");
-						gen.m_output << "    mov dword [ebp-" << var.value().stack_loc << "], edx\n";
+						std::optional<GVar> ivar = gen.gvar_lookup(name);
+						if(ivar.has_value()) {
+							gen.gen_expr(stmt_assign->expr);
+							gen.pop("edx");
+							gen.m_output << "    mov dword [v_" << ivar.value().name << "], edx\n";
+							return;
+						}
+						gen.GeneratorError(stmt_assign->def, "unkown variable `" + name + "` at assignment");
 						return;
 					}
 				}
@@ -1332,7 +1346,7 @@ public:
 			}
 
 			void operator()(const NodeStmtStruct* stmt_struct) {
-				gen.m_structs[stmt_struct->name] = { .name = stmt_struct->name, .fields = stmt_struct->fields };
+				gen.m_structs[stmt_struct->name] = { .name = stmt_struct->name, .fields = stmt_struct->fields , .__allocator = stmt_struct->__allocator };
 			}
 
 			void operator()(const NodeStmtDelete* stmt_delete) {

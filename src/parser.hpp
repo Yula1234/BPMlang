@@ -392,6 +392,7 @@ struct NodeStmtStruct {
 	Token def;
 	std::string name;
 	std::vector<std::pair<std::string, DataType>> fields;
+	std::optional<std::string> __allocator;
 };
 
 struct NodeStmtDelete {
@@ -1356,6 +1357,13 @@ public:
 			auto stmt_struct = m_allocator.emplace<NodeStmtStruct>();
 			stmt_struct->name = try_consume_err(TokenType::ident).value.value();
 			stmt_struct->def = def;
+			stmt_struct->__allocator = std::nullopt;
+			if(peek().has_value() && peek().value().type == TokenType::open_paren) {
+				consume();
+				Token allc_id = try_consume_err(TokenType::ident);
+				try_consume_err(TokenType::close_paren);
+				stmt_struct->__allocator = allc_id.value.value();
+			}
 			try_consume_err(TokenType::open_curly);
 			while(peek().has_value() && peek().value().type != TokenType::close_curly) {
 				Token ident = try_consume_err(TokenType::ident);
