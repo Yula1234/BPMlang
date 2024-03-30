@@ -1165,8 +1165,15 @@ public:
 		}
 		if (peek().has_value() && peek().value().type == TokenType::ident &&
 			peek(1).has_value() && peek(1).value().type == TokenType::open_paren) {
-			auto stmt_call = m_allocator.emplace<NodeStmtCall>();
 			Token identif = try_consume_err(TokenType::ident);
+			std::optional<Macro> __macro = macro_lookup(identif.value.value());
+			if(__macro.has_value()) {
+				std::vector<std::vector<Token>*>* __args = parse_macro_args();
+				Macro _macro = __macro.value();
+				expand_macro(_macro, __args, identif);
+				return parse_stmt();
+			}
+			auto stmt_call = m_allocator.emplace<NodeStmtCall>();
 			stmt_call->def = identif;
 			stmt_call->name = identif.value.value();
 			try_consume_err(TokenType::open_paren);
