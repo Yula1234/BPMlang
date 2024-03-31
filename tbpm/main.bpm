@@ -2,10 +2,11 @@ include "std"
 include "fsys"
 include "string"
 include "string_view"
+include "dynamic_array"
 include "arena"
-include "tbpm/lexer"
-include "tbpm/parser"
-include "tbpm/generator"
+include "lexer"
+include "parser"
+include "generator"
 
 proc compiller_usage fd:int -> void {
 	fputs(fd, "Incorrect usage...\n");

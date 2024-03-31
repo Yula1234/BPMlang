@@ -1,8 +1,3 @@
-include "std"
-include "arena"
-include "string"
-include "string_view"
-
 struct lexer {
 	src:StringView,
 	index:int,
