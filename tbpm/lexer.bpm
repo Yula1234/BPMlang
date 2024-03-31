@@ -1,5 +1,5 @@
 include "std"
-include "tbpm/arena"
+include "arena"
 include "string"
 include "string_view"
 
@@ -42,7 +42,7 @@ proc lexer_peek_at lxr:lexer offs:int -> int {
 	return sv_at(lxr.src, lxr.index + offs);
 }
 
-struct TmpStr {
+struct TmpStr(__global_obj_alloc) {
 	used:int,
 	capacity:int,
 	data:ptr
@@ -121,7 +121,7 @@ const TokenTypeElif       iota;
 const TokenTypeProc       iota;
 const TokenTypesCount     reset;
 
-struct Token {
+struct Token(__global_obj_alloc) {
 	type:int,
 	line:int,
 	col:int,

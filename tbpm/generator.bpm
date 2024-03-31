@@ -2,8 +2,6 @@ include "std"
 include "string"
 include "string_view"
 include "fsys"
-include "tbpm/arena"
-include "tbpm/lexer"
 include "tbpm/parser"
 include "dynamic_array"
 

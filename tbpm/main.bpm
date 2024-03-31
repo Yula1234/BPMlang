@@ -2,7 +2,7 @@ include "std"
 include "fsys"
 include "string"
 include "string_view"
-include "tbpm/arena"
+include "arena"
 include "tbpm/lexer"
 include "tbpm/parser"
 include "tbpm/generator"
@@ -21,12 +21,20 @@ proc cmd_exec com_line_args:ptr -> void
 	asm "add esp, 4";
 }
 
+let objectArena: ArenaAllocator;
+
+proc __global_obj_alloc size:int -> ptr {
+	return arena_take(objectArena, size);
+}
+
 proc main argc:int argv:ptr -> void {
 
 	if(argc != 2) {
 		compiller_usage(stdout);
 		exit(1);
 	}
+
+	objectArena = new_arena(1024 * 1024);
 
 	let FILE_PATH = nth_argv(argv, 1);
 	let file = openf(FILE_PATH, "r");
@@ -50,9 +58,9 @@ proc main argc:int argv:ptr -> void {
 
 	arena_delete(str_arena);
 	arena_delete(ast_arena);
+	arena_delete(objectArena);
 
 	memfree(FILE_CONTENT_BUF);
-	free_tokens(tokens);
 
 	closef(file);
 	delete_generator(generator);

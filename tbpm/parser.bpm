@@ -1,7 +1,7 @@
 include "std"
 include "string"
 include "string_view"
-include "tbpm/arena"
+include "arena"
 include "tbpm/lexer"
 include "dynamic_array"
 
@@ -10,7 +10,7 @@ proc push_ast ast:ptr index:ptr element:ptr -> void {
 	store32(index, rd32(index) + 1);
 }
 
-struct parser {
+struct parser(__global_obj_alloc) {
 	tokens:ptr,
 	index:int
 }
@@ -46,36 +46,36 @@ proc parser_consume prs:parser -> Token {
 	return tok;
 }
 
-struct NodeExprAdd {
+struct NodeExprAdd(__global_obj_alloc) {
 	left:ptr,
 	right:ptr,
 	def:Token
 }
 
-struct NodeExprSub {
+struct NodeExprSub(__global_obj_alloc) {
 	left:ptr,
 	right:ptr,
 	def:Token
 }
 
-struct NodeExprMul {
+struct NodeExprMul(__global_obj_alloc) {
 	left:ptr,
 	right:ptr,
 	def:Token
 }
 
-struct NodeExprDiv {
+struct NodeExprDiv(__global_obj_alloc) {
 	left:ptr,
 	right:ptr,
 	def:Token
 }
 
-struct NodeExprIdent {
+struct NodeExprIdent(__global_obj_alloc) {
 	def:Token,
 	ident:ptr
 }
 
-struct NodeExpr {
+struct NodeExpr(__global_obj_alloc) {
 	kind:int,
 	data:ptr
 }
@@ -228,26 +228,26 @@ proc parser_consume_err prs:parser type:int -> Token {
 	return tok;
 }
 
-struct NodeStmt {
+struct NodeStmt(__global_obj_alloc) {
 	kind:int,
 	data:ptr
 }
 
-struct NodeStmtExit {
+struct NodeStmtExit(__global_obj_alloc) {
 	expr:ptr
 }
 
-struct NodeStmtPrint {
+struct NodeStmtPrint(__global_obj_alloc) {
 	expr:ptr
 }
 
-struct NodeStmtLet {
+struct NodeStmtLet(__global_obj_alloc) {
 	name:ptr,
 	expr:ptr,
 	def:Token
 }
 
-struct NodeStmtBlock {
+struct NodeStmtBlock(__global_obj_alloc) {
 	stmts:DynamicArray
 }
 
@@ -255,28 +255,28 @@ const PredKindElse iota;
 const PredKindElif iota;
 const IfPredsCount reset;
 
-struct IfPredElse {
+struct IfPredElse(__global_obj_alloc) {
 	block:NodeStmtBlock
 }
 
-struct IfPredElif {
+struct IfPredElif(__global_obj_alloc) {
 	block:NodeStmtBlock,
 	condition:NodeExpr,
 	pred:ptr
 }
 
-struct NodeIfPred {
+struct NodeIfPred(__global_obj_alloc) {
 	kind:int,
 	data:ptr
 }
 
-struct NodeStmtIf {
+struct NodeStmtIf(__global_obj_alloc) {
 	block:NodeStmtBlock,
 	condition:NodeExpr,
 	pred:ptr
 }
 
-struct NodeStmtProc {
+struct NodeStmtProc(__global_obj_alloc) {
 	block:NodeStmtBlock,
 	name:ptr,
 	def:Token
