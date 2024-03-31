@@ -80,6 +80,30 @@ public:
 		std::vector<std::pair<std::string, DataType>> fields;
 		std::optional<std::string> __allocator;
 	};
+	struct Interface {
+		std::string name;
+		std::vector<std::pair<std::string, DataType>> fields;
+		static bool match_to(const Interface& in, const Struct& st) {
+			return in.fields == st.fields;
+		}
+	};
+
+	bool inrerface_match(const DataType& ex_type, const DataType& actual) {
+		if(ex_type.is_object && actual.is_object) {
+			std::string intername = ex_type.getobjectname();
+			std::optional<Interface> inter = inter_lookup(intername);
+			if(!inter.has_value()) {
+				return false;
+			}
+			std::string actname = actual.getobjectname();
+			std::optional<Struct> st = struct_lookup(actname);
+			if(!st.has_value()) {
+				return false;
+			}
+			return Interface::match_to(inter.value(), st.value());
+		}
+		return false;
+	}
 
 	explicit Generator(NodeProg prog)
 		: m_prog(std::move(prog))
@@ -143,6 +167,14 @@ public:
 		return std::nullopt;
 	}
 
+	std::optional<Interface> inter_lookup(std::string name) {
+		const auto& search = m_interfaces.find(name);
+		if(search != m_interfaces.end()) {
+			return search->second;
+		}
+		return std::nullopt;
+	}
+
 	std::optional<Procedure> proc_lookup(std::string name) {
 		const auto& search = m_procs.find(name);
 		if(search != m_procs.end()) {
@@ -160,7 +192,16 @@ public:
 	}
 
 	/*it is like var_lookup, but in struct*/
-	std::optional<std::pair<size_t, DataType>> field_lookup(Struct st, std::string field) {
+	std::optional<std::pair<size_t, DataType>> field_lookup(Struct& st, std::string field) {
+		for(int i = 0;i < static_cast<int>(st.fields.size());++i) {
+			if(st.fields[i].first == field) {
+				return std::make_pair(static_cast<size_t>(i), st.fields[i].second);
+			}
+		}
+		return std::nullopt;
+	}
+
+	std::optional<std::pair<size_t, DataType>> field_lookup(Interface& st, std::string field) {
 		for(int i = 0;i < static_cast<int>(st.fields.size());++i) {
 			if(st.fields[i].first == field) {
 				return std::make_pair(static_cast<size_t>(i), st.fields[i].second);
@@ -198,12 +239,17 @@ public:
 				return DataTypeVoid;
 			}
 			std::string struct_name = otype.getobjectname();
-			Struct st = struct_lookup(struct_name).value();
-			std::optional<std::pair<size_t, DataType>> field = field_lookup(st, field_name);
-			if(!field.has_value()) {
-				return DataTypeVoid;
+			std::optional<Struct> st = struct_lookup(struct_name);
+			if(st.has_value()) {
+				std::optional<std::pair<size_t, DataType>> field = field_lookup(st.value(), field_name);		
+				return field.value().second;
 			}
-			return field.value().second;
+			std::optional<Interface> inter = inter_lookup(struct_name);
+			if(inter.has_value()) {
+				std::optional<std::pair<size_t, DataType>> field = field_lookup(inter.value(), field_name);		
+				return field.value().second;
+			}
+			return DataTypeVoid;
 		} else {
 			return DataTypeVoid;
 		}
@@ -519,15 +565,24 @@ public:
 									gen.GeneratorError(term_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got " + std::to_string(pargs.size()));
 								}
 								for(int i = 0;i < static_cast<int>(pargs.size());++i) {
-									if(gen.type_of_expr(pargs[i]) != proc.value().params[i].second) {
-										gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
+									DataType argtype = gen.type_of_expr(pargs[i]);
+									DataType& ex_type = proc.value().params[i].second;
+									if(argtype != ex_type) {
+										if(!gen.inrerface_match(ex_type, argtype)) {
+											gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
+										}
 									}
 								}
 								stack_allign += pargs.size();
 							}
 						} else {
-							if(gen.type_of_expr(args) != proc.value().params[0].second) {
-								gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[0].second) + " at 0 argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(args)));
+							DataType argtype = gen.type_of_expr(args);
+							if(argtype != proc.value().params[0].second) {
+								DataType& ex_type = proc.value().params[0].second;
+								if(!gen.inrerface_match(ex_type, argtype)) {
+									std::cout << "not match\n";
+									gen.GeneratorError(term_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[0].second) + " at 0 argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(args)));
+								}
 							}
 							if(proc.value().params.size() != 1U) {
 								gen.GeneratorError(term_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got 0");
@@ -793,12 +848,28 @@ public:
 						gen.GeneratorError(base->def, "bellow `.` except expression of type any object\nNOTE: but got " + otype.to_string());
 					}
 					std::string struct_name = otype.getobjectname();
-					Struct st = gen.struct_lookup(struct_name).value();
-					std::optional<std::pair<size_t, DataType>> field = gen.field_lookup(st, field_name);
-					if(!field.has_value()) {
-						gen.GeneratorError(base->def, "object of type `" + otype.to_string() + "` doesn`t have field `" + field_name + "`");
+					std::optional<Struct> st = gen.struct_lookup(struct_name);
+					size_t field_offset = 0;
+					if(st.has_value()) {
+						std::optional<std::pair<size_t, DataType>> field = gen.field_lookup(st.value(), field_name);
+						if(!field.has_value()) {
+							gen.GeneratorError(base->def, "object of type `" + otype.to_string() + "` doesn`t have field `" + field_name + "`");
+						}
+						field_offset = field.value().first;
 					}
-					size_t field_offset = field.value().first;
+					if(!st.has_value()) {
+						std::optional<Interface> inter = gen.inter_lookup(struct_name);
+						if(inter.has_value()) {
+							std::optional<std::pair<size_t, DataType>> field = gen.field_lookup(inter.value(), field_name);
+							if(!field.has_value()) {
+								gen.GeneratorError(base->def, "object of type `" + otype.to_string() + "` doesn`t have field `" + field_name + "`");
+							}
+							field_offset = field.value().first;
+						}
+						else {
+							assert(false && "unreacheable");
+						}
+					}
 					gen.gen_expr(dot->lhs);
 					if(lvalue) {
 						gen.m_output << "    pop ecx\n";
@@ -1208,8 +1279,12 @@ public:
 								gen.GeneratorError(stmt_call->def, "procedure `" + name + "` excepts minimum" + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got " + std::to_string(pargs.size()));
 							}
 							for(int i = 0;i < static_cast<int>(proc.value().params.size());++i) {
-								if(gen.type_of_expr(pargs[i]) != proc.value().params[i].second) {
-									gen.GeneratorError(stmt_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
+								DataType argtype = gen.type_of_expr(pargs[i]);
+								DataType& ex_type = proc.value().params[i].second;
+								if(argtype != ex_type) {
+									if(!gen.inrerface_match(ex_type, argtype)) {
+										gen.GeneratorError(stmt_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
+									}
 								}
 							}
 							stack_allign += pargs.size();
@@ -1349,6 +1424,10 @@ public:
 				gen.m_structs[stmt_struct->name] = { .name = stmt_struct->name, .fields = stmt_struct->fields , .__allocator = stmt_struct->__allocator };
 			}
 
+			void operator()(const NodeStmtInterface* stmt_inter) {
+				gen.m_interfaces[stmt_inter->name] = { .name = stmt_inter->name, .fields = stmt_inter->fields };
+			}
+
 			void operator()(const NodeStmtDelete* stmt_delete) {
 				bool is_object_expr = gen.type_of_expr(stmt_delete->expr).is_object;
 				if(!is_object_expr) {
@@ -1469,6 +1548,7 @@ private:
 	std::unordered_map<std::string, Procedure> m_procs;
 	std::unordered_map<std::string, Struct> m_structs;
 	std::unordered_map<std::string, GVar> m_global_vars;
+	std::unordered_map<std::string, Interface> m_interfaces;
 	std::optional<Procedure> m_cur_proc;
 	std::vector<std::string> m_breaks;
 	VectorSim<size_t>		m_scopes;

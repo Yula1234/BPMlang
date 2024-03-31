@@ -64,6 +64,7 @@ enum class TokenType {
     hash_sign,
     _define,
     dollar,
+    interface,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -195,6 +196,8 @@ std::string tok_to_string(const TokenType type)
         return "`define`";
     case TokenType::dollar:
         return "`$`";
+    case TokenType::interface:
+        return "`interface`";
     }
     assert(false);
 }
@@ -397,6 +400,10 @@ public:
                 }
                 else if (buf == "define") {
                     tokens.push_back({ .type = TokenType::_define, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "interface") {
+                    tokens.push_back({ .type = TokenType::interface, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {

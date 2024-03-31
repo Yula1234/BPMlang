@@ -395,6 +395,12 @@ struct NodeStmtStruct {
 	std::optional<std::string> __allocator;
 };
 
+struct NodeStmtInterface {
+	Token def;
+	std::string name;
+	std::vector<std::pair<std::string, DataType>> fields;
+};
+
 struct NodeStmtDelete {
 	Token def;
 	NodeExpr* expr;
@@ -439,7 +445,7 @@ struct NodeStmt {
 				NodeStmtDelete*,NodeStmtLetNoAssign*,
 				NodeStmtBreak*,NodeStmtIncBy*,
 				NodeStmtDecBy*,NodeStmtMulBy*,
-				NodeStmtDivBy*> var;
+				NodeStmtDivBy*,NodeStmtInterface*> var;
 };
 
 struct NodeProg {
@@ -1388,6 +1394,35 @@ public:
 			try_consume_err(TokenType::close_curly);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_struct;
+			return stmt;
+		}
+
+		if(auto _interface = try_consume(TokenType::interface)) {
+			Token def = _interface.value();
+			auto stmt_interface = m_allocator.emplace<NodeStmtInterface>();
+			stmt_interface->name = try_consume_err(TokenType::ident).value.value();
+			stmt_interface->def = def;
+			try_consume_err(TokenType::open_curly);
+			while(peek().has_value() && peek().value().type != TokenType::close_curly) {
+				Token ident = try_consume_err(TokenType::ident);
+				try_consume_err(TokenType::double_dot);
+				if(!peek().has_value()) {
+					error_expected("field type");
+				}
+				DataType dtype;
+				if(!is_type_token(peek().value().type)) {
+					error_expected("field type");
+				}
+				Token type = consume();
+				dtype = uni_token_to_dt(type);
+				stmt_interface->fields.push_back(std::make_pair(ident.value.value(), dtype));
+				if(peek().has_value() && peek().value().type != TokenType::close_curly) {
+					try_consume_err(TokenType::comma);
+				}
+			}
+			try_consume_err(TokenType::close_curly);
+			auto stmt = m_allocator.emplace<NodeStmt>();
+			stmt->var = stmt_interface;
 			return stmt;
 		}
 
