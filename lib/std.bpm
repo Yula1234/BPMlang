@@ -95,6 +95,9 @@ proc putu number:int -> void {
 cextern "malloc";
 cextern "free";
 
+proc malloc SizeToAlloc:int -> ptr;
+proc free Pointer:ptr -> void;
+
 proc memalloc Size:int -> ptr 
 [nostdargs] {
 	asm "push dword [ebp+8]";
@@ -181,3 +184,5 @@ proc input_string addr:ptr -> void
 	asm "call scanf";
 	asm "add esp, 8";
 }
+
+proc scanf format_str:ptr -> void [nosizedargs];
