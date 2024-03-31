@@ -1278,6 +1278,9 @@ public:
 			else if(file_exists("lib/" + fname)) {
 				path = std::filesystem::canonical("lib/" + fname).string();
 			}
+			else if(__slashinpath && file_exists(basepath + "/" + fname)) {
+				path = std::filesystem::canonical(basepath + "/" + fname).string();
+			}
 			else {
 				ParsingError("file not found at `include` - `" + fname + "`");
 			}

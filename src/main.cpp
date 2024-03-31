@@ -17,6 +17,9 @@
 #include <chrono>
 #include <ctime>
 
+std::string basepath;
+bool __slashinpath;
+
 #include "argsparser.hpp"
 #include "generation.hpp"
 
@@ -33,6 +36,17 @@ int main(int argc, char* argv[]) {
 
         usage(std::cerr);
         return EXIT_FAILURE;
+    }
+
+    basepath = argv[1];
+
+    __slashinpath = basepath.find("/") != std::string::npos;
+
+    if(__slashinpath) {
+        while(basepath[basepath.length() - 1] != '/') {
+            basepath.pop_back();
+        }
+        basepath.pop_back();
     }
 
     if(FILE *file = fopen(argv[1], "r")) {
