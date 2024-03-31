@@ -67,6 +67,6 @@ proc cputu number:int -> void
 	asm "add esp, 8";
 }
 
-proc nth_argv argv:ptr nth:int -> ptr {
-	return rd32_as(argv + nth * 4, ptr);
-}
+#define nth_argv(__argv __nth)
+	rd32_as(__argv + __nth * 4, ptr)
+$
