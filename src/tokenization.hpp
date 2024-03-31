@@ -63,6 +63,7 @@ enum class TokenType {
     double_stick,
     hash_sign,
     _define,
+    dollar,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -192,6 +193,8 @@ std::string tok_to_string(const TokenType type)
         return "`#`";
     case TokenType::_define:
         return "`define`";
+    case TokenType::dollar:
+        return "`$`";
     }
     assert(false);
 }
@@ -582,6 +585,10 @@ public:
             else if (peek().value() == '#') {
                 consume();
                 tokens.push_back({ .type = TokenType::hash_sign, .line = line_count, .col = m_col - 1, .file = file });
+            }
+            else if (peek().value() == '$') {
+                consume();
+                tokens.push_back({ .type = TokenType::dollar, .line = line_count, .col = m_col - 1, .file = file });
             }
             else if (peek().value() == ':') {
                 consume();

@@ -100,4 +100,4 @@ proc dynarray_print da:DynamicArray -> void {
 	puts("]\n");
 }
 
-#define dynarray_get_as(__dynarray __index __type) cast(__type, dynarray_get(__dynarray, __index));
+#define dynarray_get_as(__dynarray __index __type) cast(__type, dynarray_get(__dynarray, __index))$

@@ -1456,7 +1456,7 @@ public:
 					consume();
 				}
 				Macro __macro = { .name = mname, .args = __args, .body = {} };
-				while(peek().has_value() && peek().value().type != TokenType::semi) {
+				while(peek().has_value() && peek().value().type != TokenType::dollar) {
 					__macro.body.push_back(consume());
 				}
 				consume();

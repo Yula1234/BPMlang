@@ -118,7 +118,7 @@ proc nth_arg_int frame:int nth:int -> int
 	asm "mov eax, dword [ecx+edx]";
 }
 
-#define nth_arg_as(__frame __nth __type) cast(__type, nth_arg_int(__frame, __nth));
+#define nth_arg_as(__frame __nth __type) cast(__type, nth_arg_int(__frame, __nth))$
 
 proc format_fprint_frame fd:int frame:int format_str:ptr -> void
 [nosizedargs] {
