@@ -3,7 +3,7 @@ proc push_ast ast:ptr index:ptr element:ptr -> void {
 	store32(index, rd32(index) + 1);
 }
 
-struct parser(__global_obj_alloc) {
+struct parser {
 	tokens:ptr,
 	index:int
 }

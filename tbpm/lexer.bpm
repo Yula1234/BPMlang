@@ -216,7 +216,7 @@ proc free_tokens tokens:ptr -> void {
 		delete tok;
 		i = i + 1;
 	}
-	memfree(tokens);
+	free(tokens);
 }
 
 proc lexer_lex

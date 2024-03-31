@@ -39,11 +39,11 @@ proc main argc:int argv:ptr -> void {
 
 	let FILE_PATH = nth_argv(argv, 1);
 	let file = openf(FILE_PATH, "r");
-	let FILE_CONTENT_BUF = memalloc(12 * 1024 * 1024);
+	let FILE_CONTENT_BUF = malloc(12 * 1024 * 1024);
 	read_file(file, FILE_CONTENT_BUF);
 
 	let str_arena = new_arena(128 * 1024);
-	let tokens = memalloc(56 * 1024);
+	let tokens = malloc(56 * 1024);
 	let Lexer = new_lexer(FILE_CONTENT_BUF);
 	lexer_lex(Lexer, str_arena, tokens, FILE_PATH);
 
@@ -61,7 +61,7 @@ proc main argc:int argv:ptr -> void {
 	arena_delete(ast_arena);
 	arena_delete(objectArena);
 
-	memfree(FILE_CONTENT_BUF);
+	free(FILE_CONTENT_BUF);
 
 	closef(file);
 	delete_generator(generator);

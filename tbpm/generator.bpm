@@ -7,12 +7,12 @@ struct Generator {
 	procs:DynamicArray
 }
 
-struct Var {
+struct Var(__global_obj_alloc) {
 	name:ptr,
 	stack_loc:int
 }
 
-struct Proc {
+struct Proc(__global_obj_alloc) {
 	name:ptr
 }
 
