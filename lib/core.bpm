@@ -19,6 +19,10 @@ const false 0;
 
 #define neg(__as_positive_value) (0 - __as_positive_value)$
 
+#define store32_any(__pointer __value)
+	store32(__pointer, cast(int, __value))
+$ // macro stores any 32 bit object/number/ptr
+
 cextern "printf";
 
 proc memcopy src:ptr dst:ptr size:int -> void {
@@ -31,23 +35,13 @@ proc memcopy src:ptr dst:ptr size:int -> void {
 
 cextern "write";
 
-proc wrapper_write
+proc write
 	FileDesc:int // file descriptor
 	data:ptr // data to write into file
 	SizeToWrite:int // size to write data into file
--> int // error code, 0 if success
-[
-	nostdargs // nostdargs is a say
-			  // to a compiller dont generate arguments
-] // procedure attributes
-{
-	asm "push dword [ebp+16]"; // pushing SizeToWrite
-	asm "push dword [ebp+12]"; // pushing data
-	asm "push dword [ebp+8]"; // pushing FileDesc
-	asm "call write"; // error code stored in eax
-	// if procedure uses as expr eax returned
-	asm "add esp, 12";
-}
+-> int; // error code, 0 if success
+
+proc memcpy src:ptr dst:ptr size:int -> void;
 
 cextern "memcpy";
 
@@ -61,6 +55,9 @@ proc cmemcpy src:ptr dst:ptr size:int -> void
 }
 
 cextern "printf";
+
+proc printf fstring:ptr -> void
+[nosizedargs];
 
 proc cputu number:int -> void
 [nostdargs] {

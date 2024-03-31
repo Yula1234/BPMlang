@@ -5,7 +5,7 @@ proc fputs
 	fd:int // File Descriptor
 	string:ptr // string to put into a file
 -> void {
-	wrapper_write(fd, string, strlen(string));
+	write(fd, string, strlen(string));
 }
 
 proc puts string:ptr -> void {
@@ -62,7 +62,7 @@ proc fputc fd:int chr:int -> void {
 	buffer bf(2);
 	store8(&bf, chr);
 	store8(&bf + 1, 0);
-	wrapper_write(fd, &bf, 1);
+	write(fd, &bf, 1);
 }
 
 proc putc chr:int -> void {
