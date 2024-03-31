@@ -19,3 +19,7 @@ proc arena_take arena:ArenaAllocator size:int -> ptr {
 	arena.used = arena.used + size + 1;
 	return arena.data + (arena.used - size);
 }
+
+#define __alloc_obj(__arena __object_type)
+	cast(__object_type, arena_take(__arena, sizeof(__object_type)))
+$
