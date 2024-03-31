@@ -65,6 +65,7 @@ enum class TokenType {
     _define,
     dollar,
     interface,
+    _sizeof,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -198,6 +199,8 @@ std::string tok_to_string(const TokenType type)
         return "`$`";
     case TokenType::interface:
         return "`interface`";
+    case TokenType::_sizeof:
+        return "`sizeof`";
     }
     assert(false);
 }
@@ -404,6 +407,10 @@ public:
                 }
                 else if (buf == "interface") {
                     tokens.push_back({ .type = TokenType::interface, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "sizeof") {
+                    tokens.push_back({ .type = TokenType::_sizeof, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {

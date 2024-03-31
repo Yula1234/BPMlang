@@ -203,6 +203,11 @@ struct NodeTermCall {
 	std::optional<NodeExpr*> args;
 };
 
+struct NodeTermSizeof {
+	Token def;
+	DataType type;
+};
+
 struct NodeTermRd {
 	Token def;
 	size_t size;
@@ -285,7 +290,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*> var;
+	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*> var;
 };
 
 struct NodeExpr {
@@ -818,6 +823,19 @@ public:
 			auto expr_ident = m_allocator.emplace<NodeTermIdent>();
 			expr_ident->ident = ident.value();
 			auto term = m_allocator.emplace<NodeTerm>(expr_ident);
+			return term;
+		}
+		if(auto _sizeof = try_consume(TokenType::_sizeof)) {
+			try_consume_err(TokenType::open_paren);
+			auto sizeof_term = m_allocator.emplace<NodeTermSizeof>();
+			sizeof_term->def = _sizeof.value();
+			Token ttype = consume();
+			if(!is_type_token(ttype.type)) {
+				error_expected("typename");
+			}
+			sizeof_term->type = uni_token_to_dt(ttype);
+			try_consume_err(TokenType::close_paren);
+			auto term = m_allocator.emplace<NodeTerm>(sizeof_term);
 			return term;
 		}
 		if (const auto open_paren = try_consume(TokenType::open_paren)) {

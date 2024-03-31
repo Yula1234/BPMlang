@@ -259,22 +259,25 @@ public:
 		if(holds_alternative<NodeTerm*>(expr->var)) {
 			NodeTerm* term = std::get<NodeTerm*>(expr->var);
 			if(std::holds_alternative<NodeTermIntLit*>(term->var)) {
-				return make_int_type();
+				return DataTypeInt;
 			}
 			if(std::holds_alternative<NodeTermStrLit*>(term->var)) {
-				return make_ptr_type();
+				return DataTypePtr;
 			}
 			if(std::holds_alternative<NodeTermCast*>(term->var)) {
 				return std::get<NodeTermCast*>(term->var)->type;
 			}
 			if(std::holds_alternative<NodeTermRd*>(term->var)) {
-				return make_int_type();
+				return DataTypeInt;
 			}
 			if(std::holds_alternative<NodeTermParen*>(term->var)) {
 				return type_of_expr(std::get<NodeTermParen*>(term->var)->expr);
 			}
+			if(std::holds_alternative<NodeTermSizeof*>(term->var)) {
+				return DataTypeInt;
+			}
 			if(std::holds_alternative<NodeTermAmpersand*>(term->var)) {
-				return make_ptr_type();
+				return DataTypePtr;
 			}
 			if(std::holds_alternative<NodeTermCall*>(term->var)) {
 				NodeTermCall* call = std::get<NodeTermCall*>(term->var);
@@ -456,6 +459,27 @@ public:
 			void operator()(const NodeTermIntLit* term_int_lit) const
 			{
 				gen.push(term_int_lit->int_lit.value.value());
+			}
+
+			void operator()(const NodeTermSizeof* term_sizeof) const
+			{
+				if(term_sizeof->type.is_object) {
+					std::string name = term_sizeof->type.getobjectname();
+					std::optional<Struct> st = gen.struct_lookup(name);
+					if(st.has_value()) {
+						gen.m_output << "    push dword " << st.value().fields.size() * 4 << "\n";
+						return;
+					}
+					std::optional<Interface> inter = gen.inter_lookup(name);
+					if(inter.has_value()) {
+						gen.m_output << "    push dword " << inter.value().fields.size() * 4 << "\n";
+						return;
+					}
+					assert(false && "unreacheable");
+				}
+				else {
+					gen.m_output << "    push dword 4\n";
+				}
 			}
 
 			void operator()(const NodeTermRd* term_rd) const
