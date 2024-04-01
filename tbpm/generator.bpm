@@ -1,5 +1,7 @@
 struct Generator {
 	asm_file:FILE,
+	scopes_vi:DynamicArray,
+	scopes:DynamicArray,
 	vars:DynamicArray,
 	vars_index:int,
 	arena:ArenaAllocator,
@@ -18,23 +20,41 @@ struct Proc(__global_obj_alloc) {
 
 proc gen_var_lookup name:ptr gen:Generator -> int {
 	let i = 0;
-	while(i < gen.vars_index) {
-		let var = cast(Var, dynarray_get(gen.vars, i));
-		if(streq(var.name, name)) {
-			return cast(int, var);
+	let j = 0;
+	let scopes_size = gen.vars.size;
+	while(i < scopes_size) {
+		let cur_scope = cast(DynamicArray, dynarray_get(gen.vars, i));
+		while(j < cur_scope.size) {
+			let var = cast(Var, dynarray_get(cur_scope, j));
+			if(streq(var.name, name)) {
+				return cast(int, var);
+			}
+			j += 1;
 		}
+		j = 0;
 		i += 1;
 	}
 	return 0;
 }
 
 proc new_generator asm_file:FILE -> Generator {
-	return Generator(asm_file, new_dynarray(128), 0, new_arena(24 * 1024), 0, new_dynarray(128));
+	return Generator(
+		asm_file,
+		new_dynarray(12),
+		new_dynarray(12),
+		new_dynarray(12),
+		0,
+		new_arena(56 * 1024),
+		0,
+		new_dynarray(12)
+	);
 }
 
 proc delete_generator gen:Generator -> void {
 	closef(gen.asm_file);
 	delete_dynarray(gen.vars);
+	delete_dynarray(gen.scopes);
+	delete_dynarray(gen.scopes_vi);
 	delete_dynarray(gen.procs);
 	arena_delete(gen.arena);
 	delete gen;
@@ -105,7 +125,7 @@ proc gen_create_var gen:Generator name:ptr def:Token -> void {
 	let var = Var(name, (gen.vars_index * 4) + 4);
 	let i = gen.vars_index;
 	gen.vars_index += 1;
-	dynarray_set(gen.vars, i, var);
+	dynarray_push(cast(DynamicArray, dynarray_get(gen.vars, ((gen.vars).size) - 1)), var);
 }
 
 proc gen_generate_exit stmt:NodeStmtExit gen:Generator -> void {
@@ -138,14 +158,38 @@ proc gen_create_label gen:Generator -> ptr {
 	return str;
 }
 
+proc collect_allign block:DynamicArray -> int;
+
 proc gen_stmt _stmt:ptr gen:Generator -> void;
+
+proc gen_begin_scope fsz:int gen:Generator -> void {
+	if(fsz != 0) {
+		format_fprint(gen.asm_file.desc, "    sub esp, %d\n", fsz * 4);
+	}
+	dynarray_push(gen.scopes, fsz);
+	dynarray_push(gen.scopes_vi, gen.vars_index);
+	dynarray_push(gen.vars, new_dynarray(8));
+}
+
+proc gen_end_scope gen:Generator -> void {
+	let scope_size = cast(int, dynarray_get(gen.scopes, (gen.scopes.size) - 1));
+	if(scope_size != 0) {
+		format_fprint(gen.asm_file.desc, "    add esp, %d\n", scope_size * 4);
+	}
+	dynarray_pop(gen.scopes);
+	let old_vi = dynarray_pop(gen.scopes_vi);
+	gen.vars_index = old_vi;
+	dynarray_pop(gen.vars);
+}
 
 proc gen_block block:NodeStmtBlock gen:Generator -> void {
 	let i = 0;
+	gen_begin_scope(collect_allign(block.stmts), gen);
 	while(i < block.stmts.size) {
 		gen_stmt(cast(ptr, dynarray_get(block.stmts, i)), gen);
 		i += 1;
 	}
+	gen_end_scope(gen);
 }
 
 proc gen_if_pred pred:NodeIfPred endlab:ptr gen:Generator -> void {
@@ -194,17 +238,12 @@ proc gen_define_proc name:ptr gen:Generator -> void {
 	dynarray_push(gen.procs, Proc(name));
 }
 
-proc collect_allign block:DynamicArray -> int;
-
 proc gen_generate_proc stmt:NodeStmtProc gen:Generator -> void {
 	gen_define_proc(stmt.name, gen);
 	format_fprint(gen.asm_file.desc, "%s:\n", stmt.name);
-	let stack_allign = collect_allign(stmt.block.stmts);
 	fputs(gen.asm_file.desc, "    push ebp\n");
 	fputs(gen.asm_file.desc, "    mov ebp, esp\n");
-	format_fprint(gen.asm_file.desc, "    sub esp, %d\n", stack_allign * 4);
 	gen_block(stmt.block, gen);
-	format_fprint(gen.asm_file.desc, "    add esp, %d\n", stack_allign * 4);
 	fputs(gen.asm_file.desc, "    pop ebp\n");
 	fputs(gen.asm_file.desc, "    ret\n");
 }
