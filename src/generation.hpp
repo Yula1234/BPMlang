@@ -1,6 +1,9 @@
 #pragma once
 
 #include "parser.hpp"
+#include <windows.h>
+
+HANDLE hConsole;
 
 #define VectorSimDataCap 4096
 
@@ -26,6 +29,14 @@ public:
 
 class Generator {
 public:
+
+	void __normal_console() {
+		SetConsoleTextAttribute(hConsole, 7);
+	}
+
+	void __red_console() {
+		SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
+	}
 
 	struct AsmGen {
 		Generator* gen;
@@ -220,8 +231,18 @@ public:
 	/*function throwing error with location*/
 	void GeneratorError(Token tok, std::string msg) {
 		putloc(tok);
-		std::cout << " ERROR: " << msg << "\n";
+		std::cout << ":";
+		__red_console();
+		std::cout << " error: ";
+		__normal_console();
+		std::cout << msg << "\n";
 		exit(EXIT_FAILURE);
+	}
+
+	/*function throwing warning with location*/
+	void GeneratorWarning(Token tok, std::string msg) {
+		putloc(tok);
+		std::cout << " WARNING: " << msg << "\n";
 	}
 
 	/*function returns type of field {}.{}*/
@@ -1453,9 +1474,16 @@ public:
 			}
 
 			void operator()(const NodeStmtDelete* stmt_delete) {
-				bool is_object_expr = gen.type_of_expr(stmt_delete->expr).is_object;
-				if(!is_object_expr) {
+				DataType type = gen.type_of_expr(stmt_delete->expr);
+				if(!type.is_object) {
 					gen.GeneratorError(stmt_delete->def, "`delete` except object\nNOTE: but got " + gen.type_of_expr(stmt_delete->expr).to_string());
+				}
+				std::string objectName = type.getobjectname();
+				std::optional<Struct> st = gen.struct_lookup(objectName);
+				if(st.has_value()) {
+					if(st.value().__allocator.has_value()) {
+						gen.GeneratorWarning(stmt_delete->def, "objects of type `" + objectName + "` uses custom allocator function.\nNOTE: delete of object of this type may free youre arena-pool.");
+					}
 				}
 				gen.gen_expr(stmt_delete->expr);
 				gen.m_output << "    call free\n";
@@ -1469,6 +1497,7 @@ public:
 
 	[[nodiscard]] std::string gen_prog()
 	{
+		hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 		std::stringstream result;
 		result << "section .text\n\n";
 		result << "global main\n\n";
