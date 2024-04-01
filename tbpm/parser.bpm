@@ -39,6 +39,40 @@ proc parser_consume prs:parser -> Token {
 	return tok;
 }
 
+const DataTypeInt  iota;
+const DataTypeVoid iota;
+const DataTypePtr  iota;
+const DataTypesCount reset;
+
+proc dt_to_string dt:int -> ptr {
+	if(dt == DataTypeInt) {
+		return "`int`";
+	}
+	elif(dt == DataTypeVoid) {
+		return "`void`";
+	}
+	elif(dt == DataTypePtr) {
+		return "`ptr`";
+	}
+	puts("`dt_to_string` unkown dt\n");
+	exit(1);
+}
+
+proc is_type_token toktype:int -> int {
+	if(toktype == TokenTypeVoid) {
+		return true;
+	}
+	return false;
+}
+
+proc token_to_dt toktype:int -> int {
+	if(toktype == TokenTypeVoid) {
+		return DataTypeVoid;
+	}
+	puts("`token_to_dt` unkown toktype\n");
+	exit(1);
+}
+
 struct NodeExprAdd(__global_obj_alloc) {
 	left:ptr,
 	right:ptr,
@@ -272,6 +306,7 @@ struct NodeStmtIf(__global_obj_alloc) {
 struct NodeStmtProc(__global_obj_alloc) {
 	block:NodeStmtBlock,
 	name:ptr,
+	type:int,
 	def:Token
 }
 
@@ -373,8 +408,13 @@ proc parser_parse_stmt prs:parser -> int {
 	elif(parser_peek(prs).type == TokenTypeProc) {
 		let def = parser_consume(prs);
 		let name = parser_consume_err(prs, TokenTypeIdent).value;
+		parser_consume_err(prs, TokenTypeArrow);
+		let ttype = parser_consume(prs);
+		if(is_type_token(ttype.type) != 1) {
+			Error("excepted procedure return type", ttype.file_loc, ttype.line, ttype.col);
+		}
 		let block = parser_parse_block(prs);
-		let proc_stmt = NodeStmtProc(block, name, def);
+		let proc_stmt = NodeStmtProc(block, name, token_to_dt(ttype.type), def);
 		let stmt = NodeStmt(StmtKindProc, cast(ptr, proc_stmt));
 		return cast(int, stmt);
 	}

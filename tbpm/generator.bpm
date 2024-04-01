@@ -15,7 +15,49 @@ struct Var(__global_obj_alloc) {
 }
 
 struct Proc(__global_obj_alloc) {
-	name:ptr
+	name:ptr,
+	type:int
+}
+
+proc gen_var_lookup name:ptr gen:Generator -> int;
+
+proc gen_type_of_expr expr:NodeExpr gen:Generator -> int {
+	if(expr.kind == NodeKindInt) {
+		return DataTypeInt;
+	}
+	elif(expr.kind == NodeKindIdent) {
+		let expr_ident = cast(NodeExprIdent, expr.data);
+		let svar = gen_var_lookup(expr_ident.ident, gen);
+		if(svar == 0) {
+			let etok = expr_ident.def;
+			format_print("%s:%d:%d ERROR: unkown name `%s`\n", etok.file_loc, etok.line, etok.col, expr_ident.ident);
+			exit(1);
+		}
+		let var = cast(Var, svar);
+		puts("get type of expr ident is not implemented yet\n");
+		exit(1);
+	}
+	elif(expr.kind == NodeKindPlus) {
+		let add_expr = cast(NodeExprAdd, expr.data);
+		return gen_type_of_expr(cast(NodeExpr, add_expr.left), gen);
+	}
+	elif(expr.kind == NodeKindMinus) {
+		let sub_expr = cast(NodeExprSub, expr.data);
+		return gen_type_of_expr(cast(NodeExpr, sub_expr.left), gen);
+	}
+	elif(expr.kind == NodeKindMul) {
+		let mul_expr = cast(NodeExprMul, expr.data);
+		return gen_type_of_expr(cast(NodeExpr, mul_expr.left), gen);
+	}
+	elif(expr.kind == NodeKindDiv) {
+		let div_expr = cast(NodeExprMul, expr.data);
+		return gen_type_of_expr(cast(NodeExpr, div_expr.left), gen);
+	}
+	else {
+		format_print("ERROR: unkown expr.kind at `gen_type_of_expr` - ");
+		putu(expr.kind);
+		exit(1);
+	}
 }
 
 proc gen_var_lookup name:ptr gen:Generator -> int {
@@ -234,12 +276,12 @@ proc gen_generate_if stmt:NodeStmtIf gen:Generator -> void {
 	format_fprint(gen.asm_file.desc, "    %s:\n", endlab);
 }
 
-proc gen_define_proc name:ptr gen:Generator -> void {
-	dynarray_push(gen.procs, Proc(name));
+proc gen_define_proc name:ptr type:int gen:Generator -> void {
+	dynarray_push(gen.procs, Proc(name, type));
 }
 
 proc gen_generate_proc stmt:NodeStmtProc gen:Generator -> void {
-	gen_define_proc(stmt.name, gen);
+	gen_define_proc(stmt.name, stmt.type, gen);
 	format_fprint(gen.asm_file.desc, "%s:\n", stmt.name);
 	fputs(gen.asm_file.desc, "    push ebp\n");
 	fputs(gen.asm_file.desc, "    mov ebp, esp\n");

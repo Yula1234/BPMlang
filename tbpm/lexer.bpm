@@ -114,6 +114,8 @@ const TokenTypeOpenCurly  iota;
 const TokenTypeElse       iota;
 const TokenTypeElif       iota;
 const TokenTypeProc       iota;
+const TokenTypeArrow      iota;
+const TokenTypeVoid       iota;
 const TokenTypesCount     reset;
 
 struct Token(__global_obj_alloc) {
@@ -130,7 +132,7 @@ proc push_token tokens:ptr index:ptr tok:Token -> void {
 }
 
 proc tokentype2str type:int -> ptr {
-	static_assert(TokenTypesCount == 19, "Please update this place");
+	static_assert(TokenTypesCount == 21, "Please update this place");
 	if(type == TokenTypeIdent) {
 		return "`ident`";
 	}
@@ -188,6 +190,12 @@ proc tokentype2str type:int -> ptr {
 	elif(type == TokenTypeProc) {
 		return "`proc`";
 	}
+	elif(type == TokenTypeArrow) {
+		return "`->`";
+	}
+	elif(type == TokenTypeVoid) {
+		return "`void`";
+	}
 	format_print("tokentype2str error: unkown TokenType `%d`\n", type);
 	exit(0);
 }
@@ -230,7 +238,7 @@ proc lexer_lex
 	let line_count = 1;
 	let tmp_tok: Token;
 	let tmp_str = new_tmp_str(str_arena, 56);
-	static_assert(TokenTypesCount == 19, "Please update this place");
+	static_assert(TokenTypesCount == 21, "Please update this place");
 	while(lexer_peek(lxr) != NULL_PEEK) {
 		if(is_identif(lexer_peek(lxr))) {
 			while(is_identif(lexer_peek(lxr))) {
@@ -264,11 +272,21 @@ proc lexer_lex
 				tmp_tok = Token(TokenTypeProc, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
+			elif(streq(tmp_str.data, "void")) {
+				tmp_tok = Token(TokenTypeVoid, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				push_token(tokens, &tokens_count, tmp_tok);
+			}
 			else {
 				tmp_tok = Token(TokenTypeIdent, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data, FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			tmp_str_realloc(tmp_str, str_arena, 56);
+		}
+		elif((lexer_peek(lxr) == '-') && (lexer_peek_at(lxr, 1) == '>')) {
+			tmp_tok = Token(TokenTypeArrow, line_count, lxr.col - 1, "", FILE_PATH);
+			push_token(tokens, &tokens_count, tmp_tok);
+			lexer_consume(lxr);
+			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '(') {
 			tmp_tok = Token(TokenTypeOpenParen, line_count, lxr.col - 1, "", FILE_PATH);
