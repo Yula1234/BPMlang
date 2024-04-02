@@ -7,6 +7,11 @@ HANDLE hConsole;
 
 #define VectorSimDataCap 4096
 
+#define TYPEID_INT  0
+#define TYPEID_PTR  1
+#define TYPEID_VOID 2
+#define TYPEID_ANY  3
+
 template<typename T>
 class VectorSim {
 private:
@@ -36,6 +41,34 @@ public:
 
 	void __red_console() {
 		SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
+	}
+
+	size_t typeid_of(DataType type) {
+		if(!type.is_object) {
+			SimpleDataType stype = type.getsimpletype();
+			switch(stype) {
+			case SimpleDataType::_int:
+				return TYPEID_INT;
+			case SimpleDataType::_void:
+				return TYPEID_VOID;
+			case SimpleDataType::ptr:
+				return TYPEID_PTR;
+			case SimpleDataType::any:
+				return TYPEID_ANY;
+			}
+		}
+		else {
+			std::string sname = type.getobjectname();
+			std::optional<Struct> st = struct_lookup(sname);
+			if(st.has_value()) {
+				return st.value().m_typeid;
+			}
+			std::optional<Interface> st2 = inter_lookup(sname);
+			if(st2.has_value()) {
+				return st2.value().m_typeid;
+			}
+		}
+		assert(false); // TODO: fix
 	}
 
 	struct AsmGen {
@@ -90,10 +123,12 @@ public:
 		std::string name;
 		std::vector<std::pair<std::string, DataType>> fields;
 		std::optional<std::string> __allocator;
+		size_t m_typeid;
 	};
 	struct Interface {
 		std::string name;
 		std::vector<std::pair<std::string, DataType>> fields;
+		size_t m_typeid;
 		static bool match_to(const Interface& in, const Struct& st) {
 			return in.fields == st.fields;
 		}
@@ -295,6 +330,9 @@ public:
 				return type_of_expr(std::get<NodeTermParen*>(term->var)->expr);
 			}
 			if(std::holds_alternative<NodeTermSizeof*>(term->var)) {
+				return DataTypeInt;
+			}
+			if(std::holds_alternative<NodeTermTypeid*>(term->var)) {
 				return DataTypeInt;
 			}
 			if(std::holds_alternative<NodeTermAmpersand*>(term->var)) {
@@ -529,6 +567,16 @@ public:
 			void operator()(const NodeTermCast* term_cast) const
 			{
 				gen.gen_expr(term_cast->expr);
+			}
+
+			void operator()(const NodeTermTypeid* term_typeid) const
+			{
+				if(term_typeid->ptype.has_value()) {
+					gen.m_output << "    push dword " << gen.typeid_of(term_typeid->ptype.value()) << "\n";
+				}
+				else {
+					gen.m_output << "    push dword " << gen.typeid_of(gen.type_of_expr(term_typeid->expr)) << "\n";
+				}
 			}
 
 			void operator()(const NodeTermStrLit* term_str_lit) const
@@ -1466,11 +1514,11 @@ public:
 			}
 
 			void operator()(const NodeStmtStruct* stmt_struct) {
-				gen.m_structs[stmt_struct->name] = { .name = stmt_struct->name, .fields = stmt_struct->fields , .__allocator = stmt_struct->__allocator };
+				gen.m_structs[stmt_struct->name] = { .name = stmt_struct->name, .fields = stmt_struct->fields , .__allocator = stmt_struct->__allocator , .m_typeid = gen.m_structs_count++ };
 			}
 
 			void operator()(const NodeStmtInterface* stmt_inter) {
-				gen.m_interfaces[stmt_inter->name] = { .name = stmt_inter->name, .fields = stmt_inter->fields };
+				gen.m_interfaces[stmt_inter->name] = { .name = stmt_inter->name, .fields = stmt_inter->fields, .m_typeid = gen.m_structs_count++ };
 			}
 
 			void operator()(const NodeStmtDelete* stmt_delete) {
@@ -1602,6 +1650,7 @@ private:
 	std::unordered_map<std::string, Struct> m_structs;
 	std::unordered_map<std::string, GVar> m_global_vars;
 	std::unordered_map<std::string, Interface> m_interfaces;
+	size_t m_structs_count = 5;
 	std::optional<Procedure> m_cur_proc;
 	std::vector<std::string> m_breaks;
 	VectorSim<size_t>		m_scopes;

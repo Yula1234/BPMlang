@@ -208,6 +208,12 @@ struct NodeTermSizeof {
 	DataType type;
 };
 
+struct NodeTermTypeid {
+	Token def;
+	std::optional<DataType> ptype;
+	NodeExpr* expr;
+};
+
 struct NodeTermRd {
 	Token def;
 	size_t size;
@@ -290,7 +296,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*> var;
+	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*> var;
 };
 
 struct NodeExpr {
@@ -836,6 +842,27 @@ public:
 			sizeof_term->type = uni_token_to_dt(ttype);
 			try_consume_err(TokenType::close_paren);
 			auto term = m_allocator.emplace<NodeTerm>(sizeof_term);
+			return term;
+		}
+		if(auto _typeid = try_consume(TokenType::_typeid)) {
+			auto typeid_term = m_allocator.emplace<NodeTermTypeid>();
+			try_consume_err(TokenType::open_paren);
+			typeid_term->def = _typeid.value();
+			Token lookahead = peek().value();
+			typeid_term->ptype = std::nullopt;
+			if(is_type_token(lookahead.type)) {
+				consume();
+				typeid_term->ptype = uni_token_to_dt(lookahead);
+			}
+			else {
+				if(auto _expr = parse_expr()) {
+					typeid_term->expr = _expr.value();
+				} else {
+					error_expected("expression");
+				}
+			}
+			try_consume_err(TokenType::close_paren);
+			auto term = m_allocator.emplace<NodeTerm>(typeid_term);
 			return term;
 		}
 		if (const auto open_paren = try_consume(TokenType::open_paren)) {
