@@ -217,16 +217,6 @@ proc print_tokens tokens:ptr -> void {
 	}
 }
 
-proc free_tokens tokens:ptr -> void {
-	let i = 0;
-	while(rd32(tokens + (i * 4)) != 0) {
-		let tok = cast(Token, rd32(tokens + (i * 4)));
-		delete tok;
-		i = i + 1;
-	}
-	free(tokens);
-}
-
 proc lexer_lex
 	lxr:lexer
 	str_arena:ArenaAllocator
