@@ -18,6 +18,7 @@ const false 0;
 #define rd16_as(__pointer __type) cast(__type, rd16(__pointer))$
 
 #define neg(__as_positive_value) (0 - __as_positive_value)$
+#define typeid_of(__expr) typeid((__expr))$
 
 #define store32_any(__pointer __value)
 	store32(__pointer, cast(int, __value))
