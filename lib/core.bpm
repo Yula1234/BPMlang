@@ -20,6 +20,8 @@ const false 0;
 #define neg(__as_positive_value) (0 - __as_positive_value)$
 #define typeid_of(__expr) typeid((__expr))$
 
+#define null cast(ptr, 0)$
+
 #define store32_any(__pointer __value)
 	store32(__pointer, cast(int, __value))
 $ // macro stores any 32 bit object/number/ptr
@@ -56,8 +58,12 @@ proc cmemcpy src:ptr dst:ptr size:int -> void
 }
 
 cextern "printf";
+cextern "fprintf";
 
 proc printf fstring:ptr -> void
+[nosizedargs];
+
+proc fprintf fd:ptr fstring:ptr -> void
 [nosizedargs];
 
 proc cputu number:int -> void
@@ -68,6 +74,18 @@ proc cputu number:int -> void
 	asm "add esp, 8";
 }
 
+proc __seg_crash -> void {
+	store32(null(), 0);
+}
+
+proc __seg_crash_mess __message:ptr -> void {
+	printf("%s\n", __message);
+	__seg_crash();
+}
+
+#define crash() __seg_crash()$
+#define __exception(__message)
+	__seg_crash_mess(__message)$
+
 #define nth_argv(__argv __nth)
-	rd32_as(__argv + __nth * 4, ptr)
-$
+	rd32_as(__argv + __nth * 4, ptr)$

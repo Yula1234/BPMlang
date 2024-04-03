@@ -1,3 +1,7 @@
-release 1.3.2
+release 1.4.0
 
-added __oninit statement.
+struct optional(...) {...} in lib/optional.bpm.
+new macroses:
+	null.
+	crash.
+	__exception.
