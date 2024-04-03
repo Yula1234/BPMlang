@@ -1,7 +1,3 @@
-release 1.4.0
+release 1.4.1
 
-struct optional(...) {...} in lib/optional.bpm.
-new macroses:
-	null.
-	crash.
-	__exception.
+operators <<, >>.

@@ -403,6 +403,12 @@ public:
 			if(std::holds_alternative<NodeBinExprOr*>(binex->var)) {
 				return type_of_expr(std::get<NodeBinExprOr*>(binex->var)->lhs);
 			}
+			if(std::holds_alternative<NodeBinExprShr*>(binex->var)) {
+				return type_of_expr(std::get<NodeBinExprShr*>(binex->var)->lhs);
+			}
+			if(std::holds_alternative<NodeBinExprShl*>(binex->var)) {
+				return type_of_expr(std::get<NodeBinExprShl*>(binex->var)->lhs);
+			}
 			if(std::holds_alternative<NodeBinExprDot*>(binex->var)) {
 				NodeBinExprDot* dot = std::get<NodeBinExprDot*>(binex->var);
 				return type_of_dot(dot);
@@ -445,6 +451,12 @@ public:
 		} else if(std::holds_alternative<NodeBinExprOr*>(expr->var)) {
 			NodeBinExprOr* bor = std::get<NodeBinExprOr*>(expr->var);
 			return type_of_expr(bor->lhs) == type_of_expr(bor->rhs);
+		} else if(std::holds_alternative<NodeBinExprShl*>(expr->var)) {
+			NodeBinExprShl* bshl = std::get<NodeBinExprShl*>(expr->var);
+			return type_of_expr(bshl->lhs) == type_of_expr(bshl->rhs);
+		} else if(std::holds_alternative<NodeBinExprShr*>(expr->var)) {
+			NodeBinExprShr* bshr = std::get<NodeBinExprShr*>(expr->var);
+			return type_of_expr(bshr->lhs) == type_of_expr(bshr->rhs);
 		} else if(std::holds_alternative<NodeBinExprDot*>(expr->var)) {
 			return true;
 		} else {
@@ -500,6 +512,14 @@ public:
 				const NodeBinExprOr* bor = std::get<NodeBinExprOr*>(expr->var);
 				ltype = type_of_expr(bor->lhs);
 				rtype = type_of_expr(bor->rhs);
+			} else if(std::holds_alternative<NodeBinExprShl*>(expr->var)) {
+				const NodeBinExprShl* bshl = std::get<NodeBinExprShl*>(expr->var);
+				ltype = type_of_expr(bshl->lhs);
+				rtype = type_of_expr(bshl->rhs);
+			} else if(std::holds_alternative<NodeBinExprShr*>(expr->var)) {
+				const NodeBinExprShr* bshr = std::get<NodeBinExprShr*>(expr->var);
+				ltype = type_of_expr(bshr->lhs);
+				rtype = type_of_expr(bshr->rhs);
 			} else {
 				assert(false);
 			}
@@ -818,6 +838,26 @@ public:
 				gen.m_output << "    div ebx\n";
 				gen.push("eax");
 				gen.m_output << "    mov edx, ecx\n";
+			}
+
+			void operator()(const NodeBinExprShl* shl) const
+			{
+				gen.gen_expr(shl->rhs);
+				gen.gen_expr(shl->lhs);
+				gen.pop("eax");
+				gen.pop("ecx");
+				gen.m_output << "    shl eax, cl\n";
+				gen.push("eax");
+			}
+
+			void operator()(const NodeBinExprShr* shr) const
+			{
+				gen.gen_expr(shr->rhs);
+				gen.gen_expr(shr->lhs);
+				gen.pop("eax");
+				gen.pop("ecx");
+				gen.m_output << "    shr eax, cl\n";
+				gen.push("eax");
 			}
 
 			void operator()(const NodeBinExprMod* md) const

@@ -68,6 +68,8 @@ enum class TokenType {
     _sizeof,
     _typeid,
     oninit,
+    shift_left,
+    shift_right,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -207,6 +209,10 @@ std::string tok_to_string(const TokenType type)
         return "`typeid`";
     case TokenType::oninit:
         return "`oninit`";
+    case TokenType::shift_left:
+        return "`<<`";
+    case TokenType::shift_right:
+        return "`>>`";
     }
     assert(false);
 }
@@ -227,6 +233,8 @@ inline std::optional<int> bin_prec(const TokenType type)
         return prec_IOTA++;
     case TokenType::minus:
     case TokenType::plus:
+    case TokenType::shift_left:
+    case TokenType::shift_right:
         return prec_IOTA++;
     case TokenType::fslash:
     case TokenType::star:
@@ -444,6 +452,16 @@ public:
                 consume();
                 consume();
                 tokens.push_back({ .type = TokenType::arrow, .line =  line_count, .col = m_col - 2, .file = file });
+            }
+            else if (peek().value() == '<' && peek(1).has_value() && peek(1).value() == '<') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::shift_left, .line =  line_count, .col = m_col - 2, .file = file });
+            }
+            else if (peek().value() == '>' && peek(1).has_value() && peek(1).value() == '>') {
+                consume();
+                consume();
+                tokens.push_back({ .type = TokenType::shift_right, .line =  line_count, .col = m_col - 2, .file = file });
             }
             else if (peek().value() == '&' && peek(1).has_value() && peek(1).value() == '&') {
                 consume();
