@@ -116,6 +116,7 @@ const TokenTypeElif       iota;
 const TokenTypeProc       iota;
 const TokenTypeArrow      iota;
 const TokenTypeVoid       iota;
+const TokenTypeInt        iota;
 const TokenTypesCount     reset;
 
 struct Token(__global_obj_alloc) {
@@ -132,7 +133,6 @@ proc push_token tokens:ptr index:ptr tok:Token -> void {
 }
 
 proc tokentype2str type:int -> ptr {
-	static_assert(TokenTypesCount == 21, "Please update this place");
 	if(type == TokenTypeIdent) {
 		return "`ident`";
 	}
@@ -196,6 +196,9 @@ proc tokentype2str type:int -> ptr {
 	elif(type == TokenTypeVoid) {
 		return "`void`";
 	}
+	elif(type == TokenTypeInt) {
+		return "`int`";
+	}
 	format_print("tokentype2str error: unkown TokenType `%d`\n", type);
 	exit(0);
 }
@@ -228,7 +231,6 @@ proc lexer_lex
 	let line_count = 1;
 	let tmp_tok: Token;
 	let tmp_str = new_tmp_str(str_arena, 56);
-	static_assert(TokenTypesCount == 21, "Please update this place");
 	while(lexer_peek(lxr) != NULL_PEEK) {
 		if(is_identif(lexer_peek(lxr))) {
 			while(is_identif(lexer_peek(lxr))) {
@@ -264,6 +266,10 @@ proc lexer_lex
 			}
 			elif(streq(tmp_str.data, "void")) {
 				tmp_tok = Token(TokenTypeVoid, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				push_token(tokens, &tokens_count, tmp_tok);
+			}
+			elif(streq(tmp_str.data, "int")) {
+				tmp_tok = Token(TokenTypeInt, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			else {

@@ -62,12 +62,18 @@ proc is_type_token toktype:int -> int {
 	if(toktype == TokenTypeVoid) {
 		return true;
 	}
+	if(toktype == TokenTypeInt) {
+		return true;
+	}
 	return false;
 }
 
 proc token_to_dt toktype:int -> int {
 	if(toktype == TokenTypeVoid) {
 		return DataTypeVoid;
+	}
+	if(toktype == TokenTypeInt) {
+		return DataTypeInt;
 	}
 	puts("`token_to_dt` unkown toktype\n");
 	exit(1);

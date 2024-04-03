@@ -287,7 +287,7 @@ proc gen_generate_proc stmt:NodeStmtProc gen:Generator -> void {
 	fputs(gen.asm_file.desc, "    mov ebp, esp\n");
 	gen_block(stmt.block, gen);
 	fputs(gen.asm_file.desc, "    pop ebp\n");
-	fputs(gen.asm_file.desc, "    ret\n");
+	fputs(gen.asm_file.desc, "    ret\n\n");
 }
 
 proc gen_stmt _stmt:ptr gen:Generator -> void {
