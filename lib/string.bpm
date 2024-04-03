@@ -37,3 +37,12 @@ proc strcpy src:ptr dst:ptr -> void {
 	memcopy(src, dst, dstsize);
 	store8(src + dstsize, 0);
 }
+
+#define foreach_str(__str __stmt)
+	{
+		let i = 0;
+		while(rd8(__str + i) != 0) {
+			__stmt
+			i += 1;
+		}
+	}$
