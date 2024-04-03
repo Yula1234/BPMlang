@@ -12,12 +12,21 @@ proc __new_hash_map key_type:int -> hash_map {
 	return hash_map(malloc(HASHMAP_MEM_CAP), key_type);
 }
 
+proc shl num:int by:int -> int {
+	let res = num;
+	asm "mov edx, dword [ebp-4]";
+	asm "mov ecx, dword [ebp-8]";
+	asm "shl edx, cl";
+	asm "mov dword [ebp-12], edx";
+	return res;
+}
+
 proc str_hash str:ptr -> int {
 	let hash = 0;
 	foreach_str(str, {
-		hash += rd8(str + i);
+		hash += (shl(hash, 2) + hash) + rd8(str + i);
 	})
-	return hash;
+	return hash / 32;
 }
 
 proc HM_get HM:hash_map key:any -> int {
