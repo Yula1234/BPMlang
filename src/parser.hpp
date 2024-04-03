@@ -445,6 +445,11 @@ struct NodeStmtDivBy {
 	NodeExpr* lvalue;
 };
 
+struct NodeStmtOninit {
+	Token def;
+	NodeScope* scope;
+};
+
 struct NodeStmt {
 	std::variant<NodeStmtExit*, NodeStmtLet*,
 				NodeScope*, NodeStmtIf*,
@@ -456,7 +461,8 @@ struct NodeStmt {
 				NodeStmtDelete*,NodeStmtLetNoAssign*,
 				NodeStmtBreak*,NodeStmtIncBy*,
 				NodeStmtDecBy*,NodeStmtMulBy*,
-				NodeStmtDivBy*,NodeStmtInterface*> var;
+				NodeStmtDivBy*,NodeStmtInterface*,
+				NodeStmtOninit*> var;
 };
 
 struct NodeProg {
@@ -1549,6 +1555,20 @@ public:
 			else {
 				error_expected("preprocessor command");
 			}
+		}
+
+		if(auto _oninit = try_consume(TokenType::oninit)) {
+			auto stmt_oninit = m_allocator.emplace<NodeStmtOninit>();
+			stmt_oninit->def = _oninit.value();
+			if(auto _scope = parse_scope()) {
+				stmt_oninit->scope = _scope.value();
+			}
+			else {
+				error_expected("scope");
+			}
+			auto stmt = m_allocator.emplace<NodeStmt>();
+			stmt->var = stmt_oninit;
+			return stmt;
 		}
 
 		if(auto lvalue = parse_expr()) {

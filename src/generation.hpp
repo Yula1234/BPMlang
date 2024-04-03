@@ -1521,6 +1521,10 @@ public:
 				gen.m_interfaces[stmt_inter->name] = { .name = stmt_inter->name, .fields = stmt_inter->fields, .m_typeid = gen.m_structs_count++ };
 			}
 
+			void operator()(const NodeStmtOninit* stmt_oninit) {
+				gen.__oninits.push_back(stmt_oninit->scope);
+			}
+
 			void operator()(const NodeStmtDelete* stmt_delete) {
 				DataType type = gen.type_of_expr(stmt_delete->expr);
 				if(!type.is_object) {
@@ -1550,10 +1554,6 @@ public:
 		result << "section .text\n\n";
 		result << "global main\n\n";
 
-		result << "_BPM_init_:\n";
-		result << "    mov dword [tmp_p], dword 0x0\n";
-		result << "    ret\n\n\n";
-
 		for (const NodeStmt* stmt : m_prog.stmts) {
 			gen_stmt(stmt);
 		}
@@ -1563,6 +1563,22 @@ public:
 		}
 
 		result << "\n";
+
+		bool __has_oninits = __oninits.size() != 0ULL;
+
+		m_output << "_BPM_init_:\n";
+		if(__has_oninits) {
+			m_output << "    push ebp\n";
+			m_output << "    mov ebp, esp\n";
+		}
+		m_output << "    mov dword [tmp_p], dword 0x0\n";
+		for(const NodeScope* scope : __oninits) {
+			gen_scope(scope);
+		}
+		if(__has_oninits) {
+			m_output << "    pop ebp\n";
+		}
+		m_output << "    ret\n\n\n";
 
 		m_output << "\nsection .data\n";
 		m_output << "    numfmt: db \"%d\", 0x0\n";
@@ -1662,6 +1678,7 @@ private:
 		"malloc",
 		"free"
 	};
+	std::vector<NodeScope*> __oninits;
 	size_t m_var_index = 0U;
 	size_t m_label_count = 0U;
 };

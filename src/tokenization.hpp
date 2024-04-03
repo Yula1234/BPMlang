@@ -67,6 +67,7 @@ enum class TokenType {
     interface,
     _sizeof,
     _typeid,
+    oninit,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -204,6 +205,8 @@ std::string tok_to_string(const TokenType type)
         return "`sizeof`";
     case TokenType::_typeid:
         return "`typeid`";
+    case TokenType::oninit:
+        return "`oninit`";
     }
     assert(false);
 }
@@ -418,6 +421,10 @@ public:
                 }
                 else if (buf == "typeid") {
                     tokens.push_back({ .type = TokenType::_typeid, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "__oninit") {
+                    tokens.push_back({ .type = TokenType::oninit, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {
