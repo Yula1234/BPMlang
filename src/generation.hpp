@@ -602,7 +602,7 @@ public:
 
 			void operator()(const NodeTermStrLit* term_str_lit) const
 			{
-				std::string value = term_str_lit->str_lit.value.value();
+				std::string value = term_str_lit->str_lit;
 				std::optional<String> str = gen.string_lookup(value);
 				if(!str.has_value()) {
 					size_t index = gen.m_strings.size();

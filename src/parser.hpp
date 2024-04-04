@@ -179,7 +179,7 @@ struct NodeTermIntLit {
 };
 
 struct NodeTermStrLit {
-	Token str_lit;
+	std::string str_lit;
 };
 
 struct NodeTermIdent {
@@ -730,6 +730,12 @@ public:
 		m_tokens.insert(m_tokens.begin() + m_index, body.begin(), body.end());
 	}
 
+	void __expand_str(NodeTermStrLit* str) {
+		while(peek().has_value() && peek().value().type == TokenType::string_lit) {
+			str->str_lit.operator+=(consume().value.value());
+		}
+	}
+
 	std::optional<NodeTerm*> parse_term() // NOLINT(*-no-recursion)
 	{
 		if (auto int_lit = try_consume(TokenType::int_lit)) {
@@ -750,7 +756,8 @@ public:
 			return term;
 		}
 		if (auto str_lit = try_consume(TokenType::string_lit)) {
-			auto term_str_lit = m_allocator.emplace<NodeTermStrLit>(str_lit.value());
+			auto term_str_lit = m_allocator.emplace<NodeTermStrLit>(str_lit.value().value.value());
+			__expand_str(term_str_lit);
 			auto term = m_allocator.emplace<NodeTerm>(term_str_lit);
 			return term;
 		}
@@ -1404,7 +1411,20 @@ public:
 		if(auto _asm = try_consume(TokenType::_asm)) {
 			Token def = _asm.value();
 			auto stmt_asm = m_allocator.emplace<NodeStmtAsm>();
-			stmt_asm->code = try_consume_err(TokenType::string_lit).value.value();
+			if(auto _expr = parse_expr()) {
+				NodeExpr* expr = _expr.value();
+				if(!std::holds_alternative<NodeTerm*>(expr->var)) {
+					error_expected("string with asm code");
+				}
+				NodeTerm* as_term = std::get<NodeTerm*>(expr->var);
+				if(!std::holds_alternative<NodeTermStrLit*>(as_term->var)) {
+					error_expected("string with asm code");
+				}
+				NodeTermStrLit* as_str = std::get<NodeTermStrLit*>(as_term->var);
+				stmt_asm->code = as_str->str_lit;
+			} else {
+				error_expected("string with asm code");
+			}
 			try_consume_err(TokenType::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_asm;
