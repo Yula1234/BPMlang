@@ -350,6 +350,7 @@ public:
 					DataType dt = st.value().name;
 					return dt;
 				}
+				GeneratorError(call->def, "unkown procedure `" + name + "`");
 				return DataTypeVoid;
 			}
 			if(std::holds_alternative<NodeTermIdent*>(term->var)) {
