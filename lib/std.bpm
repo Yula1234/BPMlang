@@ -1,4 +1,5 @@
 include "core"
+include "stdasm"
 include "string"
 
 proc fputs
@@ -31,9 +32,7 @@ proc utos src:ptr number:int -> void {
 	if(number == 0) {
 		store8(src, 48);
 		store8(src + 1, 0);
-		asm "add esp, 148";
-		asm "pop ebp";
-		asm "ret";
+		return;
 	}
 	let i = 0;
 	let strsize_i = tmp_utos(src, number);
@@ -98,19 +97,21 @@ cextern "free";
 proc malloc SizeToAlloc:int -> ptr;
 proc free Pointer:ptr -> void;
 
-proc memalloc Size:int -> ptr 
-[nostdargs] {
-	asm "push dword [ebp+8]";
-	asm "call malloc";
-	asm "add esp, 4";
-}
+__label("memalloc");
+__push("dword [esp+8]");
+__call("malloc");
+__add("esp", "4");
+asm "ret\n";
 
-proc memfree Mem:ptr -> void 
-[nostdargs] {
-	asm "push dword [ebp+8]";
-	asm "call free";
-	asm "add esp, 4";
-}
+__label("memfree");
+__push("dword [esp+8]");
+__call("free");
+__add("esp", "4");
+asm "ret\n";
+
+proc memalloc Size:int -> ptr;
+
+proc memfree Mem:ptr -> void;
 
 proc nth_arg_int frame:int nth:int -> int
 [nostdargs] {
