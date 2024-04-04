@@ -70,6 +70,7 @@ enum class TokenType {
     oninit,
     shift_left,
     shift_right,
+    pushonstack,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -213,6 +214,8 @@ std::string tok_to_string(const TokenType type)
         return "`<<`";
     case TokenType::shift_right:
         return "`>>`";
+    case TokenType::pushonstack:
+        return "`pushonstack`";
     }
     assert(false);
 }
@@ -433,6 +436,10 @@ public:
                 }
                 else if (buf == "__oninit") {
                     tokens.push_back({ .type = TokenType::oninit, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "__pushonstack") {
+                    tokens.push_back({ .type = TokenType::pushonstack, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {

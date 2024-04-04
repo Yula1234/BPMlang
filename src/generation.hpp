@@ -1451,6 +1451,11 @@ public:
 				gen.gen_scope(scope);
 			}
 
+			void operator()(const NodeStmtPushOnStack* stmt_push) const
+			{
+				gen.gen_expr(stmt_push->expr);
+			}
+
 			void operator()(const NodeStmtIf* stmt_if) const
 			{
 				gen.gen_expr(stmt_if->expr);

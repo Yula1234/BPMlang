@@ -460,6 +460,11 @@ struct NodeStmtOninit {
 	NodeScope* scope;
 };
 
+struct NodeStmtPushOnStack {
+	Token def;
+	NodeExpr* expr;
+};
+
 struct NodeStmt {
 	std::variant<NodeStmtExit*, NodeStmtLet*,
 				NodeScope*, NodeStmtIf*,
@@ -472,7 +477,7 @@ struct NodeStmt {
 				NodeStmtBreak*,NodeStmtIncBy*,
 				NodeStmtDecBy*,NodeStmtMulBy*,
 				NodeStmtDivBy*,NodeStmtInterface*,
-				NodeStmtOninit*> var;
+				NodeStmtOninit*,NodeStmtPushOnStack*> var;
 };
 
 struct NodeProg {
@@ -1438,6 +1443,23 @@ public:
 			try_consume_err(TokenType::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_cextern;
+			return stmt;
+		}
+
+		if(auto _push = try_consume(TokenType::pushonstack)) {
+			Token def = _push.value();
+			auto stmt_push = m_allocator.emplace<NodeStmtPushOnStack>();
+			stmt_push->def = def;
+			try_consume_err(TokenType::open_paren);
+			if(auto _expr = parse_expr()) {
+				stmt_push->expr = _expr.value();
+			} else {
+				error_expected("expression");
+			}
+			try_consume_err(TokenType::close_paren);
+			try_consume_err(TokenType::semi);
+			auto stmt = m_allocator.emplace<NodeStmt>();
+			stmt->var = stmt_push;
 			return stmt;
 		}
 
