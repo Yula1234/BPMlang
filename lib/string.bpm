@@ -40,9 +40,11 @@ proc strcpy src:ptr dst:ptr -> void {
 
 #define foreach_str(__str __stmt)
 	{
-		let i = 0;
-		while(rd8(__str + i) != 0) {
+		let __i = 0;
+		let __char: int;
+		while(rd8(__str + __i) != 0) {
+			__char = rd8(__str + __i);
 			__stmt
-			i += 1;
+			__i += 1;
 		}
 	}$
