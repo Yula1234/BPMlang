@@ -67,3 +67,8 @@ proc read_file f:FILE buf:ptr -> int {
 	store8(buf + (i - 1), 0);
 	return i;
 }
+
+proc writeln f:FILE line:ptr -> void {
+	fputs(f.desc, line);
+	fputc(f.desc, '\n');
+}
