@@ -1,0 +1,35 @@
+#define __mov(__src __dst)
+	asm "mov " __src ", " __dst$
+
+#define __push(__value)
+	asm "push " __value$
+
+#define __pop(__src)
+	asm "pop " __src$
+
+#define __call(__fname)
+	asm "call " __fname$
+
+#define __label(__lname)
+	asm __lname ":"$
+
+#define __jmp(__lname)
+	asm "jmp " __lname$
+
+#define __xor(__src __dst)
+	asm "xor " __src ", " __dst$
+
+#define __add(__src __dst)
+	asm "add " __src ", " __dst$
+
+#define __sub(__src __dst)
+	asm "sub " __src ", " __dst$
+
+#define __div(__src __dst)
+	asm "div " __src ", " __dst$
+
+#define __imul(__src __dst)
+	asm "imul " __src ", " __dst$
+
+#define __mul(__src)
+	asm "mul " __src$
