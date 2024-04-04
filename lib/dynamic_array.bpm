@@ -101,3 +101,40 @@ proc dynarray_print da:DynamicArray -> void {
 }
 
 #define dynarray_get_as(__dynarray __index __type) cast(__type, dynarray_get(__dynarray, __index))$
+
+#define foreach_dynarray(__dynarray __type __stmt)
+	{
+		let __i = 0;
+		let __value: __type;
+		while(__i < __dynarray.size) {
+			__value = dynarray_get_as(__dynarray, __i, __type); 
+			__stmt
+			__i += 1;
+		}
+	}$ /*
+		macro make basic-loop for all elements
+		in dynamic array.
+		in context you can use `__i` and `__value`.
+		`__i` is current iteration number,
+		`__value` is current value in array nth __i.
+
+		example:
+		let Dynarray = new_dynarray(12);
+		{
+			let i = 0;
+			while(i < 5) {
+			dynarray_push(arr, i);
+				i += 1;
+			}
+		}
+		foreach_dynarray(Dynarray, int, {
+			putu(__value);
+		})
+		delete_dynarray(Dynarray);
+		output:
+		0
+		1
+		2
+		3
+		4
+*/
