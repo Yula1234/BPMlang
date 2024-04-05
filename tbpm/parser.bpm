@@ -135,6 +135,8 @@ proc Error str:ptr file:ptr line:int col:int -> void {
 	exit(1);
 }
 
+proc parser_parse_args prs:parser -> DynamicArray;
+
 proc parser_parse_term prs:parser -> NodeExpr {
 	if(parser_peek(prs).type == TokenTypeIntLiteral) {
 		let number_tok = parser_consume(prs);
@@ -144,8 +146,15 @@ proc parser_parse_term prs:parser -> NodeExpr {
 	if((parser_peek(prs).type == TokenTypeIdent) && (parser_peek_at(prs, 1).type == TokenTypeOpenParen)) {
 		let def = parser_consume(prs);
 		parser_consume_err(prs, TokenTypeOpenParen);
+		let args: DynamicArray;
+		if(parser_peek(prs).type != TokenTypeCloseParen) {
+			args = parser_parse_args(prs);
+		}
+		else {
+			args = cast(DynamicArray, 0);
+		}
 		parser_consume_err(prs, TokenTypeCloseParen);
-		let expr_call = NodeExprCall(def, def.value, cast(DynamicArray, 0));
+		let expr_call = NodeExprCall(def, def.value, args);
 		let fexpr = NodeExpr(NodeKindCall, cast(ptr, expr_call));
 		return fexpr;
 	}
