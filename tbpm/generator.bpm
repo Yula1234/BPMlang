@@ -6,7 +6,8 @@ struct Generator {
 	vars_index:int,
 	arena:ArenaAllocator,
 	label_count:int,
-	procs:DynamicArray
+	procs:DynamicArray,
+	cur_proc:Proc
 }
 
 struct Var(__global_obj_alloc) {
@@ -109,7 +110,8 @@ proc new_generator asm_file:FILE -> Generator {
 		0,
 		new_arena(56 * 1024),
 		0,
-		new_dynarray(12)
+		new_dynarray(12),
+		cast(Proc, 0)
 	);
 }
 
@@ -361,7 +363,9 @@ proc gen_generate_proc stmt:NodeStmtProc gen:Generator -> void {
 	format_fprint(gen.asm_file.desc, "%s:\n", stmt.name);
 	fputs(gen.asm_file.desc, "    push ebp\n");
 	fputs(gen.asm_file.desc, "    mov ebp, esp\n");
+	gen.cur_proc = dynarray_get_as(gen.procs, ((gen.procs).size) - 1, Proc);
 	gen_block_sp(stmt.block, dynarray_get_as(gen.procs, ((gen.procs).size) - 1, Proc),gen);
+	gen.cur_proc = cast(Proc, 0);
 	fputs(gen.asm_file.desc, "    pop ebp\n");
 	fputs(gen.asm_file.desc, "    ret\n\n");
 }
@@ -425,6 +429,15 @@ proc gen_generate_scall stmt:NodeStmtCall gen:Generator -> void {
 }
 
 proc gen_generate_return stmt:NodeStmtReturn gen:Generator -> void {
+	let __type = gen_type_of_expr(stmt.expr, gen);
+	let cp = gen.cur_proc;
+	if(cp.type != __type) {
+		let def = stmt.def;
+		let errmes = malloc(140);
+		let cp = gen.cur_proc;
+		sprintf(errmes, "procedure `%s` at return except type %s\nNOTE: but got %s\n", cp.name, dt_to_string(cp.type), dt_to_string(__type));
+		Error(errmes, def.file_loc, def.line, def.col);
+	}
 	let scopes_sum = 0;
 	foreach_dynarray(gen.scopes, int, {
 		scopes_sum += __value;
