@@ -344,6 +344,7 @@ proc lexer_lex
 		}
 		elif(lexer_peek(lxr) == '\n') {
 			line_count = line_count + 1;
+			lxr.col = 1;
 			lexer_consume(lxr);
 		}
 		elif(isspace(lexer_peek(lxr))) {

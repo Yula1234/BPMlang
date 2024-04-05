@@ -39,6 +39,8 @@ proc parser_consume prs:parser -> Token {
 	return tok;
 }
 
+proc parser_consume_err prs:parser type:int -> Token;
+
 const DataTypeInt  iota;
 const DataTypeVoid iota;
 const DataTypePtr  iota;
@@ -108,6 +110,12 @@ struct NodeExprIdent(__global_obj_alloc) {
 	ident:ptr
 }
 
+struct NodeExprCall(__global_obj_alloc) {
+	def:Token,
+	name:ptr,
+	args:DynamicArray
+}
+
 struct NodeExpr(__global_obj_alloc) {
 	kind:int,
 	data:ptr
@@ -119,6 +127,7 @@ const NodeKindMinus iota;
 const NodeKindMul   iota;
 const NodeKindDiv   iota;
 const NodeKindIdent iota;
+const NodeKindCall  iota;
 const NodeKindsCount reset;
 
 proc Error str:ptr file:ptr line:int col:int -> void {
@@ -131,6 +140,14 @@ proc parser_parse_term prs:parser -> NodeExpr {
 		let number_tok = parser_consume(prs);
 		let expr_int = NodeExpr(NodeKindInt, number_tok.value);
 		return expr_int;
+	}
+	if((parser_peek(prs).type == TokenTypeIdent) && (parser_peek_at(prs, 1).type == TokenTypeOpenParen)) {
+		let def = parser_consume(prs);
+		parser_consume_err(prs, TokenTypeOpenParen);
+		parser_consume_err(prs, TokenTypeCloseParen);
+		let expr_call = NodeExprCall(def, def.value, cast(DynamicArray, 0));
+		let fexpr = NodeExpr(NodeKindCall, cast(ptr, expr_call));
+		return fexpr;
 	}
 	if(parser_peek(prs).type == TokenTypeIdent) {
 		let tok = parser_consume(prs);
@@ -284,6 +301,12 @@ struct NodeStmtBlock(__global_obj_alloc) {
 	stmts:DynamicArray
 }
 
+struct NodeStmtCall(__global_obj_alloc) {
+	def:Token,
+	name:ptr,
+	args:DynamicArray
+}
+
 const PredKindElse iota;
 const PredKindElif iota;
 const IfPredsCount reset;
@@ -321,6 +344,7 @@ const StmtKindPrint iota;
 const StmtKindLet   iota;
 const StmtKindIf    iota;
 const StmtKindProc  iota;
+const StmtKindCall  iota;
 const StmtKindsCount reset;
 
 proc parser_parse_stmt prs:parser -> int;
@@ -422,6 +446,15 @@ proc parser_parse_stmt prs:parser -> int {
 		let block = parser_parse_block(prs);
 		let proc_stmt = NodeStmtProc(block, name, token_to_dt(ttype.type), def);
 		let stmt = NodeStmt(StmtKindProc, cast(ptr, proc_stmt));
+		return cast(int, stmt);
+	}
+	elif((parser_peek(prs).type == TokenTypeIdent) && parser_peek_at(prs, 1).type == TokenTypeOpenParen) {
+		let def = parser_consume(prs);
+		parser_consume_err(prs, TokenTypeOpenParen);
+		parser_consume_err(prs, TokenTypeCloseParen);
+		parser_consume_err(prs, TokenTypeSemi);		
+		let call_stmt = NodeStmtCall(def, def.value, cast(DynamicArray, 0));
+		let stmt = NodeStmt(StmtKindCall, cast(ptr, call_stmt));
 		return cast(int, stmt);
 	}
 	return 0;

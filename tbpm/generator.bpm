@@ -21,6 +21,16 @@ struct Proc(__global_obj_alloc) {
 
 proc gen_var_lookup name:ptr gen:Generator -> int;
 
+proc gen_proc_lookup name:ptr gen:Generator -> int {
+	let procs = gen.procs;
+	foreach_dynarray(procs, Proc, {
+		if(streq(__value.name, name)) {
+			return cast(int, __value);
+		}
+	})
+	return 0;
+}
+
 proc gen_type_of_expr expr:NodeExpr gen:Generator -> int {
 	if(expr.kind == NodeKindInt) {
 		return DataTypeInt;
@@ -290,6 +300,21 @@ proc gen_generate_proc stmt:NodeStmtProc gen:Generator -> void {
 	fputs(gen.asm_file.desc, "    ret\n\n");
 }
 
+cextern "sprintf";
+
+proc sprintf p:ptr fstr:ptr -> void [nosizedargs];
+
+proc gen_generate_call stmt:NodeStmtCall gen:Generator -> void {
+	let _procedure = gen_proc_lookup(stmt.name, gen);
+	if(_procedure == 0) {
+		let def = stmt.def;
+		let errmes = malloc(120);
+		sprintf(errmes, "unkown procedure `%s`", stmt.name);
+		Error(errmes, def.file_loc, def.line, def.col);
+	}
+	format_fprint(gen.asm_file.desc, "    call %s\n", stmt.name);	
+}
+
 proc gen_stmt _stmt:ptr gen:Generator -> void {
 	let stmt = cast(NodeStmt, _stmt);
 	if(stmt.kind == StmtKindExit) {
@@ -311,6 +336,10 @@ proc gen_stmt _stmt:ptr gen:Generator -> void {
 	elif(stmt.kind == StmtKindProc) {
 		let stmt_proc = cast(NodeStmtProc, stmt.data);
 		gen_generate_proc(stmt_proc, gen);
+	}
+	elif(stmt.kind == StmtKindCall) {
+		let stmt_call = cast(NodeStmtCall, stmt.data);
+		gen_generate_call(stmt_call, gen);
 	}
 	else {
 		puts("unkown stmt at gen_stmt\n");
