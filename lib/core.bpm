@@ -71,6 +71,10 @@ proc cmemcpy src:ptr dst:ptr size:int -> void
 
 cextern "printf";
 cextern "fprintf";
+cextern "sprintf";
+
+proc sprintf p:ptr fstr:ptr -> void
+[nosizedargs];
 
 proc printf fstring:ptr -> void
 [nosizedargs];

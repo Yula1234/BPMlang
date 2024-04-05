@@ -367,12 +367,18 @@ struct NodeStmtProc(__global_obj_alloc) {
 	args:DynamicArray
 }
 
-const StmtKindExit  iota;
-const StmtKindPrint iota;
-const StmtKindLet   iota;
-const StmtKindIf    iota;
-const StmtKindProc  iota;
-const StmtKindCall  iota;
+struct NodeStmtReturn(__global_obj_alloc) {
+	def:Token,
+	expr:NodeExpr
+}
+
+const StmtKindExit   iota;
+const StmtKindPrint  iota;
+const StmtKindLet    iota;
+const StmtKindIf     iota;
+const StmtKindProc   iota;
+const StmtKindCall   iota;
+const StmtKindReturn iota;
 const StmtKindsCount reset;
 
 proc parser_parse_stmt prs:parser -> int;
@@ -507,6 +513,14 @@ proc parser_parse_stmt prs:parser -> int {
 		parser_consume_err(prs, TokenTypeSemi);
 		let call_stmt = NodeStmtCall(def, def.value, args);
 		let stmt = NodeStmt(StmtKindCall, cast(ptr, call_stmt));
+		return cast(int, stmt);
+	}
+	elif(parser_peek(prs).type == TokenTypeReturn) {
+		let def = parser_consume(prs);
+		let _rexpr = parser_parse_expr(prs, 0);
+		parser_consume_err(prs, TokenTypeSemi);
+		let ret_stmt = NodeStmtReturn(def, _rexpr);
+		let stmt = NodeStmt(StmtKindReturn, cast(ptr, ret_stmt));
 		return cast(int, stmt);
 	}
 	return 0;

@@ -48,6 +48,18 @@ proc gen_type_of_expr expr:NodeExpr gen:Generator -> int {
 		}
 		return cast(Var, svar).type;
 	}
+	elif(expr.kind == NodeKindCall) {
+		let expr_call = cast(NodeExprCall, expr.data);
+		let pname = expr_call.name;
+		let _procedure = gen_proc_lookup(pname, gen);
+		if(_procedure == 0) {
+			let etok = expr_call.def;
+			format_print("%s:%d:%d ERROR: unkown procedure `%s`\n", etok.file_loc, etok.line, etok.col, pname);
+			exit(1);
+		}
+		let procedure = cast(Proc, _procedure);
+		return procedure.type;
+	}
 	elif(expr.kind == NodeKindPlus) {
 		let add_expr = cast(NodeExprAdd, expr.data);
 		return gen_type_of_expr(cast(NodeExpr, add_expr.left), gen);
@@ -111,6 +123,41 @@ proc delete_generator gen:Generator -> void {
 	delete gen;
 }
 
+proc gen_generate_expr expr:NodeExpr gen:Generator -> void;
+
+proc gen_typecheck_args actual:DynamicArray ex_args:DynamicArray where:Token name:ptr gen:Generator -> int;
+
+proc gen_generate_ecall expr:NodeExprCall gen:Generator -> void {
+	let _procedure = gen_proc_lookup(expr.name, gen);
+	if(_procedure == 0) {
+		let def = expr.def;
+		let errmes = malloc(120);
+		sprintf(errmes, "unkown procedure `%s`", expr.name);
+		Error(errmes, def.file_loc, def.line, def.col);
+	}
+	let procedure = cast(Proc, _procedure);
+	let args = expr.args;
+	let has_args = (cast(int, args) != 0);
+	let args_size = 0;
+	if(has_args) {
+		args_size = args.size;
+	}
+	gen_typecheck_args(args, procedure.args, expr.def, procedure.name, gen);
+	if(has_args) {
+		let i = args.size - 1;
+		while(i != neg(1)) {
+			let __v = dynarray_get_as(args, i, NodeExpr);
+			gen_generate_expr(__v, gen);
+			i -= 1;
+		}
+	}
+	format_fprint(gen.asm_file.desc, "    call %s\n", expr.name);	
+	if(args_size != 0) {
+		format_fprint(gen.asm_file.desc, "    add esp, %d\n", args_size * 4);
+	}
+	fputs(gen.asm_file.desc, "    push eax\n");
+}
+
 proc gen_generate_expr expr:NodeExpr gen:Generator -> void {
 	if(expr.kind == NodeKindInt) {
 		format_fprint(gen.asm_file.desc, "    push dword %s\n", expr.data);
@@ -163,6 +210,9 @@ proc gen_generate_expr expr:NodeExpr gen:Generator -> void {
 		fputs(gen.asm_file.desc, "    div ebx\n");
 		fputs(gen.asm_file.desc, "    push eax\n");
 		fputs(gen.asm_file.desc, "    mov edx, ecx\n");
+	}
+	elif(expr.kind == NodeKindCall) {
+		gen_generate_ecall(cast(NodeExprCall, expr.data), gen);
 	}
 	else {
 		format_print("ERROR: unkown expr.kind at `gen_generate_expr` - ");
@@ -316,10 +366,6 @@ proc gen_generate_proc stmt:NodeStmtProc gen:Generator -> void {
 	fputs(gen.asm_file.desc, "    ret\n\n");
 }
 
-cextern "sprintf";
-
-proc sprintf p:ptr fstr:ptr -> void [nosizedargs];
-
 proc gen_typecheck_args actual:DynamicArray ex_args:DynamicArray where:Token name:ptr gen:Generator -> int {
 	let def = where;
 	if(cast(int, actual) == 0) {
@@ -327,6 +373,8 @@ proc gen_typecheck_args actual:DynamicArray ex_args:DynamicArray where:Token nam
 			let errmes = arena_take(objectArena, 120);
 			sprintf(errmes, "procedure `%s` excepts %d args\nNOTE: but got 0", name, ex_args.size);
 			Error(errmes, def.file_loc, def.line, def.col);
+		} else {
+			return true;
 		}
 	}
 	if(actual.size != ex_args.size) {
@@ -376,6 +424,20 @@ proc gen_generate_scall stmt:NodeStmtCall gen:Generator -> void {
 	}
 }
 
+proc gen_generate_return stmt:NodeStmtReturn gen:Generator -> void {
+	let scopes_sum = 0;
+	foreach_dynarray(gen.scopes, int, {
+		scopes_sum += __value;
+	})
+	gen_generate_expr(stmt.expr, gen);
+	fputs(gen.asm_file.desc, "    pop eax\n");
+	if(scopes_sum != 0) {
+		format_fprint(gen.asm_file.desc, "    add esp, %d\n", scopes_sum * 4);
+	}
+	fputs(gen.asm_file.desc, "    pop ebp\n");
+	fputs(gen.asm_file.desc, "    ret\n");
+}
+
 proc gen_stmt _stmt:ptr gen:Generator -> void {
 	let stmt = cast(NodeStmt, _stmt);
 	if(stmt.kind == StmtKindExit) {
@@ -401,6 +463,10 @@ proc gen_stmt _stmt:ptr gen:Generator -> void {
 	elif(stmt.kind == StmtKindCall) {
 		let stmt_call = cast(NodeStmtCall, stmt.data);
 		gen_generate_scall(stmt_call, gen);
+	}
+	elif(stmt.kind == StmtKindReturn) {
+		let stmt_ret = cast(NodeStmtReturn, stmt.data);
+		gen_generate_return(stmt_ret, gen);
 	}
 	else {
 		puts("unkown stmt at gen_stmt\n");
