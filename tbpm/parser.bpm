@@ -203,6 +203,28 @@ proc is_bin_operator toktype:int -> int {
 	return false;
 }
 
+proc parser_parse_expr prs:parser min_prec:int -> NodeExpr;
+
+proc parser_parse_args prs:parser -> DynamicArray {
+	let args = new_dynarray(4);
+	let i = 0;
+	if(parser_peek(prs).type == TokenTypeCloseParen) {
+		return args;
+	}
+	while(parser_peek(prs).type != TokenTypeCloseParen) {
+		let _expr = parser_parse_expr(prs, 0);
+		dynarray_push(args, _expr);
+		if((parser_peek(prs).type != TokenTypeComma) && (parser_peek(prs).type != TokenTypeCloseParen)) {
+			let ctok = parser_peek(prs);
+			Error("excepted args", ctok.file_loc, ctok.line, ctok.col);
+		}
+		if(parser_peek(prs).type == TokenTypeComma) {
+			parser_consume(prs);
+		}
+	}
+	return args;
+}
+
 proc parser_parse_expr prs:parser min_prec:int -> NodeExpr {
 	let term_lhs = parser_parse_term(prs);
 	let expr_lhs = NodeExpr(term_lhs.kind, term_lhs.data);
@@ -332,11 +354,17 @@ struct NodeStmtIf(__global_obj_alloc) {
 	pred:ptr
 }
 
+struct ProcArg(__global_obj_alloc) {
+	name:ptr,
+	type:int
+}
+
 struct NodeStmtProc(__global_obj_alloc) {
 	block:NodeStmtBlock,
 	name:ptr,
 	type:int,
-	def:Token
+	def:Token,
+	args:DynamicArray
 }
 
 const StmtKindExit  iota;
@@ -451,9 +479,16 @@ proc parser_parse_stmt prs:parser -> int {
 	elif((parser_peek(prs).type == TokenTypeIdent) && parser_peek_at(prs, 1).type == TokenTypeOpenParen) {
 		let def = parser_consume(prs);
 		parser_consume_err(prs, TokenTypeOpenParen);
+		let args: DynamicArray;
+		if(parser_peek(prs).type != TokenTypeCloseParen) {
+			args = parser_parse_args(prs);
+		}
+		else {
+			args = cast(DynamicArray, 0);
+		}
 		parser_consume_err(prs, TokenTypeCloseParen);
-		parser_consume_err(prs, TokenTypeSemi);		
-		let call_stmt = NodeStmtCall(def, def.value, cast(DynamicArray, 0));
+		parser_consume_err(prs, TokenTypeSemi);
+		let call_stmt = NodeStmtCall(def, def.value, args);
 		let stmt = NodeStmt(StmtKindCall, cast(ptr, call_stmt));
 		return cast(int, stmt);
 	}

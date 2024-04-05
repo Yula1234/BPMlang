@@ -303,7 +303,7 @@ cextern "sprintf";
 
 proc sprintf p:ptr fstr:ptr -> void [nosizedargs];
 
-proc gen_generate_call stmt:NodeStmtCall gen:Generator -> void {
+proc gen_generate_scall stmt:NodeStmtCall gen:Generator -> void {
 	let _procedure = gen_proc_lookup(stmt.name, gen);
 	if(_procedure == 0) {
 		let def = stmt.def;
@@ -311,7 +311,21 @@ proc gen_generate_call stmt:NodeStmtCall gen:Generator -> void {
 		sprintf(errmes, "unkown procedure `%s`", stmt.name);
 		Error(errmes, def.file_loc, def.line, def.col);
 	}
+	let args = stmt.args;
+	let has_args = (cast(int, args) != 0);
+	let args_size = 0;
+	if(has_args) {
+		args_size = args.size;
+	}
+	if(has_args) {
+		foreach_dynarray(args, NodeExpr, {
+			gen_generate_expr(__value, gen);
+		})
+	}
 	format_fprint(gen.asm_file.desc, "    call %s\n", stmt.name);	
+	if(args_size != 0) {
+		format_fprint(gen.asm_file.desc, "    add esp, %d\n", args_size * 4);
+	}
 }
 
 proc gen_stmt _stmt:ptr gen:Generator -> void {
@@ -338,7 +352,7 @@ proc gen_stmt _stmt:ptr gen:Generator -> void {
 	}
 	elif(stmt.kind == StmtKindCall) {
 		let stmt_call = cast(NodeStmtCall, stmt.data);
-		gen_generate_call(stmt_call, gen);
+		gen_generate_scall(stmt_call, gen);
 	}
 	else {
 		puts("unkown stmt at gen_stmt\n");

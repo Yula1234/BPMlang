@@ -117,6 +117,7 @@ const TokenTypeProc       iota;
 const TokenTypeArrow      iota;
 const TokenTypeVoid       iota;
 const TokenTypeInt        iota;
+const TokenTypeComma      iota;
 const TokenTypesCount     reset;
 
 struct Token(__global_obj_alloc) {
@@ -198,6 +199,9 @@ proc tokentype2str type:int -> ptr {
 	}
 	elif(type == TokenTypeInt) {
 		return "`int`";
+	}
+	elif(type == TokenTypeComma) {
+		return "`,`";
 	}
 	format_print("tokentype2str error: unkown TokenType `%d`\n", type);
 	exit(0);
@@ -306,6 +310,11 @@ proc lexer_lex
 		}
 		elif(lexer_peek(lxr) == ';') {
 			tmp_tok = Token(TokenTypeSemi, line_count, lxr.col - 1, "", FILE_PATH);
+			push_token(tokens, &tokens_count, tmp_tok);
+			lexer_consume(lxr);
+		}
+		elif(lexer_peek(lxr) == ',') {
+			tmp_tok = Token(TokenTypeComma, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
