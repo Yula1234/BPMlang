@@ -4,6 +4,7 @@ include "string"
 include "string_view"
 include "dynamic_array"
 include "arena"
+let objectArena: ArenaAllocator;
 include "lexer"
 include "parser"
 include "generator"
@@ -21,8 +22,6 @@ proc cmd_exec com_line_args:ptr -> void
 	asm "call system";
 	asm "add esp, 4";
 }
-
-let objectArena: ArenaAllocator;
 
 proc __global_obj_alloc size:int -> ptr {
 	return arena_take(objectArena, size);

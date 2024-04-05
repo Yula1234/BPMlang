@@ -17,7 +17,8 @@ struct Var(__global_obj_alloc) {
 
 struct Proc(__global_obj_alloc) {
 	name:ptr,
-	type:int
+	type:int,
+	args:DynamicArray
 }
 
 proc gen_var_lookup name:ptr gen:Generator -> int;
@@ -285,12 +286,12 @@ proc gen_generate_if stmt:NodeStmtIf gen:Generator -> void {
 	format_fprint(gen.asm_file.desc, "    %s:\n", endlab);
 }
 
-proc gen_define_proc name:ptr type:int gen:Generator -> void {
-	dynarray_push(gen.procs, Proc(name, type));
+proc gen_define_proc name:ptr type:int args:DynamicArray gen:Generator -> void {
+	dynarray_push(gen.procs, Proc(name, type, args));
 }
 
 proc gen_generate_proc stmt:NodeStmtProc gen:Generator -> void {
-	gen_define_proc(stmt.name, stmt.type, gen);
+	gen_define_proc(stmt.name, stmt.type, stmt.args, gen);
 	format_fprint(gen.asm_file.desc, "%s:\n", stmt.name);
 	fputs(gen.asm_file.desc, "    push ebp\n");
 	fputs(gen.asm_file.desc, "    mov ebp, esp\n");
@@ -303,6 +304,32 @@ cextern "sprintf";
 
 proc sprintf p:ptr fstr:ptr -> void [nosizedargs];
 
+proc gen_typecheck_args actual:DynamicArray ex_args:DynamicArray where:Token name:ptr gen:Generator -> int {
+	let def = where;
+	if(cast(int, actual) == 0) {
+		if(ex_args.size != 0) {
+			let errmes = arena_take(objectArena, 120);
+			sprintf(errmes, "procedure `%s` excepts %d\nNOTE: but got 0", name, ex_args.size);
+			Error(errmes, def.file_loc, def.line, def.col);
+		}
+	}
+	if(actual.size != ex_args.size) {
+		let errmes = arena_take(objectArena, 120);
+		sprintf(errmes, "procedure `%s` excepts %d\nNOTE: but got %d", name, ex_args.size, actual.size);
+		Error(errmes, def.file_loc, def.line, def.col);
+	}
+	foreach_dynarray(actual, NodeExpr, {
+		let tp = gen_type_of_expr(__value, gen);
+		let extp = dynarray_get_as(ex_args, __i, ProcArg);
+		if(tp != extp.type) {
+			let errmes = arena_take(objectArena, 120);
+			sprintf(errmes, "procedure `%s` excepts %s type at %d arg\nNOTE: but got %s", name, dt_to_string(extp.type), __i, dt_to_string(tp));
+			Error(errmes, def.file_loc, def.line, def.col);
+		}
+	})
+	return true;
+}
+
 proc gen_generate_scall stmt:NodeStmtCall gen:Generator -> void {
 	let _procedure = gen_proc_lookup(stmt.name, gen);
 	if(_procedure == 0) {
@@ -311,12 +338,14 @@ proc gen_generate_scall stmt:NodeStmtCall gen:Generator -> void {
 		sprintf(errmes, "unkown procedure `%s`", stmt.name);
 		Error(errmes, def.file_loc, def.line, def.col);
 	}
+	let procedure = cast(Proc, _procedure);
 	let args = stmt.args;
 	let has_args = (cast(int, args) != 0);
 	let args_size = 0;
 	if(has_args) {
 		args_size = args.size;
 	}
+	gen_typecheck_args(args, procedure.args, stmt.def, procedure.name, gen);
 	if(has_args) {
 		foreach_dynarray(args, NodeExpr, {
 			gen_generate_expr(__value, gen);

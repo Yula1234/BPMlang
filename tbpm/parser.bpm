@@ -480,7 +480,6 @@ proc parser_parse_stmt prs:parser -> int {
 					Error("excepted procedure return type", typetok.file_loc, typetok.line, typetok.col);
 				}
 				let arg = ProcArg(ntok.value, token_to_dt(typetok.type));
-				put_arg(arg);
 				dynarray_push(args, arg);
 			}
 		}
