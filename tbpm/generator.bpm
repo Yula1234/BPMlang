@@ -18,7 +18,8 @@ struct Var(__global_obj_alloc) {
 struct Proc(__global_obj_alloc) {
 	name:ptr,
 	type:int,
-	args:DynamicArray
+	args:DynamicArray,
+	def:Token
 }
 
 proc gen_var_lookup name:ptr gen:Generator -> int;
@@ -244,6 +245,21 @@ proc gen_block block:NodeStmtBlock gen:Generator -> void {
 	gen_end_scope(gen);
 }
 
+proc gen_block_sp block:NodeStmtBlock procedure:Proc gen:Generator -> void {
+	let i = 0;
+	gen_begin_scope(collect_allign(block.stmts) + ((procedure.args).size), gen);
+	foreach_dynarray(procedure.args, ProcArg, {
+		gen_create_var(gen, __value.name, __value.type, procedure.def);
+		format_fprint(gen.asm_file.desc, "    mov edx, dword [ebp+%d]\n", (__i * 4) + 8);
+		format_fprint(gen.asm_file.desc, "    mov dword [ebp-%d], edx\n", (__i * 4) + 4);
+	})
+	while(i < block.stmts.size) {
+		gen_stmt(cast(ptr, dynarray_get(block.stmts, i)), gen);
+		i += 1;
+	}
+	gen_end_scope(gen);
+}
+
 proc gen_if_pred pred:NodeIfPred endlab:ptr gen:Generator -> void {
 	if(pred.kind == PredKindElse) {
 		let else_pred = cast(IfPredElse, pred.data);
@@ -286,16 +302,16 @@ proc gen_generate_if stmt:NodeStmtIf gen:Generator -> void {
 	format_fprint(gen.asm_file.desc, "    %s:\n", endlab);
 }
 
-proc gen_define_proc name:ptr type:int args:DynamicArray gen:Generator -> void {
-	dynarray_push(gen.procs, Proc(name, type, args));
+proc gen_define_proc name:ptr type:int args:DynamicArray gen:Generator def:Token -> void {
+	dynarray_push(gen.procs, Proc(name, type, args, def));
 }
 
 proc gen_generate_proc stmt:NodeStmtProc gen:Generator -> void {
-	gen_define_proc(stmt.name, stmt.type, stmt.args, gen);
+	gen_define_proc(stmt.name, stmt.type, stmt.args, gen, stmt.def);
 	format_fprint(gen.asm_file.desc, "%s:\n", stmt.name);
 	fputs(gen.asm_file.desc, "    push ebp\n");
 	fputs(gen.asm_file.desc, "    mov ebp, esp\n");
-	gen_block(stmt.block, gen);
+	gen_block_sp(stmt.block, dynarray_get_as(gen.procs, ((gen.procs).size) - 1, Proc),gen);
 	fputs(gen.asm_file.desc, "    pop ebp\n");
 	fputs(gen.asm_file.desc, "    ret\n\n");
 }
@@ -347,9 +363,12 @@ proc gen_generate_scall stmt:NodeStmtCall gen:Generator -> void {
 	}
 	gen_typecheck_args(args, procedure.args, stmt.def, procedure.name, gen);
 	if(has_args) {
-		foreach_dynarray(args, NodeExpr, {
-			gen_generate_expr(__value, gen);
-		})
+		let i = args.size - 1;
+		while(i != neg(1)) {
+			let __v = dynarray_get_as(args, i, NodeExpr);
+			gen_generate_expr(__v, gen);
+			i -= 1;
+		}
 	}
 	format_fprint(gen.asm_file.desc, "    call %s\n", stmt.name);	
 	if(args_size != 0) {
