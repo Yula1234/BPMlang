@@ -11,7 +11,8 @@ struct Generator {
 
 struct Var(__global_obj_alloc) {
 	name:ptr,
-	stack_loc:int
+	stack_loc:int,
+	type:int
 }
 
 struct Proc(__global_obj_alloc) {
@@ -43,9 +44,7 @@ proc gen_type_of_expr expr:NodeExpr gen:Generator -> int {
 			format_print("%s:%d:%d ERROR: unkown name `%s`\n", etok.file_loc, etok.line, etok.col, expr_ident.ident);
 			exit(1);
 		}
-		let var = cast(Var, svar);
-		puts("get type of expr ident is not implemented yet\n");
-		exit(1);
+		return cast(Var, svar).type;
 	}
 	elif(expr.kind == NodeKindPlus) {
 		let add_expr = cast(NodeExprAdd, expr.data);
@@ -63,11 +62,9 @@ proc gen_type_of_expr expr:NodeExpr gen:Generator -> int {
 		let div_expr = cast(NodeExprMul, expr.data);
 		return gen_type_of_expr(cast(NodeExpr, div_expr.left), gen);
 	}
-	else {
-		format_print("ERROR: unkown expr.kind at `gen_type_of_expr` - ");
-		putu(expr.kind);
-		exit(1);
-	}
+	format_print("ERROR: unkown expr.kind at `gen_type_of_expr` - ");
+	putu(expr.kind);
+	exit(1);
 }
 
 proc gen_var_lookup name:ptr gen:Generator -> int {
@@ -173,8 +170,8 @@ proc gen_generate_expr expr:NodeExpr gen:Generator -> void {
 }
 
 /* variables tools */
-proc gen_create_var gen:Generator name:ptr def:Token -> void {
-	let var = Var(name, (gen.vars_index * 4) + 4);
+proc gen_create_var gen:Generator name:ptr type:int def:Token -> void {
+	let var = Var(name, (gen.vars_index * 4) + 4, type);
 	let i = gen.vars_index;
 	gen.vars_index += 1;
 	dynarray_push(cast(DynamicArray, dynarray_get(gen.vars, ((gen.vars).size) - 1)), var);
@@ -196,8 +193,10 @@ proc gen_generate_print stmt:NodeStmtPrint gen:Generator -> void {
 }
 
 proc gen_generate_let stmt:NodeStmtLet gen:Generator -> void {
-	gen_create_var(gen, stmt.name, stmt.def);
-	gen_generate_expr(cast(NodeExpr, stmt.expr), gen);
+	let initializer = cast(NodeExpr, stmt.expr);
+	let etype = gen_type_of_expr(initializer, gen);
+	gen_create_var(gen, stmt.name, etype, stmt.def);
+	gen_generate_expr(initializer, gen);
 	fputs(gen.asm_file.desc, "    pop edx\n");
 	format_fprint(gen.asm_file.desc, "    mov dword [ebp-%d], edx\n", gen.vars_index * 4);
 }
