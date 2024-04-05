@@ -17,8 +17,10 @@ proc delete_dynarray da:DynamicArray -> void {
 
 proc dynarray_extend da:DynamicArray -> void {
 	let tmp = memalloc((da.capacity * 4) * 2);
+	
 	memcopy(tmp, da.data, da.size * 4);
 	memfree(da.data);
+
 	da.capacity = da.capacity * 2;
 	da.data = tmp;
 }
