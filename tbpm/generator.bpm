@@ -325,13 +325,13 @@ proc gen_typecheck_args actual:DynamicArray ex_args:DynamicArray where:Token nam
 	if(cast(int, actual) == 0) {
 		if(ex_args.size != 0) {
 			let errmes = arena_take(objectArena, 120);
-			sprintf(errmes, "procedure `%s` excepts %d\nNOTE: but got 0", name, ex_args.size);
+			sprintf(errmes, "procedure `%s` excepts %d args\nNOTE: but got 0", name, ex_args.size);
 			Error(errmes, def.file_loc, def.line, def.col);
 		}
 	}
 	if(actual.size != ex_args.size) {
 		let errmes = arena_take(objectArena, 120);
-		sprintf(errmes, "procedure `%s` excepts %d\nNOTE: but got %d", name, ex_args.size, actual.size);
+		sprintf(errmes, "procedure `%s` excepts %d args\nNOTE: but got %d", name, ex_args.size, actual.size);
 		Error(errmes, def.file_loc, def.line, def.col);
 	}
 	foreach_dynarray(actual, NodeExpr, {
