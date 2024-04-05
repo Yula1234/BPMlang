@@ -29,6 +29,9 @@ const false 0;
 #define __local_st(__buffer __struct)
 	cast(__struct, &__buffer)$
 
+#define not(__boolean)
+	(__boolean == 0)$
+
 #define null cast(ptr, 0)$
 
 #define store32_any(__pointer __value)
