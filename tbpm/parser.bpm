@@ -418,6 +418,10 @@ proc parse_if_pred prs:parser -> ptr {
 	return cast(ptr, 0);
 }
 
+proc put_arg arg:ProcArg -> void {
+	format_print("ProcArg(%s, %s)\n", arg.name, dt_to_string(arg.type));
+}
+
 proc parser_parse_stmt prs:parser -> int {
 	let def_tok: Token;
 	if(parser_peek(prs).type == TokenTypeExit) {
@@ -466,13 +470,27 @@ proc parser_parse_stmt prs:parser -> int {
 	elif(parser_peek(prs).type == TokenTypeProc) {
 		let def = parser_consume(prs);
 		let name = parser_consume_err(prs, TokenTypeIdent).value;
+		let args = new_dynarray(4);
+		if(parser_peek(prs).type != TokenTypeArrow) {
+			while(parser_peek(prs).type != TokenTypeArrow) {
+				let ntok = parser_consume_err(prs, TokenTypeIdent);
+				parser_consume_err(prs, TokenTypeDoubleColon);
+				let typetok = parser_consume(prs);
+				if(is_type_token(typetok.type) != 1) {
+					Error("excepted procedure return type", typetok.file_loc, typetok.line, typetok.col);
+				}
+				let arg = ProcArg(ntok.value, token_to_dt(typetok.type));
+				put_arg(arg);
+				dynarray_push(args, arg);
+			}
+		}
 		parser_consume_err(prs, TokenTypeArrow);
 		let ttype = parser_consume(prs);
 		if(is_type_token(ttype.type) != 1) {
 			Error("excepted procedure return type", ttype.file_loc, ttype.line, ttype.col);
 		}
 		let block = parser_parse_block(prs);
-		let proc_stmt = NodeStmtProc(block, name, token_to_dt(ttype.type), def);
+		let proc_stmt = NodeStmtProc(block, name, token_to_dt(ttype.type), def, args);
 		let stmt = NodeStmt(StmtKindProc, cast(ptr, proc_stmt));
 		return cast(int, stmt);
 	}
