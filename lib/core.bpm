@@ -32,6 +32,15 @@ const false 0;
 #define not(__boolean)
 	(__boolean == 0)$
 
+#define foreach_range(__name __start __end __step __stmt)
+	{
+		let __name = __start;
+		while(__name < (__end)) {
+			__stmt
+			__name += __step;
+		}
+	}$
+
 #define null cast(ptr, 0)$
 
 #define store32_any(__pointer __value)
@@ -39,11 +48,30 @@ const false 0;
 $ // macro stores any 32 bit object/number/ptr
 
 cextern "printf";
+cextern "fprintf";
+cextern "sprintf";
+
+proc sprintf p:ptr fstr:ptr -> void
+[nosizedargs];
+
+proc printf fstring:ptr -> void
+[nosizedargs];
+
+proc fprintf fd:ptr fstring:ptr -> void
+[nosizedargs];
 
 proc memcopy src:ptr dst:ptr size:int -> void {
 	let i = 0;
 	while(i < size) {
 		store8(src + i, rd8(dst + i));
+		i += 1;
+	}
+}
+
+proc memset src:ptr value:int size:int -> void {
+	let i = 0;
+	while(i < size) {
+		store8(src + i, value);
 		i += 1;
 	}
 }
@@ -68,19 +96,6 @@ proc cmemcpy src:ptr dst:ptr size:int -> void
 	asm "call memcpy";
 	asm "add esp, 12";
 }
-
-cextern "printf";
-cextern "fprintf";
-cextern "sprintf";
-
-proc sprintf p:ptr fstr:ptr -> void
-[nosizedargs];
-
-proc printf fstring:ptr -> void
-[nosizedargs];
-
-proc fprintf fd:ptr fstring:ptr -> void
-[nosizedargs];
 
 proc cputu number:int -> void
 [nostdargs] {
