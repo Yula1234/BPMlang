@@ -907,7 +907,7 @@ public:
 				gen.m_output << "    pop ebx\n";
 				gen.m_output << "    pop eax\n";
 				gen.m_output << "    cmp eax, ebx\n";
-				gen.m_output << "    cmovc edx, ecx\n";
+				gen.m_output << "    cmovl edx, ecx\n";
 				gen.m_output << "    push edx\n";
 			}
 
@@ -963,7 +963,7 @@ public:
 				gen.m_output << "    pop ebx\n";
 				gen.m_output << "    pop eax\n";
 				gen.m_output << "    cmp eax, ebx\n";
-				gen.m_output << "    cmova edx, ecx\n";
+				gen.m_output << "    cmovg edx, ecx\n";
 				gen.m_output << "    push edx\n";
 			}
 
