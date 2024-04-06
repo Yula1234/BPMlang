@@ -1,53 +1,28 @@
 include "std"
 include "string"
+include "dynamic_array"
 
 struct hash_map {
-	items:ptr,
+	items:DynamicArray,
 	KeyType:int
 }
 
 const HASHMAP_MEM_CAP 16248;
 
 proc __new_hash_map key_type:int -> hash_map {
-	return hash_map(malloc(HASHMAP_MEM_CAP), key_type);
+	return hash_map(new_dynarray(4), key_type);
 }
 
 proc str_hash str:ptr -> int {
 	let hash = 0;
 	foreach_str(str, {
-		hash += ((hash << 2) + hash) + rd8(str + i);
+		hash += ((hash << 5) + hash) + rd8(str + __i);
 	})
-	return hash / 32;
-}
-
-proc HM_get HM:hash_map key:any -> int {
-	if(HM.KeyType == typeid(ptr)) {
-		let hash = str_hash(cast(ptr, key));
-		if((hash * 4) > HASHMAP_MEM_CAP) {
-			__exception("so big key error");
-		}
-		return rd32((HM.items) + (hash * 4));
-	}
-	else {
-		__exception("unkown key_type at HM");
-	}
-}
-
-proc HM_put HM:hash_map key:any value:int -> void {
-	if(HM.KeyType == typeid(ptr)) {
-		let hash = str_hash(cast(ptr, key));
-		if((hash * 4) > HASHMAP_MEM_CAP) {
-			__exception("so big key error");
-		}
-		store32((HM.items) + (hash * 4), value);
-	}
-	else {
-		__exception("unkown key_type at HM");
-	}
+	return hash;
 }
 
 proc HM_delete HM:hash_map -> void {
-	free(HM.items);
+	delete_dynarray(HM.items);
 	delete HM;
 }
 
