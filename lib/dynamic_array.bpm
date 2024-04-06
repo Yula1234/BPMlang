@@ -7,20 +7,18 @@ struct DynamicArray {
 }
 
 proc new_dynarray _A_scapacity:int -> DynamicArray {
-	return DynamicArray(0, _A_scapacity, memalloc(_A_scapacity * 4));
+	return DynamicArray(0, _A_scapacity, malloc(_A_scapacity * 4));
 }
 
 proc delete_dynarray da:DynamicArray -> void {
-	memfree(da.data);
+	free(da.data);
 	delete da;
 }
 
 proc dynarray_extend da:DynamicArray -> void {
-	let tmp = memalloc((da.capacity * 4) * 2);
-	
-	memcopy(tmp, da.data, da.size * 4);
-	memfree(da.data);
-
+	let tmp = malloc((da.capacity * 4) * 2);
+	memcpy(tmp, da.data, da.size * 4);
+	free(da.data);
 	da.capacity = da.capacity * 2;
 	da.data = tmp;
 }
@@ -69,13 +67,13 @@ proc dynarray_insert da:DynamicArray index:int _value:any -> void {
 	if(da.size == da.capacity) {
 		dynarray_extend(da);
 	}
-	memcopy(dynarray_addr_of(da, index + 1), dynarray_addr_of(da, index), (da.size * 4) - (index * 4));
+	memcpy(dynarray_addr_of(da, index + 1), dynarray_addr_of(da, index), (da.size * 4) - (index * 4));
 	store32(dynarray_addr_of(da, index), value_as_i32);
 	da.size += 1;
 }
 
 proc dynarray_erase da:DynamicArray index:int -> void {
-	memcopy(dynarray_addr_of(da, index), dynarray_addr_of(da, index + 1), (da.size * 4) - (index * 4));
+	memcpy(dynarray_addr_of(da, index), dynarray_addr_of(da, index + 1), (da.size * 4) - (index * 4));
 	da.size -= 1;
 }
 
