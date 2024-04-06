@@ -281,7 +281,7 @@ public:
 	}
 
 	/*function returns type of field {}.{}*/
-	DataType type_of_dot(NodeBinExprDot* dot) {
+	DataType type_of_dot(NodeBinExprDot* dot, Token def) {
 		DataType otype = type_of_expr(dot->lhs);
 		if(std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
 			NodeTerm* id = std::get<NodeTerm*>(dot->rhs->var);
@@ -298,6 +298,9 @@ public:
 			std::optional<Struct> st = struct_lookup(struct_name);
 			if(st.has_value()) {
 				std::optional<std::pair<size_t, DataType>> field = field_lookup(st.value(), field_name);		
+				if(!field.has_value()) {
+					GeneratorError(def, "struct `" + struct_name + "` don't have field `" + field_name + "`");
+				}
 				return field.value().second;
 			}
 			std::optional<Interface> inter = inter_lookup(struct_name);
@@ -412,7 +415,7 @@ public:
 			}
 			if(std::holds_alternative<NodeBinExprDot*>(binex->var)) {
 				NodeBinExprDot* dot = std::get<NodeBinExprDot*>(binex->var);
-				return type_of_dot(dot);
+				return type_of_dot(dot, binex->def);
 			}  
 		}
 		assert(false);

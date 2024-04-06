@@ -923,6 +923,7 @@ public:
 				dot->lhs = expr_lhs;
 				dot->rhs = iexpr;
 				NodeBinExpr* binexpr = m_allocator.emplace<NodeBinExpr>();
+				binexpr->def = def;
 				binexpr->var = dot;
 				NodeExpr* resval = m_allocator.emplace<NodeExpr>();
 				resval->var = binexpr;
