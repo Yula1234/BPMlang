@@ -7,10 +7,12 @@ struct hash_map {
 	KeyType:int
 }
 
-const HASHMAP_MEM_CAP 16248;
-
-proc __new_hash_map key_type:int -> hash_map {
-	return hash_map(new_dynarray(4), key_type);
+proc __new_hash_map key_type:int size:int -> hash_map {
+	let HM = hash_map(new_dynarray(size), key_type);
+	foreach_range(i, 0, size + 1, 1, {
+		dynarray_push(HM.items, neg(1));
+	})
+	return HM;
 }
 
 proc str_hash str:ptr -> int {
@@ -18,7 +20,34 @@ proc str_hash str:ptr -> int {
 	foreach_str(str, {
 		hash += ((hash << 5) + hash) + rd8(str + __i);
 	})
-	return hash;
+	return fabs(hash);
+}
+
+#define __hash_to_index(__HM __hash)
+	(__hash % ((__HM.items.size) - 1))$
+
+proc HM_put HM:hash_map _key:any value:int -> void {
+	if(HM.KeyType == typeid(ptr)) {
+		let __key = cast(ptr, _key);
+		let __hash = str_hash(__key);
+		let __index = __hash_to_index(HM, __hash);
+		dynarray_set(HM.items, __index, value);
+	}
+	else {
+		__exception("unkown key_type at HM_put");
+	}
+}
+
+proc HM_get HM:hash_map _key:any -> int {
+	if(HM.KeyType == typeid(ptr)) {
+		let __key = cast(ptr, _key);
+		let __hash = str_hash(__key);
+		let __index = __hash_to_index(HM, __hash);
+		return dynarray_get_as(HM.items, __index, int);
+	}
+	else {
+		__exception("unkown key_type at HM_get");
+	}
 }
 
 proc HM_delete HM:hash_map -> void {
@@ -26,5 +55,5 @@ proc HM_delete HM:hash_map -> void {
 	delete HM;
 }
 
-#define HM_new(__Key_Type)
-	__new_hash_map(typeid(__Key_Type))$
+#define HM_new(__Key_Type __size)
+	__new_hash_map(typeid(__Key_Type), __size)$
