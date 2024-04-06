@@ -103,22 +103,6 @@ cextern "free";
 proc malloc SizeToAlloc:int -> ptr;
 proc free Pointer:ptr -> void;
 
-__label("memalloc");
-__push("dword [esp+8]");
-__call("malloc");
-__add("esp", "4");
-asm "ret\n";
-
-__label("memfree");
-__push("dword [esp+8]");
-__call("free");
-__add("esp", "4");
-asm "ret\n";
-
-proc memalloc Size:int -> ptr;
-
-proc memfree Mem:ptr -> void;
-
 proc nth_arg_int frame:int nth:int -> int
 [nostdargs] {
 	asm "mov ecx, dword [ebp+8]";
