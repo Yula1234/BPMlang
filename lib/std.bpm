@@ -2,6 +2,12 @@ include "core"
 include "stdasm"
 include "string"
 
+proc fabs number:int -> int {
+	if(0 > number)
+	{ return number - number + number; }
+	return number;
+}
+
 proc fputs
 	fd:int // File Descriptor
 	string:ptr // string to put into a file
