@@ -7,34 +7,13 @@ cextern "fgetc";
 
 const EOF 4294967295;
 
-proc fopen_wrapper FilePath:ptr Mode:ptr -> ptr
-[nostdargs] {
-	asm "push dword [ebp+12]";
-	asm "push dword [ebp+8]";
-	asm "call fopen";
-	asm "add esp, 8";
-}
+proc fopen FilePath:ptr Mode:ptr -> ptr;
 
-proc fclose_wrapper CFile:ptr -> int
-[nostdargs] {
-	asm "push dword [ebp+8]";
-	asm "call fclose";
-	asm "add esp, 4";
-}
+proc fclose CFile:ptr -> int;
 
-proc fileno_wrapper CFile:ptr -> int
-[nostdargs] {
-	asm "push dword [ebp+8]";
-	asm "call fileno";
-	asm "add esp, 4";
-}
+proc fileno CFile:ptr -> int;
 
-proc fgetc_wrapper CFile:ptr -> int
-[nostdargs] {
-	asm "push dword [ebp+8]";
-	asm "call fgetc";
-	asm "add esp, 4";
-}
+proc fgetc CFile:ptr -> int;
 
 struct FILE {
 	cfile:ptr, // FILE*
@@ -42,25 +21,25 @@ struct FILE {
 }
 
 proc openf FilePath:ptr Mode:ptr -> FILE {
-	let cfile = fopen_wrapper(FilePath, Mode);
-	let desc = fileno_wrapper(cfile);
+	let cfile = fopen(FilePath, Mode);
+	let desc = fileno(cfile);
 	return FILE(cfile, desc);
 }
 
 proc closef f:FILE -> void {
-	fclose_wrapper(f.cfile);
+	fclose(f.cfile);
 	delete f;
 }
 
 proc getcf f:FILE -> int {
-	return fgetc_wrapper(f.cfile);
+	return fgetc(f.cfile);
 }
 
 proc read_file f:FILE buf:ptr -> int {
 	let ch = 0;
 	let i = 0;
 	while(ch != EOF) {
-		ch = fgetc_wrapper(f.cfile);
+		ch = fgetc(f.cfile);
 		store8(buf + i, ch);
 		i += 1;
 	}
