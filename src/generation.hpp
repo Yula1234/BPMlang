@@ -320,6 +320,15 @@ public:
 			if(std::holds_alternative<NodeTermIntLit*>(term->var)) {
 				return DataTypeInt;
 			}
+			if(std::holds_alternative<NodeTermLine*>(term->var)) {
+				return DataTypeInt;
+			}
+			if(std::holds_alternative<NodeTermCol*>(term->var)) {
+				return DataTypeInt;
+			}
+			if(std::holds_alternative<NodeTermFile*>(term->var)) {
+				return DataTypePtr;
+			}
 			if(std::holds_alternative<NodeTermStrLit*>(term->var)) {
 				return DataTypePtr;
 			}
@@ -542,6 +551,29 @@ public:
 			void operator()(const NodeTermIntLit* term_int_lit) const
 			{
 				gen.push(term_int_lit->int_lit.value.value());
+			}
+
+			void operator()(const NodeTermCol* term_col) const
+			{
+				gen.m_output << "push " << term_col->def.col << "\n";
+			}
+
+			void operator()(const NodeTermLine* term_line) const
+			{
+				gen.m_output << "push " << term_line->def.line << "\n";
+			}
+
+			void operator()(const NodeTermFile* term_file) const
+			{
+				std::string value = term_file->def.file;
+				std::optional<String> str = gen.string_lookup(value);
+				if(!str.has_value()) {
+					size_t index = gen.m_strings.size();
+					gen.m_strings[value] = { .value = value, .index = index};
+					gen.m_output << "    push s_" << index << "\n";
+					return;
+				}
+				gen.m_output << "    push s_" << str.value().index << "\n";
 			}
 
 			void operator()(const NodeTermSizeof* term_sizeof) const

@@ -1,4 +1,4 @@
-release 1.5.0
+release 1.5.1
 
-new libraries, and rewrite old libs.
-new language bug fixes and small featchures.
+__LINE__ __COL__ __FILE__ built-in consts.
+__empty_stmt statement for macroses.

@@ -71,6 +71,10 @@ enum class TokenType {
     shift_left,
     shift_right,
     pushonstack,
+    _line,
+    _col,
+    _file,
+    empty_stmt,
 };
 
 std::string tok_to_string(const TokenType type)
@@ -216,6 +220,14 @@ std::string tok_to_string(const TokenType type)
         return "`>>`";
     case TokenType::pushonstack:
         return "`pushonstack`";
+    case TokenType::_line:
+        return "`__LINE__`";
+    case TokenType::_col:
+        return "`__COL__`";
+    case TokenType::_file:
+        return "`__FILE__`";
+    case TokenType::empty_stmt:
+        return "`__empty_stmt`";
     }
     assert(false);
 }
@@ -440,6 +452,22 @@ public:
                 }
                 else if (buf == "__pushonstack") {
                     tokens.push_back({ .type = TokenType::pushonstack, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "__LINE__") {
+                    tokens.push_back({ .type = TokenType::_line, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "__COL__") {
+                    tokens.push_back({ .type = TokenType::_col, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "__FILE__") {
+                    tokens.push_back({ .type = TokenType::_file, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "__empty_stmt") {
+                    tokens.push_back({ .type = TokenType::empty_stmt, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {

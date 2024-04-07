@@ -226,6 +226,18 @@ struct NodeTermCast {
 	NodeExpr* expr;
 };
 
+struct NodeTermLine {
+	Token def;
+};
+
+struct NodeTermCol {
+	Token def;
+};
+
+struct NodeTermFile {
+	Token def;
+};
+
 struct NodeBinExprAdd {
 	NodeExpr* lhs;
 	NodeExpr* rhs;
@@ -306,7 +318,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*> var;
+	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*> var;
 };
 
 struct NodeExpr {
@@ -743,9 +755,24 @@ public:
 
 	std::optional<NodeTerm*> parse_term() // NOLINT(*-no-recursion)
 	{
-		if (auto int_lit = try_consume(TokenType::int_lit)) {
+		if(auto int_lit = try_consume(TokenType::int_lit)) {
 			auto term_int_lit = m_allocator.emplace<NodeTermIntLit>(int_lit.value());
 			auto term = m_allocator.emplace<NodeTerm>(term_int_lit);
+			return term;
+		}
+		if(auto _line = try_consume(TokenType::_line)) {
+			auto line_term = m_allocator.emplace<NodeTermLine>(_line.value());
+			auto term = m_allocator.emplace<NodeTerm>(line_term);
+			return term;
+		}
+		if(auto _col = try_consume(TokenType::_col)) {
+			auto col_term = m_allocator.emplace<NodeTermCol>(_col.value());
+			auto term = m_allocator.emplace<NodeTerm>(col_term);
+			return term;
+		}
+		if(auto _file = try_consume(TokenType::_file)) {
+			auto file_term = m_allocator.emplace<NodeTermFile>(_file.value());
+			auto term = m_allocator.emplace<NodeTerm>(file_term);
 			return term;
 		}
 		if(auto ampersand = try_consume(TokenType::ampersand)) {
@@ -1462,6 +1489,12 @@ public:
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_push;
 			return stmt;
+		}
+
+		if(auto _empty = try_consume(TokenType::empty_stmt)) {
+			m_preprocessor_stmt = true;
+			try_consume_err(TokenType::semi);
+			return {};
 		}
 
 		if(auto _cns = try_consume(TokenType::_const)) {
