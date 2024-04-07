@@ -7,11 +7,11 @@ struct ArenaAllocator {
 }
 
 proc new_arena Capacity:int -> ArenaAllocator {
-	return ArenaAllocator(Capacity, 0, memalloc(Capacity));
+	return ArenaAllocator(Capacity, 0, malloc(Capacity));
 }
 
 proc arena_delete arena:ArenaAllocator -> void {
-	memfree(arena.data);
+	free(arena.data);
 	delete arena;
 }
 
