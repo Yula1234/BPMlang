@@ -158,6 +158,13 @@ proc format_print format_str:ptr -> void
 	format_fprint_frame(stdout, frame, format_str);
 }
 
+#define assert(__expr __message)
+	if(not(__expr)) {
+		format_print("%s:%d:%d AssertionFailed: %s\n", __FILE__, __LINE__, __COL__, __message);
+		exit(1);
+	}
+	__empty_stmt$
+
 cextern "scanf";
 
 proc input_number addr:ptr -> void
