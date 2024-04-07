@@ -1,0 +1,124 @@
+%YAML 1.2
+---
+# See http://www.sublimetext.com/docs/syntax.html
+file_extensions:
+  - ec
+variables:
+  identifiers: '[A-Za-z_][A-Za-z_0-9]*'
+scope: source.hl
+contexts:
+  main:
+    # Strings begin and end with quotes, and use backslashes as an escape
+    # character
+    - match: '"'
+      scope: punctuation.definition.string.begin.hl
+      push: double_quoted_string
+
+    - match: "'"
+      scope: punctuation.definition.char.begin.hl
+      push: double_quoted_char
+
+    # Comments begin with a '//' and finish at the end of the line
+    - match: '//'
+      scope: punctuation.definition.comment.hl
+      push: line_comment
+
+    - match: '\;'
+      scope: punctuation.separator.hl
+
+    - match: '\-\>'
+      scope: punctuation.separator.hl
+
+    # Keywords are if, else for and while.
+    # Note that blackslashes don't need to be escaped within single quoted
+    # strings in YAML. When using single quoted strings, only single quotes
+    # need to be escaped: this is done by using two single quotes next to each
+    # other.
+    - match: '\b(__empty_stmt|__pushonstack|typeid|typeid_of|static_assert|reset|iota|break|if|elif|else|let|while|return|include|buffer|cextern|asm|delete)\b'
+      scope: keyword.control.hl
+
+    - match: '\#'
+      scope: keyword.control.hl
+
+    - match: '\b(foreach_dynarray|foreach_str|strcpy|streq|writeln|read_file|fgetc|fileno|fclose|fopen|getcf|openf|closef|EOF|nth_argv|__exception|crash|__seg_crash_mess|__seg_crash|cmemcpy|write|memset|memcopy|fprintf|sprintf|store32_any|foreach_range|__local_st|__get_as|__get|neg|rd16_as|rd32_as|EXIT_FAILURE|EXIT_SUCCESS|NEWLINE|input_string|input_number|scanf|format_print|format_fprint|format_fprint_frame|nth_arg_as|nth_arg_int|free|malloc|putu|fputu|putuwnl|fputuwnl|putc|fputc|stou|__FILE__|__COL__|__LINE__|utos|fabs|puts|fputs|assert|exit|printf|print|rd8|rd16|rd32|store8|store16|store32|memcpy|strlen)\b'
+      scope: support.function.magic.hl
+
+    - match: '\b(__oninit|interface|any|int|ptr|void|cast)\b'
+      scope: storage.type.hl
+
+    - match: '\b(null|nostdargs|noprolog|nosizedargs|true|false)\b'
+      scope: constant.language.hl
+
+    - match: '\/\*'
+      push:
+        - match: '\*\/'
+          pop: true
+        - meta_scope: comment.block
+
+    # Numbers
+    - match: '\b(-)?[0-9.]+\b'
+      scope: constant.numeric.hl
+
+    - match: '\*|\/|\-|\+|\=|\>|\<|and|not|\||\&|\!|\%'
+      scope: keyword.operator.hl
+
+    - match: '\bproc\b'
+      scope: keyword.control.hl
+      push:
+        - match: '[A-Za-z_0-9]+'
+          scope: entity.name.function.hl
+          pop: true
+        - match: '[A-Za-z_0-9]'
+          scope: entity.name.function.hl
+          pop: true
+
+    - match: '\bdefine\b'
+      scope: keyword.control.hl
+      push:
+        - match: '[A-Za-z_0-9]+'
+          scope: entity.name.macro.hl
+          pop: true
+        - match: '[A-Za-z_0-9]'
+          scope: entity.name.macro.hl
+          pop: true
+
+    - match: '\bconst\b'
+      scope: storage.type.hl
+      push:
+        - match: '[A-Za-z_0-9]+'
+          scope: entity.name.macro.hl
+          pop: true
+        - match: '[A-Za-z_0-9]'
+          scope: entity.name.macro.hl
+          pop: true
+
+    - match: '\bstruct\b'
+      scope: storage.type.hl
+      push:
+        - match: '[A-Za-z_0-9]+'
+          scope: entity.name.struct.hl
+          pop: true
+        - match: '[A-Za-z_0-9]'
+          scope: entity.name.struct.hl
+          pop: true
+
+  double_quoted_string:
+    - meta_scope: string.quoted.double.hl
+    - match: '\\.'
+      scope: constant.character.escape.hl
+    - match: '"'
+      scope: punctuation.definition.string.end.hl
+      pop: true
+
+  double_quoted_char:
+    - meta_scope: string.quoted.double.hl
+    - match: '\\.'
+      scope: constant.character.escape.hl
+    - match: "'"
+      scope: punctuation.definition.string.end.hl
+      pop: true
+
+  line_comment:
+    - meta_scope: comment.line.hl
+    - match: $
+      pop: true
