@@ -4,7 +4,7 @@
 file_extensions:
   - ec
 variables:
-  identifiers: '[A-Za-z_][A-Za-z_0-9]*'
+  identifier: '[A-Za-z_][A-Za-z_0-9]*'
 scope: source.hl
 contexts:
   main:
@@ -101,6 +101,9 @@ contexts:
         - match: '[A-Za-z_0-9]'
           scope: entity.name.struct.hl
           pop: true
+
+    - match: '\b({{identifier}})\s*(?=\()'
+      scope: variable.function.hl
 
   double_quoted_string:
     - meta_scope: string.quoted.double.hl
