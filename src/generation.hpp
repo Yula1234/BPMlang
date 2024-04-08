@@ -1602,6 +1602,14 @@ public:
 				gen.__oninits.push_back(stmt_oninit->scope);
 			}
 
+			void operator()(const NodeStmtStaticAssert* stmt_st) {
+				if(!stmt_st->condition) {
+					putloc(stmt_st->def);
+					printf(" AssertionFailed: %s\n", stmt_st->msg.c_str());
+					exit(1);
+				}
+			}
+
 			void operator()(const NodeStmtDelete* stmt_delete) {
 				DataType type = gen.type_of_expr(stmt_delete->expr);
 				if(!type.is_object) {

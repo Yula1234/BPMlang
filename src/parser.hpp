@@ -477,6 +477,12 @@ struct NodeStmtPushOnStack {
 	NodeExpr* expr;
 };
 
+struct NodeStmtStaticAssert {
+	Token def;
+	std::string msg;
+	bool condition;
+};
+
 struct NodeStmt {
 	std::variant<NodeStmtExit*, NodeStmtLet*,
 				NodeScope*, NodeStmtIf*,
@@ -489,7 +495,8 @@ struct NodeStmt {
 				NodeStmtBreak*,NodeStmtIncBy*,
 				NodeStmtDecBy*,NodeStmtMulBy*,
 				NodeStmtDivBy*,NodeStmtInterface*,
-				NodeStmtOninit*,NodeStmtPushOnStack*> var;
+				NodeStmtOninit*,NodeStmtPushOnStack*,
+				NodeStmtStaticAssert*> var;
 };
 
 struct NodeProg {
@@ -1576,8 +1583,9 @@ public:
 		}
 
 		if(auto _st_assert = try_consume(TokenType::_static_assert)) {
-			m_preprocessor_stmt = true;
 			try_consume_err(TokenType::open_paren);
+			auto stmt_st = m_allocator.emplace<NodeStmtStaticAssert>();
+			stmt_st->def = _st_assert.value();
 			bool _static_condition = false;
 			if(auto _expr = parse_expr()) {
 				_static_condition = static_cast<bool>(eval_int_value(_expr.value()));
@@ -1585,21 +1593,21 @@ public:
 				error_expected("expression");
 			}
 
+			stmt_st->condition = _static_condition;
+
 			try_consume_err(TokenType::comma);
 			
 			std::string _err_str = try_consume_err(TokenType::string_lit).value.value();
 			
+			stmt_st->msg = _err_str;
+
 			try_consume_err(TokenType::close_paren);
-			
-			if(!_static_condition) {
-				putloc(_st_assert.value());
-				std::cerr << " Assertion Failed: " << _err_str << "\n";
-				exit(1);
-			}
 
 			try_consume_err(TokenType::semi);
 			
-			return {};
+			auto stmt = m_allocator.emplace<NodeStmt>();
+			stmt->var = stmt_st;
+			return stmt;
 		}
 
 		if(auto del = try_consume(TokenType::_delete)) {
