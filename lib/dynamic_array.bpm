@@ -12,9 +12,13 @@ interface IDynarray {
 	data:ptr
 }
 
-proc new_dynarray _A_scapacity:int -> DynamicArray {
-	return DynamicArray(0, _A_scapacity, malloc(_A_scapacity * 4));
-}
+#define __dynarray_ctor(__struct __name)
+	proc __name _A_scapacity:int -> __struct {
+		return __struct(0, _A_scapacity, malloc(_A_scapacity * 4));
+	}
+	__empty_stmt$
+
+__dynarray_ctor(DynamicArray, new_dynarray);
 
 proc delete_dynarray da:IDynarray -> void {
 	free(da.data);
