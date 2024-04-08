@@ -1443,7 +1443,9 @@ public:
 				gen.gen_expr(stmt_assign->expr);
 				gen.pop("ecx");
 				gen.pop("edx");
-				gen.m_output << "    imul dword [edx], ecx\n";
+				gen.m_output << "    mov eax, dword [edx]\n";
+				gen.m_output << "    imul eax, ecx\n";
+				gen.m_output << "    mov dword [edx], eax\n";
 			}
 
 			void operator()(const NodeStmtDivBy* stmt_assign) const
