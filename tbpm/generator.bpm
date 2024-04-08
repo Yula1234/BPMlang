@@ -1,12 +1,20 @@
+struct CDynarray(__global_obj_alloc) {
+	size:int,
+	capacity:int,
+	data:ptr
+}
+
+__dynarray_ctor(CDynarray, new_cdynarray);
+
 struct Generator {
 	asm_file:FILE,
-	scopes_vi:DynamicArray,
-	scopes:DynamicArray,
-	vars:DynamicArray,
+	scopes_vi:CDynarray,
+	scopes:CDynarray,
+	vars:CDynarray,
 	vars_index:int,
 	arena:ArenaAllocator,
 	label_count:int,
-	procs:DynamicArray,
+	procs:CDynarray,
 	cur_proc:Proc
 }
 
@@ -104,23 +112,19 @@ proc gen_var_lookup name:ptr gen:Generator -> int {
 proc new_generator asm_file:FILE -> Generator {
 	return Generator(
 		asm_file,
-		new_dynarray(12),
-		new_dynarray(12),
-		new_dynarray(12),
+		new_cdynarray(12),
+		new_cdynarray(12),
+		new_cdynarray(12),
 		0,
 		new_arena(56 * 1024),
 		0,
-		new_dynarray(12),
+		new_cdynarray(12),
 		cast(Proc, 0)
 	);
 }
 
 proc delete_generator gen:Generator -> void {
 	closef(gen.asm_file);
-	delete_dynarray(gen.vars);
-	delete_dynarray(gen.scopes);
-	delete_dynarray(gen.scopes_vi);
-	delete_dynarray(gen.procs);
 	arena_delete(gen.arena);
 	delete gen;
 }
