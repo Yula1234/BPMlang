@@ -1234,6 +1234,41 @@ public:
 		std::visit(visitor, pred->var);
 	}
 
+	Procedure __proc_get(const std::string& name, const Token& def) {
+		std::optional<Procedure> proc = proc_lookup(name);
+		if(!proc.has_value()) {
+			GeneratorError(def, "unkown procedure `" + name + "`");
+		}
+		return proc.value();
+	}
+
+	void __typecheck_call(const std::vector<NodeExpr*>& args, const std::vector<std::pair<std::string, DataType>>& params, const Token& def, const Procedure& proc, size_t* stack_allign) {
+		if(params.size() == 0) {
+			GeneratorError(def, "procedure `" + proc.name + "` don't excepts any arguments");
+		}
+		bool nosizedargs = std::find(proc.attrs.begin(), proc.attrs.end(), ProcAttr::nosizedargs) != proc.attrs.end();
+		if(args.size() != proc.params.size() && !nosizedargs) {
+			GeneratorError(def, "procedure `" + proc.name + "` excepts " + std::to_string(proc.params.size()) + " arguments\nNOTE: but got " + std::to_string(args.size()));
+		}
+		if(args.size() < proc.params.size() && nosizedargs) {
+			GeneratorError(def, "procedure `" + proc.name + "` excepts minimum" + std::to_string(proc.params.size()) + " arguments\nNOTE: but got " + std::to_string(args.size()));
+		}
+		for(int i = 0;i < static_cast<int>(proc.params.size());++i) {
+			DataType argtype = type_of_expr(args[i]);
+			const DataType& ex_type = proc.params[i].second;
+			if(argtype != ex_type) {
+				if(!inrerface_match(ex_type, argtype)) {
+					GeneratorError(def, "procedure `" + proc.name + "`\nexcept type " + dt_to_string(proc.params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(type_of_expr(args[i])));
+				}
+			}
+		}
+		*stack_allign += args.size();
+	}
+
+	std::vector<NodeExpr*> __getargs(NodeExpr* __expr) {
+		return std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(__expr->var)->var)->args;
+	}
+
 	void gen_stmt(const NodeStmt* stmt)
 	{
 		struct StmtVisitor {
@@ -1426,51 +1461,10 @@ public:
 			void operator()(const NodeStmtCall* stmt_call) const
 			{
 				const std::string name = stmt_call->def.value.value();
-				std::optional<Procedure> proc = gen.proc_lookup(name);
-				if(!proc.has_value()) {
-					gen.GeneratorError(stmt_call->def, "unkown procedure `" + name + "`");
-				}
+				Procedure proc = gen.__proc_get(stmt_call->name, stmt_call->def);
 				size_t stack_allign = 0;
 				if(stmt_call->args.has_value()) {
-					if(proc.value().params.size() == 0) {
-						gen.GeneratorError(stmt_call->def, "procedure `" + name + "` don't excepts any arguments");
-					}
-					bool nosizedargs = std::find(proc.value().attrs.begin(), proc.value().attrs.end(), ProcAttr::nosizedargs) != proc.value().attrs.end();
-					NodeExpr* args = stmt_call->args.value();
-					if(std::holds_alternative<NodeBinExpr*>(args->var)) {
-						NodeBinExpr* cexpr = std::get<NodeBinExpr*>(args->var);
-						if(std::holds_alternative<NodeBinExprArgs*>(cexpr->var)) {
-							std::vector<NodeExpr*> pargs = get<NodeBinExprArgs*>(cexpr->var)->args;
-							if(pargs.size() != proc.value().params.size() && !nosizedargs) {
-								gen.GeneratorError(stmt_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got " + std::to_string(pargs.size()));
-							}
-							if(pargs.size() < proc.value().params.size() && nosizedargs) {
-								gen.GeneratorError(stmt_call->def, "procedure `" + name + "` excepts minimum" + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got " + std::to_string(pargs.size()));
-							}
-							for(int i = 0;i < static_cast<int>(proc.value().params.size());++i) {
-								DataType argtype = gen.type_of_expr(pargs[i]);
-								DataType& ex_type = proc.value().params[i].second;
-								if(argtype != ex_type) {
-									if(!gen.inrerface_match(ex_type, argtype)) {
-										gen.GeneratorError(stmt_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[i].second) + " at " + std::to_string(i) + " argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(pargs[i])));
-									}
-								}
-							}
-							stack_allign += pargs.size();
-						}
-					} else {
-						if(gen.type_of_expr(args) != proc.value().params[0].second) {
-							gen.GeneratorError(stmt_call->def, "procedure `" + name + "`\nexcept type " + dt_to_string(proc.value().params[0].second) + " at 0 argument\nNOTE: but found type " + dt_to_string(gen.type_of_expr(args)));
-						}
-						if(proc.value().params.size() != 1U && !nosizedargs) {
-							gen.GeneratorError(stmt_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " arguments\nNOTE: but got 0");
-						}
-						stack_allign++;
-					}
-				} else {
-					if(proc.value().params.size() != 0U) {
-						gen.GeneratorError(stmt_call->def, "procedure `" + name + "` excepts " + std::to_string(proc.value().params.size()) + " args\nNOTE: but got 0");
-					}
+					gen.__typecheck_call(gen.__getargs(stmt_call->args.value()), proc.params, stmt_call->def, proc, &stack_allign);
 				}
 				if(stmt_call->args.has_value()) {
 					gen.gen_expr(stmt_call->args.value());
