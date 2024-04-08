@@ -133,7 +133,7 @@ proc dynarray_print da:IDynarray -> void {
 		{
 			let i = 0;
 			while(i < 5) {
-			dynarray_push(arr, i);
+			dynarray_push(Dynarray, i);
 				i += 1;
 			}
 		}

@@ -69,10 +69,22 @@ proc memcopy src:ptr dst:ptr size:int -> void {
 }
 
 proc memset src:ptr value:int size:int -> void {
-	let i = 0;
-	while(i < size) {
-		store8(src + i, value);
-		i += 1;
+	if((size % 4) == 0) {
+		let __dword = (size / 4);
+		let __i = 0;
+		let __idw = 0;
+		while(__i < __dword) {
+			store32(src + __idw, value);
+			__i += 1;
+			__idw += 4;
+		}
+	}
+	else {
+		let i = 0;
+		while(i < size) {
+			store8(src + i, value);
+			i += 1;
+		}
 	}
 }
 
