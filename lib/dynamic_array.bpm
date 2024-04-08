@@ -6,16 +6,22 @@ struct DynamicArray {
 	data:ptr
 }
 
+interface IDynarray {
+	size:int,
+	capacity:int,
+	data:ptr
+}
+
 proc new_dynarray _A_scapacity:int -> DynamicArray {
 	return DynamicArray(0, _A_scapacity, malloc(_A_scapacity * 4));
 }
 
-proc delete_dynarray da:DynamicArray -> void {
+proc delete_dynarray da:IDynarray -> void {
 	free(da.data);
 	delete da;
 }
 
-proc dynarray_extend da:DynamicArray -> void {
+proc dynarray_extend da:IDynarray -> void {
 	let tmp = malloc((da.capacity * 4) * 2);
 	memcpy(tmp, da.data, da.size * 4);
 	free(da.data);
@@ -23,7 +29,7 @@ proc dynarray_extend da:DynamicArray -> void {
 	da.data = tmp;
 }
 
-proc dynarray_push da:DynamicArray _A_value:any -> void {
+proc dynarray_push da:IDynarray _A_value:any -> void {
 	let value_as_i32 = cast(int, _A_value);
 	if(da.size == da.capacity) {
 		dynarray_extend(da);
@@ -32,33 +38,33 @@ proc dynarray_push da:DynamicArray _A_value:any -> void {
 	da.size += 1;
 }
 
-proc dynarray_get da:DynamicArray index:int -> any {
+proc dynarray_get da:IDynarray index:int -> any {
 	return rd32(da.data + (index * 4));
 }
 
-proc dynarray_pop da:DynamicArray -> any {
+proc dynarray_pop da:IDynarray -> any {
 	let _result = dynarray_get(da, da.size - 1);
 	da.size -= 1;
 	return _result;
 }
 
-proc dynarray_is_empty da:DynamicArray -> int {
+proc dynarray_is_empty da:IDynarray -> int {
 	return da.size == 0;
 }
 
-proc dynarray_front da:DynamicArray -> any {
+proc dynarray_front da:IDynarray -> any {
 	return dynarray_get(da, 0);
 }
 
-proc dynarray_back da:DynamicArray -> any {
+proc dynarray_back da:IDynarray -> any {
 	return dynarray_get(da, da.size - 1);
 }
 
-proc dynarray_addr_of da:DynamicArray index:int -> ptr {
+proc dynarray_addr_of da:IDynarray index:int -> ptr {
 	return cast(ptr, da.data + (index * 4));
 }
 
-proc dynarray_insert da:DynamicArray index:int _value:any -> void {
+proc dynarray_insert da:IDynarray index:int _value:any -> void {
 	let value_as_i32 = cast(int, _value);
 	if(da.size == 0) {
 		dynarray_push(da, _value);
@@ -72,21 +78,21 @@ proc dynarray_insert da:DynamicArray index:int _value:any -> void {
 	da.size += 1;
 }
 
-proc dynarray_erase da:DynamicArray index:int -> void {
+proc dynarray_erase da:IDynarray index:int -> void {
 	memcpy(dynarray_addr_of(da, index), dynarray_addr_of(da, index + 1), (da.size * 4) - (index * 4));
 	da.size -= 1;
 }
 
-proc dynarray_clear da:DynamicArray -> void {
+proc dynarray_clear da:IDynarray -> void {
 	da.size = 0;
 }
 
-proc dynarray_set da:DynamicArray index:int _value:any -> void {
+proc dynarray_set da:IDynarray index:int _value:any -> void {
 	let value_as_i32 = cast(int, _value);
 	store32(dynarray_addr_of(da, index), value_as_i32);
 }
 
-proc dynarray_print da:DynamicArray -> void {
+proc dynarray_print da:IDynarray -> void {
 	let size = da.size;
 	puts("[");
 	let i = 0;
