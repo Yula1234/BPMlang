@@ -33,15 +33,9 @@ const false 0;
 	(__boolean == 0)$
 
 #define foreach_range(__name __start __end __step __stmt)
-	#if(ct_not(is_same_t(__step, type(int)))) {
-		static_assert(false, "__step in `foreach_range` must be of type int");
-	}
-	#if(ct_not(is_same_t(__start, type(int)))) {
-		static_assert(false, "__start in `foreach_range` must be of type int");
-	}
-	#if(ct_not(is_same_t(__end, type(int)))) {
-		static_assert(false, "__end in `foreach_range` must be of type int");
-	}
+	static_assert(is_same_t(__step,  type(int)), "__step in `foreach_range` must be of type int");
+	static_assert(is_same_t(__start, type(int)), "__start in `foreach_range` must be of type int");
+	static_assert(is_same_t(__end,   type(int)), "__end in `foreach_range` must be of type int");
 	{
 		let __name = __start;
 		while(__name < (__end)) {
