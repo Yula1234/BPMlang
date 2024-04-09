@@ -1,3 +1,6 @@
-release 1.5.2
+release 1.5.3
 
-compile time ifs (#if).
+compile-time functions:
+	is_same_t(type(...), type(...)) -> (type1 == type2)
+	is_object_t(type(...)) -> (type1.is_object)
+	ct_not(...) -> (compile-time not)

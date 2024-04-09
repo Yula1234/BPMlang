@@ -238,6 +238,11 @@ struct NodeTermFile {
 	Token def;
 };
 
+struct NodeTermType {
+	Token def;
+	DataType type;
+};
+
 struct NodeBinExprAdd {
 	NodeExpr* lhs;
 	NodeExpr* rhs;
@@ -318,7 +323,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*> var;
+	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*> var;
 };
 
 struct NodeExpr {
@@ -485,7 +490,7 @@ struct NodeStmtStaticAssert {
 
 struct NodeStmtCompileTimeIf {
 	Token def;
-	bool condition;
+	NodeExpr* condition;
 	NodeScope* _if;
 	std::optional<NodeScope*> _else;
 };
@@ -527,6 +532,9 @@ namespace ptools {
 		NodeTermIdent* ident(NodeExpr* expr) {
 			return std::get<NodeTermIdent*>(std::get<NodeTerm*>(expr->var)->var);
 		}
+		NodeTermType* type(NodeExpr* expr) {
+			return std::get<NodeTermType*>(std::get<NodeTerm*>(expr->var)->var);
+		}
 	}
 	namespace is {
 		bool ident(NodeExpr* expr) {
@@ -535,11 +543,28 @@ namespace ptools {
 			}
 			return std::holds_alternative<NodeTermIdent*>(std::get<NodeTerm*>(expr->var)->var);
 		}
+		bool type(NodeExpr* expr) {
+			if(!std::holds_alternative<NodeTerm*>(expr->var)) {
+				return false;
+			}
+			return std::holds_alternative<NodeTermType*>(std::get<NodeTerm*>(expr->var)->var);
+		}
+		bool term(NodeExpr* expr) {
+			return std::holds_alternative<NodeTerm*>(expr->var);
+		}
 	}
 	namespace get {
 		std::optional<NodeTermIdent*> ident(NodeExpr* expr) {
 			if(!is::ident(expr)) return std::nullopt;
 			return as::ident(expr);
+		}
+		std::optional<NodeTermType*> type(NodeExpr* expr) {
+			if(!is::type(expr)) return std::nullopt;
+			return as::type(expr);
+		}
+		std::optional<NodeTerm*> term(NodeExpr* expr) {
+			if(!is::term(expr)) return std::nullopt;
+			return as::term(expr);
 		}
 	}
 }
@@ -587,6 +612,13 @@ public:
 		exit(EXIT_FAILURE);
 	}
 
+	void ParsingError_t(const std::string& msg, const Token& tok) const
+	{
+		putloc(tok);
+		std::cout << " ERROR: " << msg << "\n";
+		exit(EXIT_FAILURE);
+	}
+
 	void error_expected(const std::string& msg) const
 	{
 		putloc(peek(-1).value());
@@ -598,7 +630,55 @@ public:
 		exit(EXIT_FAILURE);
 	}
 
-	int eval_int_value(NodeExpr* expr) {
+	std::vector<NodeExpr*> __getargs(const NodeExpr* __expr) {
+		return std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(__expr->var)->var)->args;
+	}
+
+	std::optional<int> __eval_ctcall(const NodeTermCall* call) {
+		const std::string& name = call->name;
+		if(name == "is_same_t") {
+			if(!call->args.has_value()) {
+				ParsingError_t("is_same_t excepts 2 args", call->def);
+			}
+			std::vector<NodeExpr*> args = __getargs(call->args.value());
+			if(args.size() != 2) {
+				ParsingError_t("is_same_t excepts 2 args", call->def);
+			}
+			std::optional<NodeTermType*> type_1 = ptools::get::type(args[0]);
+			std::optional<NodeTermType*> type_2 = ptools::get::type(args[1]);
+			if(!type_1.has_value() || !type_2.has_value()) {
+				ParsingError_t("is_same_t excepts 2 types", call->def);
+			}
+			return static_cast<int>(type_1.value()->type == type_2.value()->type);
+		}
+		if(name == "is_object_t") {
+			if(!call->args.has_value()) {
+				ParsingError_t("is_object_t excepts 1 args", call->def);
+			}
+			std::vector<NodeExpr*> args = __getargs(call->args.value());
+			if(args.size() != 1) {
+				ParsingError_t("is_object_t excepts 1 args", call->def);
+			}
+			std::optional<NodeTermType*> type = ptools::get::type(args[0]);
+			if(!type.has_value()) {
+				ParsingError_t("is_object_t excepts type()", call->def);
+			}
+			return static_cast<int>(type.value()->type.is_object);
+		}
+		if(name == "ct_not") {
+			if(!call->args.has_value()) {
+				ParsingError_t("ct_not excepts 1 args", call->def);
+			}
+			std::vector<NodeExpr*> args = __getargs(call->args.value());
+			if(args.size() != 1) {
+				ParsingError_t("ct_not excepts 1 args", call->def);
+			}
+			return static_cast<int>(!(static_cast<bool>(eval_int_value(args[0]))));
+		}
+		return std::nullopt;
+	}
+
+	int eval_int_value(NodeExpr* expr, std::optional<Token> loc = std::nullopt) {
 		int result = 0;
 		if(std::holds_alternative<NodeTerm*>(expr->var)) {
 			NodeTerm* nterm = std::get<NodeTerm*>(expr->var);
@@ -615,9 +695,27 @@ public:
 					CTX_IOTA = 0;
 					return old;
 				}
+				if(cname == "true") {
+					return 1;
+				}
+				if(cname == "false") {
+					return 2;
+				}
 				std::optional<Constant> cns = const_lookup(cname);
 				if(cns.has_value()) {
 					return cns.value().value;
+				}
+			}
+			if(std::holds_alternative<NodeTermCall*>(nterm->var)) {
+				NodeTermCall* call = std::get<NodeTermCall*>(nterm->var);
+				if(auto vl = __eval_ctcall(call)) {
+					return vl.value();
+				}
+				if(loc.has_value()) {
+					ParsingError_t("unkown compile-time procedure `" + call->name + "`", loc.value());
+				}
+				else {
+					ParsingError("unkown compile-time procedure `" + call->name + "`");
 				}
 			}
 		}
@@ -660,7 +758,12 @@ public:
 				return eval_int_value(nand->lhs) > eval_int_value(nand->rhs);
 			}
 		}
-		ParsingError("not constant provided");
+		if(loc.has_value()) {
+			ParsingError_t("not constant provided", loc.value());
+		}
+		else {
+			ParsingError("not constant provided");
+		}
 		return result;
 	}
 
@@ -777,6 +880,20 @@ public:
 		if(auto _line = try_consume(TokenType::_line)) {
 			auto line_term = m_allocator.emplace<NodeTermLine>(_line.value());
 			auto term = m_allocator.emplace<NodeTerm>(line_term);
+			return term;
+		}
+		if(auto _type = try_consume(TokenType::_type)) {
+			auto type_term = m_allocator.emplace<NodeTermType>();
+			type_term->def = _type.value();
+			try_consume_err(TokenType::open_paren);
+			Token tptk = consume();
+			if(!is_type_token(tptk.type)) {
+				ParsingError("except typename");
+			}
+			DataType type = uni_token_to_dt(tptk);
+			type_term->type = type;
+			try_consume_err(TokenType::close_paren);
+			auto term = m_allocator.emplace<NodeTerm>(type_term);
 			return term;
 		}
 		if(auto _col = try_consume(TokenType::_col)) {
@@ -1668,14 +1785,12 @@ public:
 			else if(_prep.type == TokenType::if_) {
 				auto stmt_ctif = m_allocator.emplace<NodeStmtCompileTimeIf>();
 				try_consume_err(TokenType::open_paren);
-				bool condition = false;
 				if(auto _expr = parse_expr()) {
-					condition = static_cast<bool>(eval_int_value(_expr.value()));
+					stmt_ctif->condition = _expr.value();
 				} else {
 					error_expected("expression");
 				}
 				try_consume_err(TokenType::close_paren);
-				stmt_ctif->condition = condition;
 				stmt_ctif->def = _prep;
 				if(const auto _scope = parse_scope()) {
 					stmt_ctif->_if = _scope.value();

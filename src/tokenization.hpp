@@ -8,6 +8,7 @@ enum class TokenType {
     close_paren,
     ident,
     let,
+    _type,
     less,
     eqeq,
     eq,
@@ -228,6 +229,8 @@ std::string tok_to_string(const TokenType type)
         return "`__FILE__`";
     case TokenType::empty_stmt:
         return "`__empty_stmt`";
+    case TokenType::_type:
+        return "`type`";
     }
     assert(false);
 }
@@ -468,6 +471,10 @@ public:
                 }
                 else if (buf == "__empty_stmt") {
                     tokens.push_back({ .type = TokenType::empty_stmt, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "type") {
+                    tokens.push_back({ .type = TokenType::_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else {

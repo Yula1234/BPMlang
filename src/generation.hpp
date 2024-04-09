@@ -553,6 +553,10 @@ public:
 				gen.push(term_int_lit->int_lit.value.value());
 			}
 
+			void operator()(const NodeTermType* tp) {
+				gen.GeneratorError(tp->def, "`type` only can be used in context of compile-time expressions");
+			}
+
 			void operator()(const NodeTermCol* term_col) const
 			{
 				gen.m_output << "push " << term_col->def.col << "\n";
@@ -1368,7 +1372,8 @@ public:
 			}
 
 			void operator()(const NodeStmtCompileTimeIf* stmt_ctif) const {
-				if(stmt_ctif->condition) {
+				bool condition = gen.m_parser->eval_int_value(stmt_ctif->condition, stmt_ctif->def);
+				if(condition) {
 					for(const auto stmt : stmt_ctif->_if->stmts) {
 						gen.gen_stmt(stmt);
 					}
@@ -1707,6 +1712,7 @@ public:
 
 	void get_props_from_parser(Parser* parser) {
 		m_consts = parser->get_consts();
+		m_parser = parser;
 	}
 
 private:
@@ -1765,6 +1771,7 @@ private:
 	std::unordered_map<std::string, Struct> m_structs;
 	std::unordered_map<std::string, GVar> m_global_vars;
 	std::unordered_map<std::string, Interface> m_interfaces;
+	Parser* m_parser;
 	size_t m_structs_count = 5;
 	std::optional<Procedure> m_cur_proc;
 	std::vector<std::string> m_breaks;
