@@ -1367,6 +1367,20 @@ public:
 				gen.create_var_va(stmt_let->ident.value.value(), stmt_let->type, stmt_let->ident);
 			}
 
+			void operator()(const NodeStmtCompileTimeIf* stmt_ctif) const {
+				if(stmt_ctif->condition) {
+					for(const auto stmt : stmt_ctif->_if->stmts) {
+						gen.gen_stmt(stmt);
+					}
+				} else {
+					if(stmt_ctif->_else.has_value()) {
+						for(const auto stmt : stmt_ctif->_else.value()->stmts) {
+							gen.gen_stmt(stmt);
+						}
+					}
+				}
+			}
+
 			void operator()(const NodeStmtAssign* stmt_assign) const
 			{
 				NodeExpr* lvalue = stmt_assign->lvalue;

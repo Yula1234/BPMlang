@@ -483,6 +483,13 @@ struct NodeStmtStaticAssert {
 	bool condition;
 };
 
+struct NodeStmtCompileTimeIf {
+	Token def;
+	bool condition;
+	NodeScope* _if;
+	std::optional<NodeScope*> _else;
+};
+
 struct NodeStmt {
 	std::variant<NodeStmtExit*, NodeStmtLet*,
 				NodeScope*, NodeStmtIf*,
@@ -496,7 +503,7 @@ struct NodeStmt {
 				NodeStmtDecBy*,NodeStmtMulBy*,
 				NodeStmtDivBy*,NodeStmtInterface*,
 				NodeStmtOninit*,NodeStmtPushOnStack*,
-				NodeStmtStaticAssert*> var;
+				NodeStmtStaticAssert*,NodeStmtCompileTimeIf*> var;
 };
 
 struct NodeProg {
@@ -886,7 +893,7 @@ public:
 			auto stmt = m_allocator.emplace<NodeTerm>(expr_call);
 			return stmt;
 		}
-		if (auto ident = try_consume(TokenType::ident)) {
+		if(auto ident = try_consume(TokenType::ident)) {
 			std::string tname = ident.value().value.value();
 			auto expr_ident = m_allocator.emplace<NodeTermIdent>();
 			expr_ident->ident = ident.value();
@@ -927,7 +934,7 @@ public:
 			auto term = m_allocator.emplace<NodeTerm>(typeid_term);
 			return term;
 		}
-		if (const auto open_paren = try_consume(TokenType::open_paren)) {
+		if(const auto open_paren = try_consume(TokenType::open_paren)) {
 			auto expr = parse_expr();
 			if (!expr.has_value()) {
 				error_expected("expression");
@@ -966,10 +973,10 @@ public:
 				error_expected("identifier");
 			}
 		}
-		while (true) {
+		while(true) {
 			std::optional<Token> curr_tok = peek();
 			std::optional<int> prec;
-			if (curr_tok.has_value()) {
+			if(curr_tok.has_value()) {
 				prec = bin_prec(curr_tok->type);
 				if (!prec.has_value() || prec < min_prec) {
 					break;
@@ -987,85 +994,85 @@ public:
 			}
 			auto expr = m_allocator.emplace<NodeBinExpr>();
 			auto expr_lhs2 = m_allocator.emplace<NodeExpr>();
-			if (type == TokenType::plus) {
+			if(type == TokenType::plus) {
 				expr_lhs2->var = expr_lhs->var;
 				auto add = m_allocator.emplace<NodeBinExprAdd>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = add;
 			}
-			else if (type == TokenType::star) {
+			else if(type == TokenType::star) {
 				expr_lhs2->var = expr_lhs->var;
 				auto multi = m_allocator.emplace<NodeBinExprMulti>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = multi;
 			}
-			else if (type == TokenType::minus) {
+			else if(type == TokenType::minus) {
 				expr_lhs2->var = expr_lhs->var;
 				auto sub = m_allocator.emplace<NodeBinExprSub>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = sub;
 			}
-			else if (type == TokenType::fslash) {
+			else if(type == TokenType::fslash) {
 				expr_lhs2->var = expr_lhs->var;
 				auto div = m_allocator.emplace<NodeBinExprDiv>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = div;
 			}
-			else if (type == TokenType::mod) {
+			else if(type == TokenType::mod) {
 				expr_lhs2->var = expr_lhs->var;
 				auto md = m_allocator.emplace<NodeBinExprMod>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = md;
 			}
-			else if (type == TokenType::eqeq) {
+			else if(type == TokenType::eqeq) {
 				expr_lhs2->var = expr_lhs->var;
 				auto eqeq = m_allocator.emplace<NodeBinExprEqEq>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = eqeq;
 			}
-			else if (type == TokenType::_not_eq) {
+			else if(type == TokenType::_not_eq) {
 				expr_lhs2->var = expr_lhs->var;
 				auto nq = m_allocator.emplace<NodeBinExprNotEq>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = nq;
 			}
-			else if (type == TokenType::less) {
+			else if(type == TokenType::less) {
 				expr_lhs2->var = expr_lhs->var;
 				auto less = m_allocator.emplace<NodeBinExprLess>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = less;
 			}
-			else if (type == TokenType::above) {
+			else if(type == TokenType::above) {
 				expr_lhs2->var = expr_lhs->var;
 				auto above = m_allocator.emplace<NodeBinExprAbove>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = above;
 			}
-			else if (type == TokenType::dot) {
+			else if(type == TokenType::dot) {
 				expr_lhs2->var = expr_lhs->var;
 				auto dot = m_allocator.emplace<NodeBinExprDot>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = dot;
 			}
-			else if (type == TokenType::double_ampersand) {
+			else if(type == TokenType::double_ampersand) {
 				expr_lhs2->var = expr_lhs->var;
 				auto dot = m_allocator.emplace<NodeBinExprAnd>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = dot;
 			}
-			else if (type == TokenType::double_stick) {
+			else if(type == TokenType::double_stick) {
 				expr_lhs2->var = expr_lhs->var;
 				auto dot = m_allocator.emplace<NodeBinExprOr>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = dot;
 			}
-			else if (type == TokenType::shift_left) {
+			else if(type == TokenType::shift_left) {
 				expr_lhs2->var = expr_lhs->var;
 				auto dot = m_allocator.emplace<NodeBinExprShl>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
 				expr->var = dot;
 			}
-			else if (type == TokenType::shift_right) {
+			else if(type == TokenType::shift_right) {
 				expr_lhs2->var = expr_lhs->var;
 				auto dot = m_allocator.emplace<NodeBinExprShr>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
@@ -1081,11 +1088,11 @@ public:
 
 	std::optional<NodeScope*> parse_scope() // NOLINT(*-no-recursion)
 	{
-		if (!try_consume(TokenType::open_curly).has_value()) {
+		if(!try_consume(TokenType::open_curly).has_value()) {
 			return {};
 		}
 		auto scope = m_allocator.emplace<NodeScope>();
-		while (true) {
+		while(true) {
 			auto stmt = parse_stmt();
 			if(m_preprocessor_stmt) {
 				m_preprocessor_stmt = false;
@@ -1656,7 +1663,31 @@ public:
 				}
 				consume();
 				m_macroses[mname] = __macro;
-
+				return {};
+			}
+			else if(_prep.type == TokenType::if_) {
+				auto stmt_ctif = m_allocator.emplace<NodeStmtCompileTimeIf>();
+				try_consume_err(TokenType::open_paren);
+				bool condition = false;
+				if(auto _expr = parse_expr()) {
+					condition = static_cast<bool>(eval_int_value(_expr.value()));
+				} else {
+					error_expected("expression");
+				}
+				try_consume_err(TokenType::close_paren);
+				stmt_ctif->condition = condition;
+				stmt_ctif->def = _prep;
+				if(const auto _scope = parse_scope()) {
+					stmt_ctif->_if = _scope.value();
+				}
+				if(auto _else = try_consume(TokenType::else_)) {
+					if(const auto _scope = parse_scope()) {
+						stmt_ctif->_else = _scope.value();
+					}
+				}
+				auto stmt = m_allocator.emplace<NodeStmt>();
+				stmt->var = stmt_ctif;
+				return stmt;
 			}
 			else {
 				error_expected("preprocessor command");
