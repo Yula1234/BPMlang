@@ -1,3 +1,3 @@
-release 1.5.4
+release 1.5.5
 
-compile-time evaluation upgrade.
+compile-time evaluation bug fixes.

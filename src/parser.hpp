@@ -699,7 +699,7 @@ public:
 					return 1;
 				}
 				if(cname == "false") {
-					return 2;
+					return 0;
 				}
 				std::optional<Constant> cns = const_lookup(cname);
 				if(cns.has_value()) {
