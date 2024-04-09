@@ -158,6 +158,9 @@ proc format_print format_str:ptr -> void
 }
 
 #define assert(__expr __message)
+	#if(ct_not(is_same_t(__message, type(ptr)))) {
+		static_assert(false, "`assert` __message must be of type `ptr`");
+	}
 	if(not(__expr)) {
 		format_print("%s:%d:%d AssertionFailed: %s\n", __FILE__, __LINE__, __COL__, __message);
 		exit(1);
