@@ -1401,7 +1401,11 @@ public:
 			}
 			if(std::holds_alternative<NodeBinExprAnd*>(nbin->var)) {
 				NodeBinExprAnd* nand = std::get<NodeBinExprAnd*>(nbin->var);
-				return eval(nand->lhs, def) > eval(nand->rhs, def);
+				return eval(nand->lhs, def) && eval(nand->rhs, def);
+			}
+			if(std::holds_alternative<NodeBinExprOr*>(nbin->var)) {
+				NodeBinExprOr* nor = std::get<NodeBinExprOr*>(nbin->var);
+				return eval(nor->lhs, def) || eval(nor->rhs, def);
 			}
 		}
 		GeneratorError(def, "not constant provided");
