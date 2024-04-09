@@ -1273,6 +1273,141 @@ public:
 		return std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(__expr->var)->var)->args;
 	}
 
+	std::optional<int> __eval_ctcall(const NodeTermCall* call, Token def) {
+		const std::string& name = call->name;
+		if(name == "is_same_t") {
+			if(!call->args.has_value()) {
+				GeneratorError(def, "is_same_t excepts 2 args");
+			}
+			std::vector<NodeExpr*> args = __getargs(call->args.value());
+			if(args.size() != 2) {
+				GeneratorError(def, "is_same_t excepts 2 args");
+			}
+			std::optional<NodeTermType*> type_1 = ptools::get::type(args[0]);
+			std::optional<NodeTermType*> type_2 = ptools::get::type(args[1]);
+			DataType one;
+			DataType two;
+			if(type_1.has_value()) {
+				one = type_1.value()->type;
+			} else {
+				one = type_of_expr(args[0]);
+			}
+			if(type_2.has_value()) {
+				two = type_2.value()->type;
+			} else {
+				two = type_of_expr(args[1]);
+			}
+			return static_cast<int>(one == two);
+		}
+		if(name == "is_object_t") {
+			if(!call->args.has_value()) {
+				GeneratorError(def, "is_object_t excepts 1 args");
+			}
+			std::vector<NodeExpr*> args = __getargs(call->args.value());
+			if(args.size() != 1) {
+				GeneratorError(def, "is_object_t excepts 1 args");
+			}
+			std::optional<NodeTermType*> type = ptools::get::type(args[0]);
+			DataType tp;
+			if(type.has_value()) {
+				tp = type.value()->type;
+			} else {
+				tp = type_of_expr(args[0]);
+			}
+			return static_cast<int>(tp.is_object);
+		}
+		if(name == "ct_not") {
+			if(!call->args.has_value()) {
+				GeneratorError(def, "ct_not excepts 1 args");
+			}
+			std::vector<NodeExpr*> args = __getargs(call->args.value());
+			if(args.size() != 1) {
+				GeneratorError(def, "ct_not excepts 1 args");
+			}
+			return static_cast<int>(!(static_cast<bool>(eval(args[0], def))));
+		}
+		return std::nullopt;
+	}
+
+	int eval(const NodeExpr* expr, Token def) {
+		int result = 0;
+		if(std::holds_alternative<NodeTerm*>(expr->var)) {
+			NodeTerm* nterm = std::get<NodeTerm*>(expr->var);
+			if(std::holds_alternative<NodeTermIntLit*>(nterm->var)) {
+				return std::stoul(std::get<NodeTermIntLit*>(nterm->var)->int_lit.value.value());
+			}
+			if(std::holds_alternative<NodeTermIdent*>(nterm->var)) {
+				std::string cname = std::get<NodeTermIdent*>(nterm->var)->ident.value.value();
+				if(cname == "iota") {
+					return CTX_IOTA++;
+				}
+				if(cname == "reset") {
+					int old = CTX_IOTA;
+					CTX_IOTA = 0;
+					return old;
+				}
+				if(cname == "true") {
+					return 1;
+				}
+				if(cname == "false") {
+					return 2;
+				}
+				std::optional<Constant> cns = const_lookup(cname);
+				if(cns.has_value()) {
+					return cns.value().value;
+				}
+			}
+			if(std::holds_alternative<NodeTermCall*>(nterm->var)) {
+				NodeTermCall* call = std::get<NodeTermCall*>(nterm->var);
+				if(auto vl = __eval_ctcall(call, def)) {
+					return vl.value();
+				}
+				GeneratorError(def, "unkown compile-time procedure `" + call->name + "`");
+			}
+		}
+		if(std::holds_alternative<NodeBinExpr*>(expr->var)) {
+			NodeBinExpr* nbin = std::get<NodeBinExpr*>(expr->var);
+			if(std::holds_alternative<NodeBinExprAdd*>(nbin->var)) {
+				NodeBinExprAdd* nadd = std::get<NodeBinExprAdd*>(nbin->var);
+				return eval(nadd->lhs, def) + eval(nadd->rhs, def);
+			}
+			if(std::holds_alternative<NodeBinExprSub*>(nbin->var)) {
+				NodeBinExprSub* nsub = std::get<NodeBinExprSub*>(nbin->var);
+				return eval(nsub->lhs, def) - eval(nsub->rhs, def);
+			}
+			if(std::holds_alternative<NodeBinExprMulti*>(nbin->var)) {
+				NodeBinExprMulti* nmul = std::get<NodeBinExprMulti*>(nbin->var);
+				return eval(nmul->lhs, def) * eval(nmul->rhs, def);
+			}
+			if(std::holds_alternative<NodeBinExprDiv*>(nbin->var)) {
+				NodeBinExprDiv* ndiv = std::get<NodeBinExprDiv*>(nbin->var);
+				return eval(ndiv->lhs, def) / eval(ndiv->rhs, def);
+			}
+			if(std::holds_alternative<NodeBinExprEqEq*>(nbin->var)) {
+				NodeBinExprEqEq* neqeq = std::get<NodeBinExprEqEq*>(nbin->var);
+				return eval(neqeq->lhs, def) == eval(neqeq->rhs, def);
+			}
+			if(std::holds_alternative<NodeBinExprNotEq*>(nbin->var)) {
+				NodeBinExprNotEq* nnoteq = std::get<NodeBinExprNotEq*>(nbin->var);
+				return eval(nnoteq->lhs, def) != eval(nnoteq->rhs, def);
+			}
+			if(std::holds_alternative<NodeBinExprLess*>(nbin->var)) {
+				NodeBinExprLess* nless = std::get<NodeBinExprLess*>(nbin->var);
+				return eval(nless->lhs, def) < eval(nless->rhs, def);
+			}
+			if(std::holds_alternative<NodeBinExprAbove*>(nbin->var)) {
+				NodeBinExprAbove* nabove = std::get<NodeBinExprAbove*>(nbin->var);
+				return eval(nabove->lhs, def) > eval(nabove->rhs, def);
+			}
+			if(std::holds_alternative<NodeBinExprAnd*>(nbin->var)) {
+				NodeBinExprAnd* nand = std::get<NodeBinExprAnd*>(nbin->var);
+				return eval(nand->lhs, def) > eval(nand->rhs, def);
+			}
+		}
+		GeneratorError(def, "not constant provided");
+		return result;
+	}
+
 	void gen_stmt(const NodeStmt* stmt)
 	{
 		struct StmtVisitor {
@@ -1372,7 +1507,7 @@ public:
 			}
 
 			void operator()(const NodeStmtCompileTimeIf* stmt_ctif) const {
-				bool condition = gen.m_parser->eval_int_value(stmt_ctif->condition, stmt_ctif->def);
+				bool condition = gen.eval(stmt_ctif->condition, stmt_ctif->def);
 				if(condition) {
 					for(const auto stmt : stmt_ctif->_if->stmts) {
 						gen.gen_stmt(stmt);
@@ -1622,7 +1757,7 @@ public:
 			}
 
 			void operator()(const NodeStmtStaticAssert* stmt_st) {
-				if(!stmt_st->condition) {
+				if(!static_cast<bool>(gen.eval(stmt_st->condition, stmt_st->def))) {
 					putloc(stmt_st->def);
 					printf(" AssertionFailed: %s\n", stmt_st->msg.c_str());
 					exit(1);
@@ -1785,6 +1920,7 @@ private:
 		"free"
 	};
 	std::vector<NodeScope*> __oninits;
+	size_t CTX_IOTA = 0ULL;
 	size_t m_var_index = 0U;
 	size_t m_label_count = 0U;
 };

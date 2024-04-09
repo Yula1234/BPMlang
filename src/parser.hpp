@@ -485,7 +485,7 @@ struct NodeStmtPushOnStack {
 struct NodeStmtStaticAssert {
 	Token def;
 	std::string msg;
-	bool condition;
+	NodeExpr* condition;
 };
 
 struct NodeStmtCompileTimeIf {
@@ -1710,14 +1710,11 @@ public:
 			try_consume_err(TokenType::open_paren);
 			auto stmt_st = m_allocator.emplace<NodeStmtStaticAssert>();
 			stmt_st->def = _st_assert.value();
-			bool _static_condition = false;
 			if(auto _expr = parse_expr()) {
-				_static_condition = static_cast<bool>(eval_int_value(_expr.value()));
+				stmt_st->condition = _expr.value();
 			} else {
 				error_expected("expression");
 			}
-
-			stmt_st->condition = _static_condition;
 
 			try_consume_err(TokenType::comma);
 			
