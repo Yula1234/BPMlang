@@ -18,6 +18,17 @@ interface IDynarray {
 	}
 	__empty_stmt$
 
+proc dtor_dynarray da:IDynarray -> void {
+	free(da.data);
+}
+
+#define __dynarray_dtor(__struct __name)
+	proc __name self:__struct -> void {
+		dtor_dynarray(self);
+	}
+	__empty_stmt$
+
+__dynarray_dtor(DynamicArray, __dtor__DynamicArray);
 __dynarray_ctor(DynamicArray, new_dynarray);
 
 proc delete_dynarray da:IDynarray -> void {

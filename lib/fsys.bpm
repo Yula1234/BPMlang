@@ -5,7 +5,7 @@ cextern "fclose";
 cextern "fileno";
 cextern "fgetc";
 
-const EOF 4294967295;
+#define EOF() neg(1)$
 
 proc fopen FilePath:ptr Mode:ptr -> ptr;
 
@@ -31,6 +31,10 @@ proc closef f:FILE -> void {
 	delete f;
 }
 
+proc __dtor__FILE self:FILE -> void {
+	fclose(self.cfile);
+}
+
 proc getcf f:FILE -> int {
 	return fgetc(f.cfile);
 }
@@ -38,7 +42,7 @@ proc getcf f:FILE -> int {
 proc read_file f:FILE buf:ptr -> int {
 	let ch = 0;
 	let i = 0;
-	while(ch != EOF) {
+	while(ch != EOF()) {
 		ch = fgetc(f.cfile);
 		store8(buf + i, ch);
 		i += 1;
