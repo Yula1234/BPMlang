@@ -1780,6 +1780,19 @@ public:
 						gen.GeneratorWarning(stmt_delete->def, "objects of type `" + objectName + "` uses custom allocator function.\nNOTE: delete of object of this type may free youre arena-pool.");
 					}
 				}
+				std::optional<Procedure> __dtor = gen.proc_lookup("__dtor__" + objectName);
+				if(__dtor.has_value()) {
+					Procedure dtor = __dtor.value();
+					if(dtor.params.size() != 1) {
+						gen.GeneratorError(stmt_delete->def, "destructor `__dtor__" + objectName + "` must have 1 argument");
+					}
+					if(dtor.params[0].second != type) {
+						gen.GeneratorError(stmt_delete->def, "destructor `__dtor__" + objectName + "` must have first argument of type `" + objectName + "`");
+					}
+					gen.gen_expr(stmt_delete->expr);
+					gen.m_output << "    call __dtor__" + objectName + "\n";
+					gen.m_output << "    add esp, 4\n";
+				}
 				gen.gen_expr(stmt_delete->expr);
 				gen.m_output << "    call free\n";
 				gen.m_output << "    add esp, 4\n";

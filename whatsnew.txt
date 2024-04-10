@@ -1,3 +1,5 @@
-release 1.5.5
+release 1.6.0
 
-compile-time evaluation bug fixes.
+rename type -> ct_type.
+added function __dtor__ for
+destruct objects.
