@@ -39,45 +39,45 @@ proc parser_consume prs:parser -> Token {
 	return tok;
 }
 
-proc parser_consume_err prs:parser type:int -> Token;
+proc parser_consume_err prs:parser _type:int -> Token;
 
-const DataTypeInt  iota;
-const DataTypeVoid iota;
-const DataTypePtr  iota;
-const DataTypesCount reset;
+const Data_typeInt  iota;
+const Data_typeVoid iota;
+const Data_typePtr  iota;
+const Data_typesCount reset;
 
 proc dt_to_string dt:int -> ptr {
-	if(dt == DataTypeInt) {
+	if(dt == Data_typeInt) {
 		return "`int`";
 	}
-	elif(dt == DataTypeVoid) {
+	elif(dt == Data_typeVoid) {
 		return "`void`";
 	}
-	elif(dt == DataTypePtr) {
+	elif(dt == Data_typePtr) {
 		return "`ptr`";
 	}
 	puts("`dt_to_string` unkown dt\n");
 	exit(1);
 }
 
-proc is_type_token toktype:int -> int {
-	if(toktype == TokenTypeVoid) {
+proc is__type_token tok_type:int -> int {
+	if(tok_type == Token_typeVoid) {
 		return true;
 	}
-	if(toktype == TokenTypeInt) {
+	if(tok_type == Token_typeInt) {
 		return true;
 	}
 	return false;
 }
 
-proc token_to_dt toktype:int -> int {
-	if(toktype == TokenTypeVoid) {
-		return DataTypeVoid;
+proc token_to_dt tok_type:int -> int {
+	if(tok_type == Token_typeVoid) {
+		return Data_typeVoid;
 	}
-	if(toktype == TokenTypeInt) {
-		return DataTypeInt;
+	if(tok_type == Token_typeInt) {
+		return Data_typeInt;
 	}
-	puts("`token_to_dt` unkown toktype\n");
+	puts("`token_to_dt` unkown tok_type\n");
 	exit(1);
 }
 
@@ -138,33 +138,33 @@ proc Error str:ptr file:ptr line:int col:int -> void {
 proc parser_parse_args prs:parser -> DynamicArray;
 
 proc parser_parse_term prs:parser -> NodeExpr {
-	if(parser_peek(prs).type == TokenTypeIntLiteral) {
+	if(parser_peek(prs)._type == Token_typeIntLiteral) {
 		let number_tok = parser_consume(prs);
 		let expr_int = NodeExpr(NodeKindInt, number_tok.value);
 		return expr_int;
 	}
-	if((parser_peek(prs).type == TokenTypeIdent) && (parser_peek_at(prs, 1).type == TokenTypeOpenParen)) {
+	if((parser_peek(prs)._type == Token_typeIdent) && (parser_peek_at(prs, 1)._type == Token_typeOpenParen)) {
 		let def = parser_consume(prs);
-		parser_consume_err(prs, TokenTypeOpenParen);
+		parser_consume_err(prs, Token_typeOpenParen);
 		let args: DynamicArray;
-		if(parser_peek(prs).type != TokenTypeCloseParen) {
+		if(parser_peek(prs)._type != Token_typeCloseParen) {
 			args = parser_parse_args(prs);
 		}
 		else {
 			args = cast(DynamicArray, 0);
 		}
-		parser_consume_err(prs, TokenTypeCloseParen);
+		parser_consume_err(prs, Token_typeCloseParen);
 		let expr_call = NodeExprCall(def, def.value, args);
 		let fexpr = NodeExpr(NodeKindCall, cast(ptr, expr_call));
 		return fexpr;
 	}
-	if(parser_peek(prs).type == TokenTypeIdent) {
+	if(parser_peek(prs)._type == Token_typeIdent) {
 		let tok = parser_consume(prs);
 		let expr_ident = NodeExprIdent(tok, tok.value);
 		let fexpr = NodeExpr(NodeKindIdent, cast(ptr, expr_ident));
 		return fexpr;
 	}
-	putu(parser_peek(prs).type);
+	putu(parser_peek(prs)._type);
 	puts("Parser error (parse_term)\n");
 	exit(1);
 }
@@ -175,38 +175,38 @@ const PLUS_PREC iota;
 const MUL_PREC 	iota;
 const PRECS_COUNT reset;
 
-proc is_bin_operator toktype:int -> int;
+proc is_bin_operator tok_type:int -> int;
 
-proc bin_prec toktype:int -> int {
-	if(is_bin_operator(toktype) != 1) {
+proc bin_prec tok_type:int -> int {
+	if(is_bin_operator(tok_type) != 1) {
 		return NULL_PREC;
 	}
-	if(toktype == TokenTypePlus) {
+	if(tok_type == Token_typePlus) {
 		return PLUS_PREC;
 	}
-	elif(toktype == TokenTypeMinus) {
+	elif(tok_type == Token_typeMinus) {
 		return PLUS_PREC;
 	}
-	elif(toktype == TokenTypeStar) {
+	elif(tok_type == Token_typeStar) {
 		return MUL_PREC;
 	}
-	elif(toktype == TokenTypeSlash) {
+	elif(tok_type == Token_typeSlash) {
 		return MUL_PREC;
 	}
 	return NULL_PREC;
 }
 
-proc is_bin_operator toktype:int -> int {
-	if(toktype == TokenTypePlus) {
+proc is_bin_operator tok_type:int -> int {
+	if(tok_type == Token_typePlus) {
 		return true;
 	}
-	elif(toktype == TokenTypeMinus) {
+	elif(tok_type == Token_typeMinus) {
 		return true;
 	}
-	elif(toktype == TokenTypeStar) {
+	elif(tok_type == Token_typeStar) {
 		return true;
 	}
-	elif(toktype == TokenTypeSlash) {
+	elif(tok_type == Token_typeSlash) {
 		return true;
 	}
 	return false;
@@ -217,17 +217,17 @@ proc parser_parse_expr prs:parser min_prec:int -> NodeExpr;
 proc parser_parse_args prs:parser -> DynamicArray {
 	let args = new_dynarray(4);
 	let i = 0;
-	if(parser_peek(prs).type == TokenTypeCloseParen) {
+	if(parser_peek(prs)._type == Token_typeCloseParen) {
 		return args;
 	}
-	while(parser_peek(prs).type != TokenTypeCloseParen) {
+	while(parser_peek(prs)._type != Token_typeCloseParen) {
 		let _expr = parser_parse_expr(prs, 0);
 		dynarray_push(args, _expr);
-		if((parser_peek(prs).type != TokenTypeComma) && (parser_peek(prs).type != TokenTypeCloseParen)) {
+		if((parser_peek(prs)._type != Token_typeComma) && (parser_peek(prs)._type != Token_typeCloseParen)) {
 			let ctok = parser_peek(prs);
 			Error("excepted args", ctok.file_loc, ctok.line, ctok.col);
 		}
-		if(parser_peek(prs).type == TokenTypeComma) {
+		if(parser_peek(prs)._type == Token_typeComma) {
 			parser_consume(prs);
 		}
 	}
@@ -241,7 +241,7 @@ proc parser_parse_expr prs:parser min_prec:int -> NodeExpr {
 		let cur_tok = parser_peek(prs);
 		let prec = NULL_PREC;
 		if(cast(int, cur_tok) != 0) {
-			prec = bin_prec(cur_tok.type);
+			prec = bin_prec(cur_tok._type);
 			if(prec == NULL_PREC) {
 				break;
 			}
@@ -257,28 +257,28 @@ proc parser_parse_expr prs:parser min_prec:int -> NodeExpr {
 		let expr_rhs = parser_parse_expr(prs, next_min_prec);
 		let expr = NodeExpr();
 		let expr_lhs2 = NodeExpr();
-		if(ctok.type == TokenTypePlus) {
+		if(ctok._type == Token_typePlus) {
 			expr_lhs2.data = expr_lhs.data;
 			expr_lhs2.kind = expr_lhs.kind;
 			let add = NodeExprAdd(cast(ptr, expr_lhs2), cast(ptr, expr_rhs), ctok);
 			expr.kind = NodeKindPlus;
 			expr.data = cast(ptr, add);
 		}
-		elif(ctok.type == TokenTypeMinus) {
+		elif(ctok._type == Token_typeMinus) {
 			expr_lhs2.data = expr_lhs.data;
 			expr_lhs2.kind = expr_lhs.kind;
 			let sub = NodeExprSub(cast(ptr, expr_lhs2), cast(ptr, expr_rhs), ctok);
 			expr.kind = NodeKindMinus;
 			expr.data = cast(ptr, sub);
 		}
-		elif(ctok.type == TokenTypeStar) {
+		elif(ctok._type == Token_typeStar) {
 			expr_lhs2.data = expr_lhs.data;
 			expr_lhs2.kind = expr_lhs.kind;
 			let mul = NodeExprMul(cast(ptr, expr_lhs2), cast(ptr, expr_rhs), ctok);
 			expr.kind = NodeKindMul;
 			expr.data = cast(ptr, mul);
 		}
-		elif(ctok.type == TokenTypeSlash) {
+		elif(ctok._type == Token_typeSlash) {
 			expr_lhs2.data = expr_lhs.data;
 			expr_lhs2.kind = expr_lhs.kind;
 			let div = NodeExprDiv(cast(ptr, expr_lhs2), cast(ptr, expr_rhs), ctok);
@@ -294,15 +294,15 @@ proc parser_parse_expr prs:parser min_prec:int -> NodeExpr {
 	return expr_lhs;
 }
 
-proc parser_consume_err prs:parser type:int -> Token {
+proc parser_consume_err prs:parser _type:int -> Token {
 	let tok = parser_peek(prs);
 	if(cast(int, tok) == 0) {
 		let prev = parser_peek_prev(prs);
-		format_print("%s:%d:%d ERROR: excepted %s, but got nothing\n", prev.file_loc, prev.line, prev.col, tokentype2str(type));
+		format_print("%s:%d:%d ERROR: excepted %s, but got nothing\n", prev.file_loc, prev.line, prev.col, token_type2str(_type));
 		exit(1);
 	}
-	elif(tok.type != type) {
-		format_print("%s:%d:%d ERROR: excepted %s, but got %s\n", tok.file_loc, tok.line, tok.col, tokentype2str(type), tokentype2str(tok.type));
+	elif(tok._type != _type) {
+		format_print("%s:%d:%d ERROR: excepted %s, but got %s\n", tok.file_loc, tok.line, tok.col, token_type2str(_type), token_type2str(tok._type));
 		exit(1);
 	}
 	parser_consume(prs);
@@ -365,13 +365,13 @@ struct NodeStmtIf(__global_obj_alloc) {
 
 struct ProcArg(__global_obj_alloc) {
 	name:ptr,
-	type:int
+	_type:int
 }
 
 struct NodeStmtProc(__global_obj_alloc) {
 	block:NodeStmtBlock,
 	name:ptr,
-	type:int,
+	_type:int,
 	def:Token,
 	args:DynamicArray
 }
@@ -393,7 +393,7 @@ const StmtKindsCount reset;
 proc parser_parse_stmt prs:parser -> int;
 
 proc parser_parse_block prs:parser -> NodeStmtBlock {
-	if(parser_peek(prs).type != TokenTypeOpenCurly) {
+	if(parser_peek(prs)._type != Token_typeOpenCurly) {
 		let tok = parser_peek(prs);
 		Error("excepted {", tok.file_loc, tok.line, tok.col);
 	}
@@ -406,22 +406,22 @@ proc parser_parse_block prs:parser -> NodeStmtBlock {
 		}
 		dynarray_push(block.stmts, _stmt);
 	}
-	parser_consume_err(prs, TokenTypeCloseCurly);
+	parser_consume_err(prs, Token_typeCloseCurly);
 	return block;
 }
 
 proc parse_if_pred prs:parser -> ptr {
-	if(parser_peek(prs).type == TokenTypeElse) {
+	if(parser_peek(prs)._type == Token_typeElse) {
 		parser_consume(prs);
 		let else_block = parser_parse_block(prs);
 		let else_pred = IfPredElse(else_block);
 		return cast(ptr, NodeIfPred(PredKindElse, cast(ptr, else_pred)));
 	}
-	elif(parser_peek(prs).type == TokenTypeElif) {
+	elif(parser_peek(prs)._type == Token_typeElif) {
 		parser_consume(prs);
-		parser_consume_err(prs, TokenTypeOpenParen);
+		parser_consume_err(prs, Token_typeOpenParen);
 		let _condition = parser_parse_expr(prs, 0);
-		parser_consume_err(prs, TokenTypeCloseParen);
+		parser_consume_err(prs, Token_typeCloseParen);
 		let elif_block = parser_parse_block(prs);
 		let elif_pred = IfPredElif(elif_block, _condition, cast(ptr, 0));
 		if(cast(int, parser_peek(prs)) != 0) {
@@ -434,46 +434,46 @@ proc parse_if_pred prs:parser -> ptr {
 }
 
 proc put_arg arg:ProcArg -> void {
-	format_print("ProcArg(%s, %s)\n", arg.name, dt_to_string(arg.type));
+	format_print("ProcArg(%s, %s)\n", arg.name, dt_to_string(arg._type));
 }
 
 proc parser_parse_stmt prs:parser -> int {
 	let def_tok: Token;
-	if(parser_peek(prs).type == TokenTypeExit) {
+	if(parser_peek(prs)._type == Token_typeExit) {
 		def_tok = parser_consume(prs);
-		parser_consume_err(prs, TokenTypeOpenParen);
+		parser_consume_err(prs, Token_typeOpenParen);
 		let expr_exit = cast(ptr, parser_parse_expr(prs, 0));
 		let stmt_exit = NodeStmtExit(expr_exit);
 		let stmt = NodeStmt(StmtKindExit, cast(ptr, stmt_exit));
-		parser_consume_err(prs, TokenTypeCloseParen);
-		parser_consume_err(prs, TokenTypeSemi);
+		parser_consume_err(prs, Token_typeCloseParen);
+		parser_consume_err(prs, Token_typeSemi);
 		return cast(int, stmt);
 	}
-	elif(parser_peek(prs).type == TokenTypePrint) {
+	elif(parser_peek(prs)._type == Token_typePrint) {
 		def_tok = parser_consume(prs);
-		parser_consume_err(prs, TokenTypeOpenParen);
+		parser_consume_err(prs, Token_typeOpenParen);
 		let expr_print = cast(ptr, parser_parse_expr(prs, 0));
 		let stmt_print = NodeStmtPrint(expr_print);
 		let stmt = NodeStmt(StmtKindPrint, cast(ptr, stmt_print));
-		parser_consume_err(prs, TokenTypeCloseParen);
-		parser_consume_err(prs, TokenTypeSemi);
+		parser_consume_err(prs, Token_typeCloseParen);
+		parser_consume_err(prs, Token_typeSemi);
 		return cast(int, stmt);
 	}
-	elif(parser_peek(prs).type == TokenTypeLet) {
+	elif(parser_peek(prs)._type == Token_typeLet) {
 		def_tok = parser_consume(prs);
-		let ident_tok = parser_consume_err(prs, TokenTypeIdent);
-		parser_consume_err(prs, TokenTypeEq);
+		let ident_tok = parser_consume_err(prs, Token_typeIdent);
+		parser_consume_err(prs, Token_typeEq);
 		let expr_let = cast(ptr, parser_parse_expr(prs, 0));
 		let stmt_let = NodeStmtLet(ident_tok.value, expr_let, def_tok);
 		let stmt = NodeStmt(StmtKindLet, cast(ptr, stmt_let));
-		parser_consume_err(prs, TokenTypeSemi);
+		parser_consume_err(prs, Token_typeSemi);
 		return cast(int, stmt);
 	}
-	elif(parser_peek(prs).type == TokenTypeIf) {
+	elif(parser_peek(prs)._type == Token_typeIf) {
 		parser_consume(prs); // skip IF keyword
-		parser_consume_err(prs, TokenTypeOpenParen);
+		parser_consume_err(prs, Token_typeOpenParen);
 		let _condition = parser_parse_expr(prs, 0);
-		parser_consume_err(prs, TokenTypeCloseParen);
+		parser_consume_err(prs, Token_typeCloseParen);
 		let block = parser_parse_block(prs);
 		let stmt_if = NodeStmtIf(block, _condition, cast(ptr, 0));
 		if(cast(int, parser_peek(prs)) != 0) {
@@ -482,52 +482,52 @@ proc parser_parse_stmt prs:parser -> int {
 		let stmt = NodeStmt(StmtKindIf, cast(ptr, stmt_if));
 		return cast(int, stmt);
 	}
-	elif(parser_peek(prs).type == TokenTypeProc) {
+	elif(parser_peek(prs)._type == Token_typeProc) {
 		let def = parser_consume(prs);
-		let name = parser_consume_err(prs, TokenTypeIdent).value;
+		let name = parser_consume_err(prs, Token_typeIdent).value;
 		let args = new_dynarray(4);
-		if(parser_peek(prs).type != TokenTypeArrow) {
-			while(parser_peek(prs).type != TokenTypeArrow) {
-				let ntok = parser_consume_err(prs, TokenTypeIdent);
-				parser_consume_err(prs, TokenTypeDoubleColon);
-				let typetok = parser_consume(prs);
-				if(is_type_token(typetok.type) != 1) {
-					Error("excepted procedure return type", typetok.file_loc, typetok.line, typetok.col);
+		if(parser_peek(prs)._type != Token_typeArrow) {
+			while(parser_peek(prs)._type != Token_typeArrow) {
+				let ntok = parser_consume_err(prs, Token_typeIdent);
+				parser_consume_err(prs, Token_typeDoubleColon);
+				let _typetok = parser_consume(prs);
+				if(is__type_token(_typetok._type) != 1) {
+					Error("excepted procedure return _type", _typetok.file_loc, _typetok.line, _typetok.col);
 				}
-				let arg = ProcArg(ntok.value, token_to_dt(typetok.type));
+				let arg = ProcArg(ntok.value, token_to_dt(_typetok._type));
 				dynarray_push(args, arg);
 			}
 		}
-		parser_consume_err(prs, TokenTypeArrow);
-		let ttype = parser_consume(prs);
-		if(is_type_token(ttype.type) != 1) {
-			Error("excepted procedure return type", ttype.file_loc, ttype.line, ttype.col);
+		parser_consume_err(prs, Token_typeArrow);
+		let t_type = parser_consume(prs);
+		if(is__type_token(t_type._type) != 1) {
+			Error("excepted procedure return _type", t_type.file_loc, t_type.line, t_type.col);
 		}
 		let block = parser_parse_block(prs);
-		let proc_stmt = NodeStmtProc(block, name, token_to_dt(ttype.type), def, args);
+		let proc_stmt = NodeStmtProc(block, name, token_to_dt(t_type._type), def, args);
 		let stmt = NodeStmt(StmtKindProc, cast(ptr, proc_stmt));
 		return cast(int, stmt);
 	}
-	elif((parser_peek(prs).type == TokenTypeIdent) && parser_peek_at(prs, 1).type == TokenTypeOpenParen) {
+	elif((parser_peek(prs)._type == Token_typeIdent) && parser_peek_at(prs, 1)._type == Token_typeOpenParen) {
 		let def = parser_consume(prs);
-		parser_consume_err(prs, TokenTypeOpenParen);
+		parser_consume_err(prs, Token_typeOpenParen);
 		let args: DynamicArray;
-		if(parser_peek(prs).type != TokenTypeCloseParen) {
+		if(parser_peek(prs)._type != Token_typeCloseParen) {
 			args = parser_parse_args(prs);
 		}
 		else {
 			args = cast(DynamicArray, 0);
 		}
-		parser_consume_err(prs, TokenTypeCloseParen);
-		parser_consume_err(prs, TokenTypeSemi);
+		parser_consume_err(prs, Token_typeCloseParen);
+		parser_consume_err(prs, Token_typeSemi);
 		let call_stmt = NodeStmtCall(def, def.value, args);
 		let stmt = NodeStmt(StmtKindCall, cast(ptr, call_stmt));
 		return cast(int, stmt);
 	}
-	elif(parser_peek(prs).type == TokenTypeReturn) {
+	elif(parser_peek(prs)._type == Token_typeReturn) {
 		let def = parser_consume(prs);
 		let _rexpr = parser_parse_expr(prs, 0);
-		parser_consume_err(prs, TokenTypeSemi);
+		parser_consume_err(prs, Token_typeSemi);
 		let ret_stmt = NodeStmtReturn(def, _rexpr);
 		let stmt = NodeStmt(StmtKindReturn, cast(ptr, ret_stmt));
 		return cast(int, stmt);

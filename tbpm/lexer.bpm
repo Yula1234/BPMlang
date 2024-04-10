@@ -95,35 +95,35 @@ proc is_identif chr:int -> int {
 	return true;
 }
 
-const TokenTypeIdent       iota;
-const TokenTypeOpenParen   iota;
-const TokenTypeCloseParen  iota;
-const TokenTypeExit        iota;
-const TokenTypeIntLiteral  iota;
-const TokenTypeSemi        iota;
-const TokenTypePlus        iota;
-const TokenTypeMinus       iota;
-const TokenTypeStar        iota;
-const TokenTypeSlash       iota;
-const TokenTypePrint       iota;
-const TokenTypeLet         iota;
-const TokenTypeEq          iota;
-const TokenTypeIf          iota;
-const TokenTypeCloseCurly  iota;
-const TokenTypeOpenCurly   iota;
-const TokenTypeElse        iota;
-const TokenTypeElif        iota;
-const TokenTypeProc        iota;
-const TokenTypeArrow       iota;
-const TokenTypeVoid        iota;
-const TokenTypeInt         iota;
-const TokenTypeComma       iota;
-const TokenTypeDoubleColon iota;
-const TokenTypeReturn      iota;
-const TokenTypesCount      reset;
+const Token_typeIdent       iota;
+const Token_typeOpenParen   iota;
+const Token_typeCloseParen  iota;
+const Token_typeExit        iota;
+const Token_typeIntLiteral  iota;
+const Token_typeSemi        iota;
+const Token_typePlus        iota;
+const Token_typeMinus       iota;
+const Token_typeStar        iota;
+const Token_typeSlash       iota;
+const Token_typePrint       iota;
+const Token_typeLet         iota;
+const Token_typeEq          iota;
+const Token_typeIf          iota;
+const Token_typeCloseCurly  iota;
+const Token_typeOpenCurly   iota;
+const Token_typeElse        iota;
+const Token_typeElif        iota;
+const Token_typeProc        iota;
+const Token_typeArrow       iota;
+const Token_typeVoid        iota;
+const Token_typeInt         iota;
+const Token_typeComma       iota;
+const Token_typeDoubleColon iota;
+const Token_typeReturn      iota;
+const Token_typesCount      reset;
 
 struct Token(__global_obj_alloc) {
-	type:int,
+	_type:int,
 	line:int,
 	col:int,
 	value:ptr,
@@ -135,91 +135,91 @@ proc push_token tokens:ptr index:ptr tok:Token -> void {
 	store32(index, rd32(index) + 1);
 }
 
-proc tokentype2str type:int -> ptr {
-	if(type == TokenTypeIdent) {
+proc token_type2str _type:int -> ptr {
+	if(_type == Token_typeIdent) {
 		return "`ident`";
 	}
-	elif(type == TokenTypeOpenParen) {
+	elif(_type == Token_typeOpenParen) {
 		return "`(`";
 	}
-	elif(type == TokenTypeCloseParen) {
+	elif(_type == Token_typeCloseParen) {
 		return "`)`";
 	}
-	elif(type == TokenTypeOpenCurly) {
+	elif(_type == Token_typeOpenCurly) {
 		return "`{`";
 	}
-	elif(type == TokenTypeCloseCurly) {
+	elif(_type == Token_typeCloseCurly) {
 		return "`}`";
 	}
-	elif(type == TokenTypeExit) {
+	elif(_type == Token_typeExit) {
 		return "`exit`";
 	}
-	elif(type == TokenTypeIntLiteral) {
+	elif(_type == Token_typeIntLiteral) {
 		return "`int literal`";
 	}
-	elif(type == TokenTypeSemi) {
+	elif(_type == Token_typeSemi) {
 		return "`;`";
 	}
-	elif(type == TokenTypePlus) {
+	elif(_type == Token_typePlus) {
 		return "`+`";
 	}
-	elif(type == TokenTypeMinus) {
+	elif(_type == Token_typeMinus) {
 		return "`-`";
 	}
-	elif(type == TokenTypeStar) {
+	elif(_type == Token_typeStar) {
 		return "`*`";
 	}
-	elif(type == TokenTypeSlash) {
+	elif(_type == Token_typeSlash) {
 		return "`/`";
 	}
-	elif(type == TokenTypePrint) {
+	elif(_type == Token_typePrint) {
 		return "`print`";
 	}
-	elif(type == TokenTypeLet) {
+	elif(_type == Token_typeLet) {
 		return "`let`";
 	}
-	elif(type == TokenTypeEq) {
+	elif(_type == Token_typeEq) {
 		return "`=`";
 	}
-	elif(type == TokenTypeIf) {
+	elif(_type == Token_typeIf) {
 		return "`if`";
 	}
-	elif(type == TokenTypeElif) {
+	elif(_type == Token_typeElif) {
 		return "`elif`";
 	}
-	elif(type == TokenTypeElse) {
+	elif(_type == Token_typeElse) {
 		return "`else`";
 	}
-	elif(type == TokenTypeProc) {
+	elif(_type == Token_typeProc) {
 		return "`proc`";
 	}
-	elif(type == TokenTypeArrow) {
+	elif(_type == Token_typeArrow) {
 		return "`->`";
 	}
-	elif(type == TokenTypeVoid) {
+	elif(_type == Token_typeVoid) {
 		return "`void`";
 	}
-	elif(type == TokenTypeInt) {
+	elif(_type == Token_typeInt) {
 		return "`int`";
 	}
-	elif(type == TokenTypeComma) {
+	elif(_type == Token_typeComma) {
 		return "`,`";
 	}
-	elif(type == TokenTypeDoubleColon) {
+	elif(_type == Token_typeDoubleColon) {
 		return "`:`";
 	}
-	elif(type == TokenTypeReturn) {
+	elif(_type == Token_typeReturn) {
 		return "`return`";
 	}
-	format_print("tokentype2str error: unkown TokenType `%d`\n", type);
+	format_print("token_type2str error: unkown Token_type `%d`\n", _type);
 	exit(0);
 }
 
 proc print_token tok:Token -> void {
 	if(strlen(tok.value) != 0) {
-		format_print("Token(%s, %s:%d:%d, %s)\n", tokentype2str(tok.type), tok.file_loc, tok.line, tok.col, tok.value);
+		format_print("Token(%s, %s:%d:%d, %s)\n", token_type2str(tok._type), tok.file_loc, tok.line, tok.col, tok.value);
 	} else {
-		format_print("Token(%s, %s:%d:%d)\n", tokentype2str(tok.type), tok.file_loc, tok.line, tok.col);
+		format_print("Token(%s, %s:%d:%d)\n", token_type2str(tok._type), tok.file_loc, tok.line, tok.col);
 	}
 }
 
@@ -249,114 +249,114 @@ proc lexer_lex
 				tmp_str_push(tmp_str, lexer_consume(lxr));
 			}
 			if(streq(tmp_str.data, "exit")) {
-				tmp_tok = Token(TokenTypeExit, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				tmp_tok = Token(Token_typeExit, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			elif(streq(tmp_str.data, "print")) {
-				tmp_tok = Token(TokenTypePrint, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				tmp_tok = Token(Token_typePrint, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			elif(streq(tmp_str.data, "let")) {
-				tmp_tok = Token(TokenTypeLet, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				tmp_tok = Token(Token_typeLet, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			elif(streq(tmp_str.data, "if")) {
-				tmp_tok = Token(TokenTypeIf, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				tmp_tok = Token(Token_typeIf, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			elif(streq(tmp_str.data, "else")) {
-				tmp_tok = Token(TokenTypeElse, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				tmp_tok = Token(Token_typeElse, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			elif(streq(tmp_str.data, "elif")) {
-				tmp_tok = Token(TokenTypeElif, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				tmp_tok = Token(Token_typeElif, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			elif(streq(tmp_str.data, "proc")) {
-				tmp_tok = Token(TokenTypeProc, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				tmp_tok = Token(Token_typeProc, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			elif(streq(tmp_str.data, "void")) {
-				tmp_tok = Token(TokenTypeVoid, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				tmp_tok = Token(Token_typeVoid, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			elif(streq(tmp_str.data, "int")) {
-				tmp_tok = Token(TokenTypeInt, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				tmp_tok = Token(Token_typeInt, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			elif(streq(tmp_str.data, "return")) {
-				tmp_tok = Token(TokenTypeReturn, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
+				tmp_tok = Token(Token_typeReturn, line_count, lxr.col - strlen(tmp_str.data), "", FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			else {
-				tmp_tok = Token(TokenTypeIdent, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data, FILE_PATH);
+				tmp_tok = Token(Token_typeIdent, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data, FILE_PATH);
 				push_token(tokens, &tokens_count, tmp_tok);
 			}
 			tmp_str_realloc(tmp_str, str_arena, 56);
 		}
 		elif((lexer_peek(lxr) == '-') && (lexer_peek_at(lxr, 1) == '>')) {
-			tmp_tok = Token(TokenTypeArrow, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeArrow, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '(') {
-			tmp_tok = Token(TokenTypeOpenParen, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeOpenParen, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == ')') {
-			tmp_tok = Token(TokenTypeCloseParen, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeCloseParen, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '{') {
-			tmp_tok = Token(TokenTypeOpenCurly, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeOpenCurly, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '}') {
-			tmp_tok = Token(TokenTypeCloseCurly, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeCloseCurly, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == ';') {
-			tmp_tok = Token(TokenTypeSemi, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeSemi, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == ',') {
-			tmp_tok = Token(TokenTypeComma, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeComma, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == ':') {
-			tmp_tok = Token(TokenTypeDoubleColon, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeDoubleColon, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '+') {
-			tmp_tok = Token(TokenTypePlus, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typePlus, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '-') {
-			tmp_tok = Token(TokenTypeMinus, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeMinus, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '*') {
-			tmp_tok = Token(TokenTypeStar, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeStar, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '=') {
-			tmp_tok = Token(TokenTypeEq, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeEq, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
 		elif(lexer_peek(lxr) == '/') {
-			tmp_tok = Token(TokenTypeSlash, line_count, lxr.col - 1, "", FILE_PATH);
+			tmp_tok = Token(Token_typeSlash, line_count, lxr.col - 1, "", FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			lexer_consume(lxr);
 		}
@@ -364,7 +364,7 @@ proc lexer_lex
 			while(isdigit(lexer_peek(lxr))) {
 				tmp_str_push(tmp_str, lexer_consume(lxr));
 			}
-			tmp_tok = Token(TokenTypeIntLiteral, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data, FILE_PATH);
+			tmp_tok = Token(Token_typeIntLiteral, line_count, lxr.col - strlen(tmp_str.data), tmp_str.data, FILE_PATH);
 			push_token(tokens, &tokens_count, tmp_tok);
 			tmp_str_realloc(tmp_str, str_arena, 56);
 		}
