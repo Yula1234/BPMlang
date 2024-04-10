@@ -1361,12 +1361,12 @@ public:
 			auto stmt = m_allocator.emplace<NodeStmt>(stmt_while);
 			return stmt;
 		}
-		if (peek().has_value() && peek().value().type == TokenType::proc) {
+		if(peek().has_value() && peek().value().type == TokenType::proc) {
 			consume();
 			auto stmt_proc = m_allocator.emplace<NodeStmtProc>();
 			Token identif = try_consume_err(TokenType::ident);
 			std::vector<std::pair<std::string, DataType>> pparams;
-			if(peek().has_value() && peek().value().type != TokenType::arrow) {
+			if(peek().has_value() && peek().value().type != TokenType::arrow && peek().value().type != TokenType::open_curly) {
 				for(int i = 0;peek().has_value() && peek().value().type != TokenType::arrow;++i) {
 					Token argid = try_consume_err(TokenType::ident);
 					try_consume_err(TokenType::double_dot);
@@ -1378,12 +1378,15 @@ public:
 					pparams.push_back(std::make_pair(argid.value.value(), argtype));
 				}
 			}
-			try_consume_err(TokenType::arrow);
-			if(!is_type_token(peek().value().type)) {
-				error_expected("procedure return type");
+			stmt_proc->rettype = DataTypeVoid;
+			if(peek().value().type == TokenType::arrow) {
+				consume();
+				if(!is_type_token(peek().value().type)) {
+					error_expected("procedure return type");
+				}
+				DataType rettype = uni_token_to_dt(consume());
+				stmt_proc->rettype = rettype;
 			}
-			DataType rettype = uni_token_to_dt(consume());
-			stmt_proc->rettype = rettype;
 			stmt_proc->name = identif.value.value();
 			stmt_proc->params = pparams;
 			stmt_proc->def = identif;
