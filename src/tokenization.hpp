@@ -230,7 +230,7 @@ std::string tok_to_string(const TokenType type)
     case TokenType::empty_stmt:
         return "`__empty_stmt`";
     case TokenType::_type:
-        return "`type`";
+        return "`ct_type`";
     }
     assert(false);
 }
@@ -473,7 +473,7 @@ public:
                     tokens.push_back({ .type = TokenType::empty_stmt, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
-                else if (buf == "type") {
+                else if (buf == "ct_type") {
                     tokens.push_back({ .type = TokenType::_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
