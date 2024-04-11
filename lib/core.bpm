@@ -151,5 +151,5 @@ proc __seg_crash_mess __message:ptr -> void {
 #define nth_argv(__argv __nth)
 	__expr_stmt {
 		static_assert(is_same_t(__nth, ct_type(int)), "`nth_argv` second arg `__nth` except type `int`");
-		static_assert(is_same_t(__nth, ct_type(ptr)), "`nth_argv` first arg `__argv` except type `ptr`");
-	} (rd32_as(__argv + __nth * 4, ptr))$
+		static_assert(is_same_t(__argv, ct_type(ptr)), "`nth_argv` first arg `__argv` except type `ptr`");
+	} (rd32_as(__argv + (__nth * 4), ptr))$
