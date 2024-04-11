@@ -39,9 +39,7 @@ proc strcpy src:ptr dst:ptr -> void {
 }
 
 #define foreach_str(__str __stmt)
-	#if(ct_not(is_same_t(__str, type(ptr)))) {
-		static_assert(false, "`foreach_str` __str must be of type `ptr`");
-	}
+	static_assert(is_same_t(__str, ct_type(ptr)), "`foreach_str` __str must be of type `ptr`");
 	{
 		let __i = 0;
 		let __char: int;
