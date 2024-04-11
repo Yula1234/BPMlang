@@ -34,11 +34,18 @@ const false 0;
 
 #define simple_cast(__stype __value)
 	__expr_stmt {
-		static_assert(ct_not(is_object_t(ct_type(__stype))), "`simple_cast` cannot cast to object type");
 		static_assert(ct_not(is_object_t(__value)), "`simple_cast` cannot cast from object type");
 		__pushonstack(__value);
-	} (__popfromstack())
-$
+	} (__popfromstack())$
+
+#define all_cast(__stype __value)
+	cast(__stype, __value)$
+
+#define object_cast(__stype __value)
+	__expr_stmt {
+		static_assert(is_object_t(__value), "`object_cast` cannot cast from non-object type");
+		__pushonstack(__value);
+	} (__popfromstack())$
 
 #define foreach_range(__name __start __end __step __stmt)
 	static_assert(is_same_t(__step,  ct_type(int)), "__step in `foreach_range` must be of type int");
