@@ -1,5 +1,3 @@
-release 1.6.0
+release 1.6.1
 
-rename type -> ct_type.
-added function __dtor__ for
-destruct objects.
+pretty errors.

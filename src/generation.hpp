@@ -1,9 +1,6 @@
 #pragma once
 
 #include "parser.hpp"
-#include <windows.h>
-
-HANDLE hConsole;
 
 #define VectorSimDataCap 4096
 
@@ -34,14 +31,6 @@ public:
 
 class Generator {
 public:
-
-	void __normal_console() {
-		SetConsoleTextAttribute(hConsole, 7);
-	}
-
-	void __red_console() {
-		SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
-	}
 
 	size_t typeid_of(DataType type) {
 		if(!type.is_object) {
@@ -263,35 +252,19 @@ public:
 		return std::nullopt;
 	}
 
+	void DiagnosticMessage(Token tok, std::string header, std::string msg, int col_inc) {
+		m_parser->DiagnosticMessage(tok, header, msg, col_inc);
+	}
+
 	/*function throwing error with location*/
 	void GeneratorError(Token tok, std::string msg) {
-		putloc(tok);
-		std::cout << ":";
-		__red_console();
-		std::cout << " error: ";
-		__normal_console();
-		std::cout << msg << "\n";
-		std::string line = m_lines->operator[](tok.file)[tok.line - 1];
-		while(line.starts_with('\t') || line.starts_with(' ')) {
-			tok.col--;
-			line = line.substr(1, line.size());
-		}
-		printf("\n %d | %s\n", tok.line, line.c_str());
-		int spacelvl = tok.col + 3;
-		spacelvl += std::to_string(tok.line).size();
-		for(int i = 0;i < spacelvl;++i) {
-			putc(' ', stdout);
-		}
-		__red_console();
-		fputs("^\n", stdout);
-		__normal_console();
+		DiagnosticMessage(tok, "error", msg, 0);
 		exit(EXIT_FAILURE);
 	}
 
 	/*function throwing warning with location*/
 	void GeneratorWarning(Token tok, std::string msg) {
-		putloc(tok);
-		std::cout << " WARNING: " << msg << "\n";
+		DiagnosticMessage(tok, "warning", msg, 0);
 	}
 
 	/*function returns type of field {}.{}*/
@@ -1776,9 +1749,8 @@ public:
 
 			void operator()(const NodeStmtStaticAssert* stmt_st) {
 				if(!static_cast<bool>(gen.eval(stmt_st->condition, stmt_st->def))) {
-					putloc(stmt_st->def);
-					printf(" AssertionFailed: %s\n", stmt_st->msg.c_str());
-					exit(1);
+					gen.DiagnosticMessage(stmt_st->def, "AssertionFailed", stmt_st->msg, strlen("static_assert("));
+					exit(EXIT_FAILURE);
 				}
 			}
 
@@ -1819,7 +1791,6 @@ public:
 
 	[[nodiscard]] std::string gen_prog()
 	{
-		hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 		std::stringstream result;
 		result << "section .text\n\n";
 		result << "global main\n\n";
