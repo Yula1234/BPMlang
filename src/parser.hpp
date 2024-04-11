@@ -944,6 +944,8 @@ public:
 		}
 		if(auto _pop = try_consume(TokenType_t::popfromstack)) {
 			auto pop_stmt = m_allocator.emplace<NodeTermPop>();
+			try_consume_err(TokenType_t::open_paren);
+			try_consume_err(TokenType_t::close_paren);
 			auto term = m_allocator.emplace<NodeTerm>(pop_stmt);
 			return term;
 		}
