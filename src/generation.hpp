@@ -271,6 +271,20 @@ public:
 		std::cout << " error: ";
 		__normal_console();
 		std::cout << msg << "\n";
+		std::string line = m_lines->operator[](tok.file)[tok.line - 1];
+		while(line.starts_with('\t') || line.starts_with(' ')) {
+			tok.col--;
+			line = line.substr(1, line.size());
+		}
+		printf("\n %d | %s\n", tok.line, line.c_str());
+		int spacelvl = tok.col + 3;
+		spacelvl += std::to_string(tok.line).size();
+		for(int i = 0;i < spacelvl;++i) {
+			putc(' ', stdout);
+		}
+		__red_console();
+		fputs("^\n", stdout);
+		__normal_console();
 		exit(EXIT_FAILURE);
 	}
 
@@ -1865,6 +1879,7 @@ public:
 	void get_props_from_parser(Parser* parser) {
 		m_consts = parser->get_consts();
 		m_parser = parser;
+		m_lines = &(parser->m_lines);
 	}
 
 private:
@@ -1917,6 +1932,7 @@ private:
 	const NodeProg m_prog;
 	const AsmGen asmg { .gen = this };
 	std::stringstream		 m_output;
+	std::unordered_map<std::string, std::vector<std::string>>* m_lines;
 	std::vector<std::unordered_map<std::string, Var>> m_vars;
 	std::unordered_map<std::string, String> m_strings;
 	std::unordered_map<std::string, Procedure> m_procs;

@@ -20,6 +20,7 @@
 std::string basepath;
 bool __slashinpath;
 
+#include "arena.hpp"
 #include "argsparser.hpp"
 #include "generation.hpp"
 
@@ -70,9 +71,9 @@ int main(int argc, char* argv[]) {
     }
 
     Tokenizer tokenizer(std::move(contents));
-    std::vector<Token> tokens = tokenizer.tokenize(argv[1]);
+    auto result = tokenizer.tokenize(argv[1]);
 
-    Parser parser(std::move(tokens));
+    Parser parser(std::move(*result.tokens), std::move(*result.lines));
     std::optional<NodeProg> prog = parser.parse_prog();
 
     if (!prog.has_value()) {

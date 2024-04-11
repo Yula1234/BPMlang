@@ -1,7 +1,6 @@
 #pragma once
 
 #include "tokenization.hpp"
-#include "arena.hpp"
 
 enum class SimpleDataType {
 	_int,
@@ -583,10 +582,11 @@ struct Macro {
 class Parser {
 public:
 
-	explicit Parser(std::vector<Token> tokens)
+	explicit Parser(std::vector<Token> tokens, std::vector<std::string> lines)
 		: m_tokens(std::move(tokens))
 		, m_allocator(1024 * 1024 * 48) // 48 mb
 	{
+		m_lines[m_tokens[0].file] = std::move(lines);
 	}
 
 	std::optional<Constant> const_lookup(std::string name) {
@@ -1550,9 +1550,10 @@ public:
 				input.close();
 			}
 			Tokenizer nlexer(std::move(contents));
-			std::vector<Token> ntokens = nlexer.tokenize(fname);
+			auto result = nlexer.tokenize(fname);
 			m_includes.insert(path);
-			m_tokens.insert(m_tokens.begin() + m_index, ntokens.begin(), ntokens.end());
+			m_tokens.insert(m_tokens.begin() + m_index, result.tokens->begin(), result.tokens->end());
+			m_lines[result.tokens->operator[](0).file] = std::move(*(result.lines));
 			return {};
 		}
 
@@ -1930,6 +1931,8 @@ public:
 	std::unordered_map<std::string, Constant>* get_consts() {
 		return &m_consts;
 	}
+
+	std::unordered_map<std::string, std::vector<std::string>> m_lines;
 
 private:
 	[[nodiscard]] std::optional<Token> peek(const int offset = 0) const
