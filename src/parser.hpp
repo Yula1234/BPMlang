@@ -438,6 +438,15 @@ struct NodeStmtAsm {
 	std::string code;
 };
 
+struct Field {
+	std::string name;
+	DataType type;
+	size_t nth;
+	friend bool operator==(const Field& one, const Field& two) {
+		return one.type == two.type;
+	}
+};
+
 struct NodeStmtStruct {
 	Token def;
 	std::string name;

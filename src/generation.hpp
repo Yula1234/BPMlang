@@ -112,13 +112,15 @@ public:
 	};
 	struct Struct {
 		std::string name;
-		std::vector<std::pair<std::string, DataType>> fields;
+		std::unordered_map<std::string, Field> fields;
 		std::optional<std::string> __allocator;
+		std::vector<std::pair<std::string, DataType>> __fields;
 		size_t m_typeid;
 	};
 	struct Interface {
 		std::string name;
-		std::vector<std::pair<std::string, DataType>> fields;
+		std::unordered_map<std::string, Field> fields;
+		std::vector<std::pair<std::string, DataType>> __fields;
 		size_t m_typeid;
 		static bool match_to(const Interface& in, const Struct& st) {
 			return in.fields == st.fields;
@@ -229,20 +231,18 @@ public:
 	}
 
 	/*it is like var_lookup, but in struct*/
-	std::optional<std::pair<size_t, DataType>> field_lookup(Struct& st, std::string field) {
-		for(int i = 0;i < static_cast<int>(st.fields.size());++i) {
-			if(st.fields[i].first == field) {
-				return std::make_pair(static_cast<size_t>(i), st.fields[i].second);
-			}
+	std::optional<Field> field_lookup(Struct& st, const std::string& field) {
+		const auto& search = st.fields.find(field);
+		if(search != st.fields.end()) {
+			return search->second;
 		}
 		return std::nullopt;
 	}
 
-	std::optional<std::pair<size_t, DataType>> field_lookup(Interface& st, std::string field) {
-		for(int i = 0;i < static_cast<int>(st.fields.size());++i) {
-			if(st.fields[i].first == field) {
-				return std::make_pair(static_cast<size_t>(i), st.fields[i].second);
-			}
+	std::optional<Field> field_lookup(Interface& st, const std::string& field) {
+		const auto& search = st.fields.find(field);
+		if(search != st.fields.end()) {
+			return search->second;
 		}
 		return std::nullopt;
 	}
@@ -286,16 +286,16 @@ public:
 			std::string struct_name = otype.getobjectname();
 			std::optional<Struct> st = struct_lookup(struct_name);
 			if(st.has_value()) {
-				std::optional<std::pair<size_t, DataType>> field = field_lookup(st.value(), field_name);		
+				std::optional<Field> field = field_lookup(st.value(), field_name);		
 				if(!field.has_value()) {
 					GeneratorError(def, "struct `" + struct_name + "` don't have field `" + field_name + "`");
 				}
-				return field.value().second;
+				return field.value().type;
 			}
 			std::optional<Interface> inter = inter_lookup(struct_name);
 			if(inter.has_value()) {
-				std::optional<std::pair<size_t, DataType>> field = field_lookup(inter.value(), field_name);		
-				return field.value().second;
+				std::optional<Field> field = field_lookup(inter.value(), field_name);		
+				return field.value().type;
 			}
 			return DataTypeVoid;
 		} else {
@@ -535,6 +535,15 @@ public:
 				GeneratorError(expr->def, "can't use `" + IRexpr + "` for types " + dt_to_string(ltype) + " and " + dt_to_string(rtype));
 			}
 		}
+	}
+
+	std::unordered_map<std::string, Field> compute_fields(const std::vector<std::pair<std::string, DataType>>& fields) {
+		std::unordered_map<std::string, Field> __fields;
+		size_t nth = 0ULL;
+		for(const std::pair<std::string, DataType>& field : fields) {
+			__fields[field.first] = { .name = field.first, .type = field.second, .nth = nth++ };
+		}
+		return __fields;
 	}
 
 	void gen_term(const NodeTerm* term, bool lvalue = false)
@@ -809,9 +818,10 @@ public:
 						gen.m_output << "    mov dword [tmp_stor+edx], eax\n";
 						for(int i = 0;i < static_cast<int>(iargs.size());++i) {
 							DataType itype = gen.type_of_expr(iargs[i]);
-							DataType ftype = st.value().fields[i].second;
+							Field f;
+							DataType ftype = st.value().__fields[i].second;
 							if(itype != ftype) {
-								gen.GeneratorError(term_call->def, "missmatch in initializers types for field nth `" + std::to_string(i + 1) + "`\nNOTE: field name - `" + st.value().fields[i].first + "`" + "\nNOTE: excepted " + ftype.to_string() + "\nNOTE: but got " + itype.to_string());
+								gen.GeneratorError(term_call->def, "missmatch in initializers types for field nth `" + std::to_string(i + 1) + "`\nNOTE: field name - `" + st.value().__fields[i].first + "`" + "\nNOTE: excepted " + ftype.to_string() + "\nNOTE: but got " + itype.to_string());
 							}
 							gen.gen_expr(iargs[i]);
 							gen.m_output << "    pop ecx\n";
@@ -1030,20 +1040,20 @@ public:
 					std::optional<Struct> st = gen.struct_lookup(struct_name);
 					size_t field_offset = 0;
 					if(st.has_value()) {
-						std::optional<std::pair<size_t, DataType>> field = gen.field_lookup(st.value(), field_name);
+						std::optional<Field> field = gen.field_lookup(st.value(), field_name);
 						if(!field.has_value()) {
 							gen.GeneratorError(base->def, "object of type `" + otype.to_string() + "` doesn`t have field `" + field_name + "`");
 						}
-						field_offset = field.value().first;
+						field_offset = field.value().nth;
 					}
 					if(!st.has_value()) {
 						std::optional<Interface> inter = gen.inter_lookup(struct_name);
 						if(inter.has_value()) {
-							std::optional<std::pair<size_t, DataType>> field = gen.field_lookup(inter.value(), field_name);
+							std::optional<Field> field = gen.field_lookup(inter.value(), field_name);
 							if(!field.has_value()) {
 								gen.GeneratorError(base->def, "object of type `" + otype.to_string() + "` doesn`t have field `" + field_name + "`");
 							}
-							field_offset = field.value().first;
+							field_offset = field.value().nth;
 						}
 						else {
 							assert(false && "unreacheable");
@@ -1755,11 +1765,11 @@ public:
 			}
 
 			void operator()(const NodeStmtStruct* stmt_struct) {
-				gen.m_structs[stmt_struct->name] = { .name = stmt_struct->name, .fields = stmt_struct->fields , .__allocator = stmt_struct->__allocator , .m_typeid = gen.m_structs_count++ };
+				gen.m_structs[stmt_struct->name] = { .name = stmt_struct->name, .fields = gen.compute_fields(stmt_struct->fields), .__allocator = stmt_struct->__allocator , .__fields = stmt_struct->fields, .m_typeid = gen.m_structs_count++ };
 			}
 
 			void operator()(const NodeStmtInterface* stmt_inter) {
-				gen.m_interfaces[stmt_inter->name] = { .name = stmt_inter->name, .fields = stmt_inter->fields, .m_typeid = gen.m_structs_count++ };
+				gen.m_interfaces[stmt_inter->name] = { .name = stmt_inter->name, .fields = gen.compute_fields(stmt_inter->fields), .__fields = stmt_inter->fields, .m_typeid = gen.m_structs_count++ };
 			}
 
 			void operator()(const NodeStmtOninit* stmt_oninit) {
