@@ -245,6 +245,14 @@ struct NodeTermType {
 	DataType type;
 };
 
+struct NodeScope;
+
+struct NodeTermExprStmt {
+	Token def;
+	NodeScope* scope;
+	NodeExpr* expr;
+};
+
 struct NodeBinExprAdd {
 	NodeExpr* lhs;
 	NodeExpr* rhs;
@@ -325,7 +333,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*> var;
+	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*> var;
 };
 
 struct NodeExpr {
@@ -912,6 +920,24 @@ public:
 		if(auto _line = try_consume(TokenType_t::_line)) {
 			auto line_term = m_allocator.emplace<NodeTermLine>(_line.value());
 			auto term = m_allocator.emplace<NodeTerm>(line_term);
+			return term;
+		}
+		if(auto _stexpr = try_consume(TokenType_t::expr_stmt)) {
+			auto stmt_term = m_allocator.emplace<NodeTermExprStmt>();
+			stmt_term->def = _stexpr.value();
+			if(auto _scope = parse_scope()) {
+				stmt_term->scope = _scope.value();
+			} else {
+				error_expected("scope");
+			}
+			try_consume_err(TokenType_t::open_paren);
+			if(auto _expr = parse_expr()) {
+				stmt_term->expr = _expr.value();
+			} else {
+				error_expected("expression");
+			}
+			try_consume_err(TokenType_t::close_paren);
+			auto term = m_allocator.emplace<NodeTerm>(stmt_term);
 			return term;
 		}
 		if(auto _type = try_consume(TokenType_t::_type)) {

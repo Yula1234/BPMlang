@@ -331,6 +331,9 @@ public:
 			if(std::holds_alternative<NodeTermSizeof*>(term->var)) {
 				return DataTypeInt;
 			}
+			if(std::holds_alternative<NodeTermExprStmt*>(term->var)) {
+				return type_of_expr(std::get<NodeTermExprStmt*>(term->var)->expr);
+			}
 			if(std::holds_alternative<NodeTermTypeid*>(term->var)) {
 				return DataTypeInt;
 			}
@@ -552,6 +555,12 @@ public:
 			void operator()(const NodeTermLine* term_line) const
 			{
 				gen.m_output << "push " << term_line->def.line << "\n";
+			}
+
+			void operator()(const NodeTermExprStmt* term_stmt) const
+			{
+				gen.gen_scope(term_stmt->scope);
+				gen.gen_expr(term_stmt->expr);
 			}
 
 			void operator()(const NodeTermFile* term_file) const
