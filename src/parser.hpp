@@ -1434,7 +1434,7 @@ public:
 			Token identif = try_consume_err(TokenType_t::ident);
 			std::vector<std::pair<std::string, DataType>> pparams;
 			if(peek().has_value() && peek().value().type != TokenType_t::arrow && peek().value().type != TokenType_t::open_curly) {
-				for(int i = 0;peek().has_value() && peek().value().type != TokenType_t::arrow;++i) {
+				for(int i = 0;peek().has_value() && peek().value().type != TokenType_t::arrow && peek().value().type != TokenType_t::open_curly;++i) {
 					Token argid = try_consume_err(TokenType_t::ident);
 					try_consume_err(TokenType_t::double_dot);
 					if(!is_type_token(peek().value().type)) {
