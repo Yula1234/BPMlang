@@ -9,6 +9,8 @@
 #define TYPEID_VOID 2
 #define TYPEID_ANY  3
 
+void consume_un(...) {}
+
 template<typename T>
 class VectorSim {
 private:
@@ -337,6 +339,9 @@ public:
 			if(std::holds_alternative<NodeTermTypeid*>(term->var)) {
 				return DataTypeInt;
 			}
+			if(std::holds_alternative<NodeTermPop*>(term->var)) {
+				return DataTypeAny;
+			}
 			if(std::holds_alternative<NodeTermAmpersand*>(term->var)) {
 				return DataTypePtr;
 			}
@@ -555,6 +560,11 @@ public:
 			void operator()(const NodeTermLine* term_line) const
 			{
 				gen.m_output << "push " << term_line->def.line << "\n";
+			}
+
+			void operator()(const NodeTermPop* term_pop) const
+			{
+				consume_un(term_pop);
 			}
 
 			void operator()(const NodeTermExprStmt* term_stmt) const

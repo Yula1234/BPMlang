@@ -77,6 +77,7 @@ enum class TokenType_t {
     _file,
     empty_stmt,
     expr_stmt,
+    popfromstack,
 };
 
 std::vector<std::string>* split_string(const std::string& str, const std::string& delimiter) {
@@ -246,6 +247,8 @@ std::string tok_to_string(const TokenType_t type)
         return "`ct_type`";
     case TokenType_t::expr_stmt:
         return "`__expr_stmt`";
+    case TokenType_t::popfromstack:
+        return "`__popfromstack`";
     }
     assert(false);
 }
@@ -477,6 +480,10 @@ public:
                 }
                 else if (buf == "__pushonstack") {
                     tokens->push_back({ .type = TokenType_t::pushonstack, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
+                    buf.clear();
+                }
+                else if (buf == "__popfromstack") {
+                    tokens->push_back({ .type = TokenType_t::popfromstack, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file });
                     buf.clear();
                 }
                 else if (buf == "__LINE__") {

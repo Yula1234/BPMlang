@@ -253,6 +253,8 @@ struct NodeTermExprStmt {
 	NodeExpr* expr;
 };
 
+struct NodeTermPop {};
+
 struct NodeBinExprAdd {
 	NodeExpr* lhs;
 	NodeExpr* rhs;
@@ -333,7 +335,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*> var;
+	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*, NodeTermPop*> var;
 };
 
 struct NodeExpr {
@@ -938,6 +940,11 @@ public:
 			}
 			try_consume_err(TokenType_t::close_paren);
 			auto term = m_allocator.emplace<NodeTerm>(stmt_term);
+			return term;
+		}
+		if(auto _pop = try_consume(TokenType_t::popfromstack)) {
+			auto pop_stmt = m_allocator.emplace<NodeTermPop>();
+			auto term = m_allocator.emplace<NodeTerm>(pop_stmt);
 			return term;
 		}
 		if(auto _type = try_consume(TokenType_t::_type)) {
