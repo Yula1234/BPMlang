@@ -14,6 +14,10 @@ const EXIT_FAILURE 1;
 const true 1;
 const false 0;
 
+#define dup() asm "push dword [esp]"$
+
+#define NOT_IMPLEMENTED() static_assert(false, "not implemented")$
+
 #define rd32_as(__pointer __type) cast(__type, rd32(__pointer))$
 #define rd16_as(__pointer __type) cast(__type, rd16(__pointer))$
 
@@ -47,13 +51,43 @@ const false 0;
 		__pushonstack(__value);
 	} (cast(__stype, __popfromstack()))$
 
-#define move(__P1 __P2)
-	static_assert(is_same_t(__P1, __P2), "at `move` except 2 identical types");
+#define __stdmove(__P1 __P2)
+	static_assert(is_same_t(__P1, __P2), "at `__stdmove` except 2 identical types");
 	#if(is_object_t(__P1)) { delete __P1; }
 	#if(is_same_t(__P1, ct_type(ptr))) {
 		store32_any(__P1, rd32(__P2));
 	} else { store32_any(&(__P1), __P2); }
 	store32(&(__P2), 0)$
+
+#define stdmove(__P_v)
+	__expr_stmt  {
+		__pushonstack(__P_v);
+		store32(&(__P_v), 0);
+	} (cast_to(__P_v, __popfromstack()))$
+
+cextern "malloc";
+cextern "free";
+proc malloc SizeToAlloc:int -> ptr;
+proc free Pointer:ptr -> void;
+
+proc memcpy src:ptr dst:ptr size:int -> void;
+cextern "memcpy";
+
+proc __stdcopy_v __A_Parg:any __A_Sarg:int -> ptr {
+	let __cm = malloc(__A_Sarg);
+	memcpy(__cm, cast(ptr, __A_Parg), __A_Sarg);
+	return __cm;
+}
+
+#define stdcopy(__P1)
+	__expr_stmt {
+		#if(is_object_t(__P1)) {
+			__pushonstack(__stdcopy_v(__P1, sizeof((__P1))));
+		} else {
+			__pushonstack(__P1);
+		}
+	} (cast_to(__P1, __popfromstack()))
+$
 
 #define foreach_range(__name __start __end __step __stmt)
 	static_assert(is_same_t(__step,  ct_type(int)), "__step in `foreach_range` must be of type int");
@@ -121,10 +155,6 @@ proc write
 	data:ptr // data to write into file
 	SizeToWrite:int // size to write data into file
 -> int; // error code, 0 if success
-
-proc memcpy src:ptr dst:ptr size:int -> void;
-
-cextern "memcpy";
 
 proc cmemcpy src:ptr dst:ptr size:int -> void
 [nostdargs] {
