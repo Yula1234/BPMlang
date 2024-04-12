@@ -47,6 +47,14 @@ const false 0;
 		__pushonstack(__value);
 	} (cast(__stype, __popfromstack()))$
 
+#define move(__P1 __P2)
+	static_assert(is_same_t(__P1, __P2), "at `move` except 2 identical types");
+	#if(is_object_t(__P1)) { delete __P1; }
+	#if(is_same_t(__P1, ct_type(ptr))) {
+		store32_any(__P1, rd32(__P2));
+	} else { store32_any(&(__P1), __P2); }
+	store32(&(__P2), 0)$
+
 #define foreach_range(__name __start __end __step __stmt)
 	static_assert(is_same_t(__step,  ct_type(int)), "__step in `foreach_range` must be of type int");
 	static_assert(is_same_t(__start, ct_type(int)), "__start in `foreach_range` must be of type int");
