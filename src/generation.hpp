@@ -348,6 +348,9 @@ public:
 			if(std::holds_alternative<NodeTermParen*>(term->var)) {
 				return type_of_expr(std::get<NodeTermParen*>(term->var)->expr);
 			}
+			if(std::holds_alternative<NodeTermCastTo*>(term->var)) {
+				return type_of_expr(std::get<NodeTermCastTo*>(term->var)->to);
+			}
 			if(std::holds_alternative<NodeTermSizeof*>(term->var)) {
 				return DataTypeInt;
 			}
@@ -658,6 +661,11 @@ public:
 			void operator()(const NodeTermCast* term_cast) const
 			{
 				gen.gen_expr(term_cast->expr, lvalue);
+			}
+
+			void operator()(const NodeTermCastTo* term_cast_to) const
+			{
+				gen.gen_expr(term_cast_to->expr, lvalue);
 			}
 
 			void operator()(const NodeTermTypeid* term_typeid) const

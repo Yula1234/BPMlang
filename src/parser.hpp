@@ -229,6 +229,12 @@ struct NodeTermCast {
 	NodeExpr* expr;
 };
 
+struct NodeTermCastTo {
+	Token def;
+	NodeExpr* to;
+	NodeExpr* expr;
+};
+
 struct NodeTermLine {
 	Token def;
 };
@@ -336,7 +342,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*, NodeTermPop*> var;
+	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*, NodeTermPop*, NodeTermCastTo*> var;
 };
 
 struct NodeExpr {
@@ -1034,6 +1040,25 @@ public:
 			}
 			try_consume_err(TokenType_t::close_paren);
 			auto term = m_allocator.emplace<NodeTerm>(term_cast);
+			return term;
+		}
+		if (auto cast_to = try_consume(TokenType_t::cast_to)) {
+			auto term_cast_to = m_allocator.emplace<NodeTermCastTo>();
+			try_consume_err(TokenType_t::open_paren);
+			term_cast_to->def = cast_to.value();
+			if(auto _expr = parse_expr()) {
+				term_cast_to->to = _expr.value();
+			} else {
+				error_expected("expression");
+			}
+			try_consume_err(TokenType_t::comma);
+			if(auto expr = parse_expr()) {
+				term_cast_to->expr = expr.value();
+			} else {
+				error_expected("expression");
+			}
+			try_consume_err(TokenType_t::close_paren);
+			auto term = m_allocator.emplace<NodeTerm>(term_cast_to);
 			return term;
 		}
 		if (auto rd16 = try_consume(TokenType_t::read16)) {
@@ -1861,6 +1886,9 @@ public:
 				}
 				Macro __macro = { .name = mname, .args = __args, .body = {} };
 				while(peek().has_value() && peek().value().type != TokenType_t::dollar) {
+					if(peek().value().type == TokenType_t::_define) {
+						ParsingError("#define keyword in macro defenition, maybe you forgot a $.");
+					}
 					__macro.body.push_back(consume());
 				}
 				consume();
