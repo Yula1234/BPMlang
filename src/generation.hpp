@@ -62,6 +62,24 @@ public:
 		assert(false); // TODO: fix
 	}
 
+	size_t sizeof_of(const DataType& type) {
+		if(type.is_object) {
+			std::string name = type.getobjectname();
+			std::optional<Struct> st = struct_lookup(name);
+			if(st.has_value()) {
+				return st.value().fields.size() * 4ULL;
+			}
+			std::optional<Interface> inter = inter_lookup(name);
+			if(inter.has_value()) {
+				return inter.value().fields.size() * 4ULL;
+			}
+			return 0ULL;
+		}
+		else {
+			return 4ULL;
+		}
+	}
+
 	struct AsmGen {
 		Generator* gen;
 		void add(std::string one, std::string two) const {
@@ -597,22 +615,20 @@ public:
 
 			void operator()(const NodeTermSizeof* term_sizeof) const
 			{
-				if(term_sizeof->type.is_object) {
-					std::string name = term_sizeof->type.getobjectname();
-					std::optional<Struct> st = gen.struct_lookup(name);
-					if(st.has_value()) {
-						gen.m_output << "    push dword " << st.value().fields.size() * 4 << "\n";
-						return;
+				if(term_sizeof->expr.has_value()) {
+					DataType tp = gen.type_of_expr(term_sizeof->expr.value());
+					if(size_t size = gen.sizeof_of(term_sizeof->type)) {
+						gen.m_output << "    push " << size << "\n";
+					} else {
+						gen.GeneratorError(term_sizeof->def, "please provide a type to sizeof, or close expression to parens.");
 					}
-					std::optional<Interface> inter = gen.inter_lookup(name);
-					if(inter.has_value()) {
-						gen.m_output << "    push dword " << inter.value().fields.size() * 4 << "\n";
-						return;
-					}
-					assert(false && "unreacheable");
 				}
 				else {
-					gen.m_output << "    push dword 4\n";
+					if(size_t size = gen.sizeof_of(term_sizeof->type)) {
+						gen.m_output << "    push " << size << "\n";
+					} else {
+						gen.GeneratorError(term_sizeof->def, "please provide a type to sizeof, or close expression to parens.");
+					}
 				}
 			}
 

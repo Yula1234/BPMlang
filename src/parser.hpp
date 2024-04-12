@@ -208,6 +208,7 @@ struct NodeTermCall {
 struct NodeTermSizeof {
 	Token def;
 	DataType type;
+	std::optional<NodeExpr*> expr;
 };
 
 struct NodeTermTypeid {
@@ -1097,11 +1098,17 @@ public:
 			try_consume_err(TokenType_t::open_paren);
 			auto sizeof_term = m_allocator.emplace<NodeTermSizeof>();
 			sizeof_term->def = _sizeof.value();
-			Token ttype = consume();
+			Token ttype = peek().value();
 			if(!is_type_token(ttype.type)) {
-				error_expected("typename");
+				if(auto _expr = parse_expr()) {
+					sizeof_term->expr = _expr;
+				} else {
+					error_expected("expression");
+				}
+			} else {
+				sizeof_term->type = uni_token_to_dt(ttype);
+				consume();
 			}
-			sizeof_term->type = uni_token_to_dt(ttype);
 			try_consume_err(TokenType_t::close_paren);
 			auto term = m_allocator.emplace<NodeTerm>(sizeof_term);
 			return term;
