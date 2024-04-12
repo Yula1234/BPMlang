@@ -48,6 +48,10 @@ public:
             else if(strcmp(m_argv[i], "-s") == 0) {
                 m_flags.push_back({ .type = FlagType::sasm , .operand = std::nullopt });
             }
+            else {
+                printf("unkown command flag `%c`\n", m_argv[i]);
+                exit(1);
+            }
         }
     }
     int compile() {
