@@ -31,7 +31,7 @@ public:
         return std::nullopt;
     }
     void parse() {
-        for(int i = 0;i < m_argc;++i) {
+        for(int i = 2;i < m_argc;++i) {
             if(strcmp(m_argv[i], "-o") == 0) {
                 if(i == (m_argc - 1)) {
                     std::cerr << "-o argument except file name\n";
@@ -49,7 +49,7 @@ public:
                 m_flags.push_back({ .type = FlagType::sasm , .operand = std::nullopt });
             }
             else {
-                printf("unkown command flag `%c`\n", m_argv[i]);
+                printf("unkown command flag `%s`\n", m_argv[i]);
                 exit(1);
             }
         }

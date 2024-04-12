@@ -657,7 +657,7 @@ public:
 
 			void operator()(const NodeTermCast* term_cast) const
 			{
-				gen.gen_expr(term_cast->expr);
+				gen.gen_expr(term_cast->expr, lvalue);
 			}
 
 			void operator()(const NodeTermTypeid* term_typeid) const
@@ -727,7 +727,7 @@ public:
 
 			void operator()(const NodeTermParen* term_paren) const
 			{
-				gen.gen_expr(term_paren->expr);
+				gen.gen_expr(term_paren->expr, lvalue);
 			}
 
 			void operator()(const NodeTermCall* term_call) const

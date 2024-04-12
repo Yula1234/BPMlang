@@ -985,6 +985,7 @@ public:
 		}
 		if(auto ampersand = try_consume(TokenType_t::ampersand)) {
 			auto term_amp = m_allocator.emplace<NodeTermAmpersand>();
+			term_amp->def = ampersand.value();
 			if(auto term = parse_term()) {
 				auto expr = m_allocator.emplace<NodeExpr>();
 				expr->var = term.value();
