@@ -93,167 +93,92 @@ std::vector<std::string>* split_string(const std::string& str, const std::string
     return strings;
 }
 
+const std::unordered_map<TokenType_t, std::string> map_tok2str {
+    {TokenType_t::exit, "`exit`"},
+    {TokenType_t::int_lit, "`int literal`"},
+    {TokenType_t::semi, "`;`"},
+    {TokenType_t::open_paren, "`(`"},
+    {TokenType_t::close_paren, "`)`"},
+    {TokenType_t::ident, "identifier"},
+    {TokenType_t::let, "`let`"},
+    {TokenType_t::eq, "`=`"},
+    {TokenType_t::eqeq, "`==`"},
+    {TokenType_t::plus, "`+`"},
+    {TokenType_t::star, "`*`"},
+    {TokenType_t::minus, "`-`"},
+    {TokenType_t::fslash, "`/`"},
+    {TokenType_t::open_curly, "`{`"},
+    {TokenType_t::close_curly, "`}`"},
+    {TokenType_t::if_, "`if`"},
+    {TokenType_t::elif, "`elif`"},
+    {TokenType_t::else_, "`else`"},
+    {TokenType_t::proc, "`proc`"},
+    {TokenType_t::in, "`in`"},
+    {TokenType_t::string_lit, "`string literal`"},
+    {TokenType_t::less, "`<`"},
+    {TokenType_t::above, "`>`"},
+    {TokenType_t::comma, "`,`"},
+    {TokenType_t::int_type, "`int`"},
+    {TokenType_t::void_type, "`void`"},
+    {TokenType_t::double_dot, "`:`"},
+    {TokenType_t::wwhile, "`while`"},
+    {TokenType_t::_return, "`return`"},
+    {TokenType_t::arrow, "`->`"},
+    {TokenType_t::ptr_type, "`ptr`"},
+    {TokenType_t::any_type, "`any`"},
+    {TokenType_t::store8, "`store8`"},
+    {TokenType_t::store16, "`store16`"},
+    {TokenType_t::store32, "`store32`"},
+    {TokenType_t::read8, "`rd8`"},
+    {TokenType_t::read16, "`rd16`"},
+    {TokenType_t::read32, "`rd32`"},
+    {TokenType_t::ampersand, "`&`"},
+    {TokenType_t::_include, "`include`"},
+    {TokenType_t::_not_eq, "`!=`"},
+    {TokenType_t::buffer, "`buffer`"},
+    {TokenType_t::mod, "`%`"},
+    {TokenType_t::_asm, "`asm`"},
+    {TokenType_t::cextern, "`cextern`"},
+    {TokenType_t::open_bracket, "`[`"},
+    {TokenType_t::close_bracket, "`]`"},
+    {TokenType_t::_const, "`const`"},
+    {TokenType_t::cast, "`cast`"},
+    {TokenType_t::_struct, "`struct`"},
+    {TokenType_t::_delete, "`delete`"},
+    {TokenType_t::dot, "`.`"},
+    {TokenType_t::_break, "`break`"},
+    {TokenType_t::plus_eq, "`+=`"},
+    {TokenType_t::minus_eq, "`-=`"},
+    {TokenType_t::star_eq, "`*=`"},
+    {TokenType_t::fslash_eq, "`/=`"},
+    {TokenType_t::_static_assert, "`static_assert`"},
+    {TokenType_t::double_ampersand, "`&&`"},
+    {TokenType_t::double_stick, "`||`"},
+    {TokenType_t::hash_sign, "`#`"},
+    {TokenType_t::_define, "`define`"},
+    {TokenType_t::dollar, "`$`"},
+    {TokenType_t::_interface, "`interface`"},
+    {TokenType_t::_sizeof, "`sizeof`"},
+    {TokenType_t::_typeid, "`typeid`"},
+    {TokenType_t::oninit, "`oninit`"},
+    {TokenType_t::shift_left, "`<<`"},
+    {TokenType_t::shift_right, "`>>`"},
+    {TokenType_t::pushonstack, "`pushonstack`"},
+    {TokenType_t::_line, "`__LINE__`"},
+    {TokenType_t::_col, "`__COL__`"},
+    {TokenType_t::_file, "`__FILE__`"},
+    {TokenType_t::empty_stmt, "`__empty_stmt`"},
+    {TokenType_t::_type, "`ct_type`"},
+    {TokenType_t::expr_stmt, "`__expr_stmt`"},
+    {TokenType_t::popfromstack, "`__popfromstack`"},
+    {TokenType_t::cast_to, "`cast_to`"},
+};
+
 std::string tok_to_string(const TokenType_t type)
 {
-    switch (type) {
-    case TokenType_t::exit:
-        return "`exit`";
-    case TokenType_t::int_lit:
-        return "`int literal`";
-    case TokenType_t::semi:
-        return "`;`";
-    case TokenType_t::open_paren:
-        return "`(`";
-    case TokenType_t::close_paren:
-        return "`)`";
-    case TokenType_t::ident:
-        return "identifier";
-    case TokenType_t::let:
-        return "`let`";
-    case TokenType_t::eq:
-        return "`=`";
-    case TokenType_t::eqeq:
-        return "`==`";
-    case TokenType_t::plus:
-        return "`+`";
-    case TokenType_t::star:
-        return "`*`";
-    case TokenType_t::minus:
-        return "`-`";
-    case TokenType_t::fslash:
-        return "`/`";
-    case TokenType_t::open_curly:
-        return "`{`";
-    case TokenType_t::close_curly:
-        return "`}`";
-    case TokenType_t::if_:
-        return "`if`";
-    case TokenType_t::elif:
-        return "`elif`";
-    case TokenType_t::else_:
-        return "`else`";
-    case TokenType_t::proc:
-        return "`proc`";
-    case TokenType_t::in:
-        return "`in`";
-    case TokenType_t::string_lit:
-        return "`string literal`";
-    case TokenType_t::less:
-        return "`<`";
-    case TokenType_t::above:
-        return "`>`";
-    case TokenType_t::comma:
-        return "`,`";
-    case TokenType_t::int_type:
-        return "`int`";
-    case TokenType_t::void_type:
-        return "`void`";
-    case TokenType_t::double_dot:
-        return "`:`";
-    case TokenType_t::wwhile:
-        return "`while`";
-    case TokenType_t::_return:
-        return "`return`";
-    case TokenType_t::arrow:
-        return "`->`";
-    case TokenType_t::ptr_type:
-        return "`ptr`";
-    case TokenType_t::any_type:
-        return "`any`";
-    case TokenType_t::store8:
-        return "`store8`";
-    case TokenType_t::store16:
-        return "`store16`";
-    case TokenType_t::store32:
-        return "`store32`";
-    case TokenType_t::read8:
-        return "`rd8`";
-    case TokenType_t::read16:
-        return "`rd16`";
-    case TokenType_t::read32:
-        return "`rd32`";
-    case TokenType_t::ampersand:
-        return "`&`";
-    case TokenType_t::_include:
-        return "`include`";
-    case TokenType_t::_not_eq:
-        return "`!=`";
-    case TokenType_t::buffer:
-        return "`buffer`";
-    case TokenType_t::mod:
-        return "`%`";
-    case TokenType_t::_asm:
-        return "`asm`";
-    case TokenType_t::cextern:
-        return "`cextern`";
-    case TokenType_t::open_bracket:
-        return "`[`";
-    case TokenType_t::close_bracket:
-        return "`]`";
-    case TokenType_t::_const:
-        return "`const`";
-    case TokenType_t::cast:
-        return "`cast`";
-    case TokenType_t::_struct:
-        return "`struct`";
-    case TokenType_t::_delete:
-        return "`delete`";
-    case TokenType_t::dot:
-        return "`.`";
-    case TokenType_t::_break:
-        return "`break`";
-    case TokenType_t::plus_eq:
-        return "`+=`";
-    case TokenType_t::minus_eq:
-        return "`-=`";
-    case TokenType_t::star_eq:
-        return "`*=`";
-    case TokenType_t::fslash_eq:
-        return "`/=`";
-    case TokenType_t::_static_assert:
-        return "`static_assert`";
-    case TokenType_t::double_ampersand:
-        return "`&&`";
-    case TokenType_t::double_stick:
-        return "`||`";
-    case TokenType_t::hash_sign:
-        return "`#`";
-    case TokenType_t::_define:
-        return "`define`";
-    case TokenType_t::dollar:
-        return "`$`";
-    case TokenType_t::_interface:
-        return "`interface`";
-    case TokenType_t::_sizeof:
-        return "`sizeof`";
-    case TokenType_t::_typeid:
-        return "`typeid`";
-    case TokenType_t::oninit:
-        return "`oninit`";
-    case TokenType_t::shift_left:
-        return "`<<`";
-    case TokenType_t::shift_right:
-        return "`>>`";
-    case TokenType_t::pushonstack:
-        return "`pushonstack`";
-    case TokenType_t::_line:
-        return "`__LINE__`";
-    case TokenType_t::_col:
-        return "`__COL__`";
-    case TokenType_t::_file:
-        return "`__FILE__`";
-    case TokenType_t::empty_stmt:
-        return "`__empty_stmt`";
-    case TokenType_t::_type:
-        return "`ct_type`";
-    case TokenType_t::expr_stmt:
-        return "`__expr_stmt`";
-    case TokenType_t::popfromstack:
-        return "`__popfromstack`";
-    case TokenType_t::cast_to:
-        return "`cast_to`";
-    }
-    assert(false);
+    const auto& search = map_tok2str.find(type);
+    assert(search != map_tok2str.end());
+    return search->second;
 }
 
 int prec_IOTA = 0;
@@ -303,18 +228,18 @@ struct Token {
     }
 };
 
-void putloc(Token tok) {
+void putloc(const Token& tok) {
     printf("%s %d:%d", tok.file.c_str(), tok.line, tok.col);
 }
 
-std::string loc_of(Token tok) {
+std::string loc_of(const Token& tok) {
     static char buffer[2048];
     sprintf(buffer, "%s %d:%d", tok.file.c_str(), tok.line, tok.col);
     std::string str(buffer);
     return str;
 }
 
-bool is_valid_id(char c) {
+bool is_valid_id(const char c) {
     switch(c) {
     case '_':
         return true;
@@ -338,7 +263,7 @@ public:
         lines = split_string(m_src, "\n");
     }
 
-    TokenizerResult tokenize(std::string file)
+    TokenizerResult tokenize(const std::string& file)
     {
         std::vector<Token>* tokens = new std::vector<Token>;
         std::string buf;

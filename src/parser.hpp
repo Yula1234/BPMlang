@@ -642,7 +642,7 @@ public:
 		return std::nullopt;
 	}
 
-	void DiagnosticMessage(Token tok, const std::string& header, std::string msg, const int col_inc) {
+	void DiagnosticMessage(Token tok, const std::string& header, const std::string& msg, const int col_inc) {
 		putloc(tok);
 		std::cout << ": ";
 		__red_console();
@@ -665,13 +665,13 @@ public:
 		__normal_console();
 	}
 
-	void ParsingError(const std::string& msg, const int pos = 0)
+	void ParsingError(const std::string& msg, const int pos = 0) noexcept
 	{
 		DiagnosticMessage(peek(pos).value(), "error", msg, 0);
 		exit(EXIT_FAILURE);
 	}
 
-	void ParsingError_t(const std::string& msg, const Token& tok) const
+	void ParsingError_t(const std::string& msg, const Token& tok) noexcept
 	{
 		putloc(tok);
 		std::cout << " ERROR: " << msg << "\n";

@@ -9,6 +9,8 @@
 #define TYPEID_VOID 2
 #define TYPEID_ANY  3
 
+using __str_ref = const std::string&;
+
 void consume_un(...) {}
 
 template<typename T>
@@ -17,16 +19,16 @@ private:
 	T m_data[VectorSimDataCap];
 	size_t m_size = 0ULL;
 public:
-	size_t size() const {
+	inline size_t size() const noexcept {
 		return m_size;
 	}
-	inline void pop_back() {
+	inline void pop_back() noexcept {
 		m_size--;
 	}
-	T& operator[](const size_t _A_index) {
+	inline T& operator[](const size_t _A_index) noexcept {
 		return m_data[_A_index];
 	}
-	void push_back(const T& _A_element) {
+	inline void push_back(const T& _A_element) noexcept {
 		m_data[m_size++] = _A_element;
 	}
 };
@@ -34,7 +36,7 @@ public:
 class Generator {
 public:
 
-	size_t typeid_of(DataType type) {
+	size_t typeid_of(DataType type) noexcept {
 		if(!type.is_object) {
 			SimpleDataType stype = type.getsimpletype();
 			switch(stype) {
@@ -62,7 +64,7 @@ public:
 		assert(false); // TODO: fix
 	}
 
-	size_t sizeof_of(const DataType& type) {
+	size_t sizeof_of(const DataType& type) noexcept {
 		if(type.is_object) {
 			std::string name = type.getobjectname();
 			std::optional<Struct> st = struct_lookup(name);
@@ -140,12 +142,12 @@ public:
 		std::unordered_map<std::string, Field> fields;
 		std::vector<std::pair<std::string, DataType>> __fields;
 		size_t m_typeid;
-		static bool match_to(const Interface& in, const Struct& st) {
+		inline static bool match_to(const Interface& in, const Struct& st) {
 			return in.fields == st.fields;
 		}
 	};
 
-	bool inrerface_match(const DataType& ex_type, const DataType& actual) {
+	bool inrerface_match(const DataType& ex_type, const DataType& actual) noexcept {
 		if(ex_type.is_object && actual.is_object) {
 			std::string intername = ex_type.getobjectname();
 			std::optional<Interface> inter = inter_lookup(intername);
@@ -173,7 +175,7 @@ public:
 
 	/*procedure lookup on only last scope.
 	creating var (keyword `let`) use it function*/
-	std::optional<Var> var_lookup_cs(std::string name) {
+	std::optional<Var> var_lookup_cs(__str_ref name) noexcept {
 		std::unordered_map<std::string, Var>& vrs = last_scope();
 		const auto& search = vrs.find(name);
 		if(search != vrs.end()) {
@@ -184,7 +186,7 @@ public:
 
 	/*it lookup all scopes and find in they
 	var with name `name`*/
-	std::optional<Var> var_lookup(std::string name) {
+	std::optional<Var> var_lookup(__str_ref name) noexcept {
 		// i = scope than contains vars of current nth scope
 		for(int i = static_cast<int>(m_vars.size()) - 1;i > -1;--i) {
 			const auto& search = m_vars[i].find(name);
@@ -198,7 +200,7 @@ public:
 
 	/*it function lookup ny name var
 	and if it doesnt find, it throw a error*/
-	Var var_lookup_err(std::string name, Token def) {
+	Var var_lookup_err(__str_ref name, const Token& def) noexcept {
 		const std::optional<Var> v = var_lookup(name);
 		if(!v.has_value()) GeneratorError(def, "unkown variable `" + name + "`");
 		return v.value();
@@ -208,7 +210,7 @@ public:
 		return m_vars[m_vars.size() - 1ULL];
 	}
 
-	std::optional<Constant> const_lookup(std::string name) {
+	std::optional<Constant> const_lookup(__str_ref name) noexcept {
 		const auto& search = m_consts->find(name);
 		if(search != m_consts->end()) {
 			return search->second;
@@ -216,7 +218,7 @@ public:
 		return std::nullopt;
 	}
 
-	std::optional<GVar> gvar_lookup(std::string name) {
+	std::optional<GVar> gvar_lookup(__str_ref name) noexcept {
 		const auto& search = m_global_vars.find(name);
 		if(search != m_global_vars.end()) {
 			return search->second;
@@ -224,7 +226,7 @@ public:
 		return std::nullopt;
 	}
 
-	std::optional<Interface> inter_lookup(std::string name) {
+	std::optional<Interface> inter_lookup(__str_ref name) {
 		const auto& search = m_interfaces.find(name);
 		if(search != m_interfaces.end()) {
 			return search->second;
@@ -232,7 +234,7 @@ public:
 		return std::nullopt;
 	}
 
-	std::optional<Procedure> proc_lookup(std::string name) {
+	std::optional<Procedure> proc_lookup(__str_ref name) noexcept {
 		const auto& search = m_procs.find(name);
 		if(search != m_procs.end()) {
 			return search->second;
@@ -240,7 +242,7 @@ public:
 		return std::nullopt;
 	}
 
-	std::optional<Struct> struct_lookup(std::string name) {
+	std::optional<Struct> struct_lookup(__str_ref name) noexcept {
 		const auto& search = m_structs.find(name);
 		if(search != m_structs.end()) {
 			return search->second;
@@ -249,7 +251,7 @@ public:
 	}
 
 	/*it is like var_lookup, but in struct*/
-	std::optional<Field> field_lookup(Struct& st, const std::string& field) {
+	std::optional<Field> field_lookup(const Struct& st, __str_ref field) const noexcept {
 		const auto& search = st.fields.find(field);
 		if(search != st.fields.end()) {
 			return search->second;
@@ -257,7 +259,7 @@ public:
 		return std::nullopt;
 	}
 
-	std::optional<Field> field_lookup(Interface& st, const std::string& field) {
+	std::optional<Field> field_lookup(const Interface& st, __str_ref field) const noexcept {
 		const auto& search = st.fields.find(field);
 		if(search != st.fields.end()) {
 			return search->second;
@@ -265,30 +267,30 @@ public:
 		return std::nullopt;
 	}
 
-	std::optional<String> string_lookup(std::string svalue) {
+	std::optional<String> string_lookup(__str_ref svalue) noexcept {
 		if(m_strings.find(svalue) != m_strings.end()) {
 			return m_strings[svalue];
 		}
 		return std::nullopt;
 	}
 
-	void DiagnosticMessage(Token tok, std::string header, std::string msg, int col_inc) {
+	void DiagnosticMessage(const Token& tok, __str_ref header, __str_ref msg, const int col_inc) {
 		m_parser->DiagnosticMessage(tok, header, msg, col_inc);
 	}
 
 	/*function throwing error with location*/
-	void GeneratorError(Token tok, std::string msg) {
+	void GeneratorError(const Token& tok, __str_ref msg) {
 		DiagnosticMessage(tok, "error", msg, 0);
 		exit(EXIT_FAILURE);
 	}
 
 	/*function throwing warning with location*/
-	void GeneratorWarning(Token tok, std::string msg) {
+	void GeneratorWarning(const Token& tok, __str_ref msg) {
 		DiagnosticMessage(tok, "warning", msg, 0);
 	}
 
 	/*function returns type of field {}.{}*/
-	DataType type_of_dot(NodeBinExprDot* dot, Token def) {
+	DataType type_of_dot(const NodeBinExprDot* dot, const Token& def) {
 		DataType otype = type_of_expr(dot->lhs);
 		if(std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
 			NodeTerm* id = std::get<NodeTerm*>(dot->rhs->var);
@@ -1162,8 +1164,8 @@ public:
 		std::visit(visitor, expr->var);
 	}
 
-	size_t collect_alligns(const NodeScope* scope) {
-		size_t fsz = 0U;
+	size_t collect_alligns(const NodeScope* scope) const noexcept {
+		size_t fsz = 0ULL;
 		for (const NodeStmt* stmt : scope->stmts) {
 			if(std::holds_alternative<NodeStmtLet*>(stmt->var)) {
 				fsz += 1;
@@ -1208,7 +1210,7 @@ public:
 		end_scope();
 	}
 
-	void create_var(const std::string name, NodeExpr* value, Token where) {
+	void create_var(__str_ref name, NodeExpr* value, const Token& where) {
 		if(m_scopes_vi.size() == 0ULL) {
 			GeneratorError(where, "can't create global variable with assignment");
 		}
@@ -1223,7 +1225,7 @@ public:
 		m_output << "    mov dword [ebp-" << m_var_index * 4 << "], ecx\n";
 	}
 
-	void create_var_va(const std::string name, DataType type, Token where) {
+	void create_var_va(__str_ref name, const DataType& type, const Token& where) {
 		if(m_scopes_vi.size() == 0ULL) {
 			std::optional<GVar> ivar = gvar_lookup(name);
 			if(ivar.has_value()) {
@@ -1239,7 +1241,7 @@ public:
 		last_scope()[name] = { .name = name, .stack_loc = ++m_var_index * 4 , .type = type };
 	}
 
-	void create_var_va_wid(const std::string name, DataType type, Token where) {
+	void create_var_va_wid(__str_ref name, const DataType& type, const Token& where) {
 		std::optional<Var> ivar = var_lookup_cs(name);
 		if(ivar.has_value()) {
 			GeneratorError(where, "name `" + name + "` already in use");
@@ -1247,11 +1249,11 @@ public:
 		last_scope()[name] = { .name = name, .stack_loc = m_var_index * 4 , .type = type };
 	}
 
-	void gen_if_pred(const NodeIfPred* pred, const std::string& end_label)
+	void gen_if_pred(const NodeIfPred* pred, __str_ref end_label)
 	{
 		struct PredVisitor {
 			Generator& gen;
-			const std::string& end_label;
+			__str_ref end_label;
 
 			void operator()(const NodeIfPredElif* elif) const
 			{
@@ -1278,7 +1280,7 @@ public:
 		std::visit(visitor, pred->var);
 	}
 
-	Procedure __proc_get(const std::string& name, const Token& def) {
+	Procedure __proc_get(__str_ref name, const Token& def) {
 		std::optional<Procedure> proc = proc_lookup(name);
 		if(!proc.has_value()) {
 			GeneratorError(def, "unkown procedure `" + name + "`");
@@ -1313,8 +1315,8 @@ public:
 		return std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(__expr->var)->var)->args;
 	}
 
-	std::optional<int> __eval_ctcall(const NodeTermCall* call, Token def) {
-		const std::string& name = call->name;
+	std::optional<int> __eval_ctcall(const NodeTermCall* call, const Token& def) {
+		__str_ref name = call->name;
 		if(name == "is_same_t") {
 			if(!call->args.has_value()) {
 				GeneratorError(def, "is_same_t excepts 2 args");
@@ -1369,7 +1371,7 @@ public:
 		return std::nullopt;
 	}
 
-	int eval(const NodeExpr* expr, Token def) {
+	int eval(const NodeExpr* expr, const Token& def) {
 		int result = 0;
 		if(std::holds_alternative<NodeTerm*>(expr->var)) {
 			NodeTerm* nterm = std::get<NodeTerm*>(expr->var);
@@ -1900,19 +1902,19 @@ public:
 		return result.str();
 	}
 
-	void get_props_from_parser(Parser* parser) {
+	void get_props_from_parser(Parser* parser) noexcept {
 		m_consts = parser->get_consts();
 		m_parser = parser;
 		m_lines = &(parser->m_lines);
 	}
 
 private:
-	void push(const std::string& reg)
+	inline void push(__str_ref reg) noexcept
 	{
 		m_output << "    push " << reg << "\n";
 	}
 
-	void pop(const std::string& reg)
+	inline void pop(__str_ref reg) noexcept
 	{
 		m_output << "    pop " << reg << "\n";
 	}
@@ -1938,7 +1940,7 @@ private:
 		m_scopes_vi.pop_back();
 	}
 
-	size_t __compute_allign_ret() {
+	inline size_t __compute_allign_ret() noexcept {
 		size_t res = 0ULL;
 		yforeach(m_scopes) {
 			res += m_scopes[i];
@@ -1946,7 +1948,7 @@ private:
 		return res;
 	}
 
-	std::string create_label()
+	inline std::string create_label() noexcept
 	{
 		std::stringstream ss;
 		ss << "L" << m_label_count++;
