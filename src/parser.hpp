@@ -605,6 +605,10 @@ static inline void __red_console() {
 	SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
 }
 
+static inline void __light_blue_console() {
+	SetConsoleTextAttribute(hConsole, FOREGROUND_INTENSITY | FOREGROUND_GREEN | FOREGROUND_BLUE);
+}
+
 struct Constant {
 	std::string name;
 	int value;
@@ -642,14 +646,23 @@ public:
 		return std::nullopt;
 	}
 
+	std::string __get_fline(const std::string& file, const size_t line_n) {
+		return m_lines.operator[](file)[line_n - 1];
+	}
+
 	void DiagnosticMessage(Token tok, const std::string& header, const std::string& msg, const int col_inc) {
 		putloc(tok);
 		std::cout << ": ";
-		__red_console();
+		if(header == "NOTE") {
+			__light_blue_console();
+		}
+		else {
+			__red_console();
+		}
 		std::cout << header << ": ";
 		__normal_console();
 		std::cout << msg << "\n";
-		std::string line = m_lines.operator[](tok.file)[tok.line - 1];
+		std::string line = __get_fline(tok.file, tok.line);
 		while(line.starts_with('\t') || line.starts_with(' ')) {
 			tok.col--;
 			line = line.substr(1, line.size());
@@ -663,6 +676,31 @@ public:
 		__red_console();
 		fputs("^\n", stdout);
 		__normal_console();
+		Token inexp = tok;
+		while(inexp.expand.has_value()) {
+			__light_blue_console();
+			printf("NOTE: ");
+			__normal_console();
+			printf("expanded from ");
+			Token exp = *(inexp.expand.value());
+			putloc(exp);
+			printf(".\n");
+			std::string line = __get_fline(exp.file, exp.line);
+			while(line.starts_with('\t') || line.starts_with(' ')) {
+				exp.col--;
+				line = line.substr(1, line.size());
+			}
+			printf("\n %d | %s\n", exp.line, line.c_str());
+			int spacelvl = exp.col + 3;
+			spacelvl += std::to_string(exp.line).size();
+			for(int i = 0;i < spacelvl;++i) {
+				putc(' ', stdout);
+			}
+			__red_console();
+			fputs("^\n", stdout);
+			__normal_console();
+			inexp = exp;
+		}
 	}
 
 	void ParsingError(const std::string& msg, const int pos = 0) noexcept
@@ -902,7 +940,7 @@ public:
 		return std::nullopt;
 	}
 
-	void expand_macro(Macro& _macro, std::vector<std::vector<Token>*>* __args, const Token& __at) {
+	void expand_macro(Macro& _macro, std::vector<std::vector<Token>*>* __args, Token& __at) {
 		if(_macro.args.size() != __args->size() && __args->size() != 1ULL) {
 			ParsingError("macro `" + _macro.name + "` except " + std::to_string(_macro.args.size()) + " args, but got " + std::to_string(__args->size()));
 		}
@@ -911,6 +949,12 @@ public:
 			body[i].line = __at.line;
 			body[i].col = __at.col;
 			body[i].file = __at.file;
+			if(__at.expand.has_value()) {
+				if(body[i].expand.has_value()) {
+					__at.expand.value()->expand = body[i].expand;
+				}
+				body[i].expand = __at.expand;
+			}
 			if(body[i].type == TokenType_t::ident) {
 				std::optional<size_t> __arg = __macro_arg_pos(_macro, body[i].value.value());
 				if(__arg.has_value()) {
@@ -1211,8 +1255,8 @@ public:
 			else {
 				break;
 			}
-			const auto [type, line, col, value, file] = consume();
-			Token ctok = {type, line, col, value, file};
+			const auto [type, line, col, value, file, expanded] = consume();
+			Token ctok = {type, line, col, value, file, expanded};
 			const int next_min_prec = prec.value() + 1;
 			auto expr_rhs = parse_expr(next_min_prec);
 			if (!expr_rhs.has_value()) {
@@ -1889,7 +1933,9 @@ public:
 					if(peek().value().type == TokenType_t::_define) {
 						ParsingError("#define keyword in macro defenition, maybe you forgot a $.");
 					}
-					__macro.body.push_back(consume());
+					Token ctok = consume();
+					ctok.expand = m_allocator.emplace<Token>(ctok);
+					__macro.body.push_back(ctok);
 				}
 				consume();
 				m_macroses[mname] = __macro;
