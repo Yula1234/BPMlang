@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
     auto result = tokenizer.tokenize(argv[1]);
 
     Parser parser(std::move(*result.tokens), std::move(*result.lines));
-    std::optional<NodeProg> prog = parser.parse_prog();
+    std::optional<NodeProg*> prog = parser.parse_prog();
 
     if (!prog.has_value()) {
         std::cerr << "Invalid program" << std::endl;

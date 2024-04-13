@@ -164,8 +164,8 @@ public:
 		return false;
 	}
 
-	explicit Generator(NodeProg prog)
-		: m_prog(std::move(prog))
+	explicit Generator(NodeProg* prog)
+		: m_prog(prog)
 	{
 	}
 
@@ -1850,7 +1850,7 @@ public:
 		result << "section .text\n\n";
 		result << "global main\n\n";
 
-		for (const NodeStmt* stmt : m_prog.stmts) {
+		for (const NodeStmt* stmt : m_prog->stmts) {
 			gen_stmt(stmt);
 		}
 
@@ -1955,7 +1955,7 @@ private:
 		return ss.str();
 	}
 
-	const NodeProg m_prog;
+	const NodeProg* m_prog;
 	const AsmGen asmg { .gen = this };
 	std::stringstream		 m_output;
 	std::unordered_map<std::string, std::vector<std::string>>* m_lines;

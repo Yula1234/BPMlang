@@ -74,7 +74,7 @@ struct DataType {
 		this->type = other.type;
 		this->is_object = other.is_object;
 	}
-	DataType(std::string objname) {
+	DataType(const std::string& objname) {
 		this->type = objname;
 		this->is_object = true;
 	}
@@ -86,7 +86,7 @@ struct DataType {
 		type = other.type;
 		is_object = other.is_object;
 	}
-	void operator=(std::string objname) {
+	void operator=(const std::string& objname) {
 		type = objname;
 		is_object = true;
 	}
@@ -119,7 +119,7 @@ DataType DataTypeAny = make_any_type();
 
 #define yforeach(container) for(int i = 0;i < static_cast<int>(container.size());++i)
 
-std::string dt_to_string(DataType dt) {
+std::string dt_to_string(const DataType& dt) {
 	return dt.to_string();
 }
 
@@ -139,7 +139,7 @@ DataType token_to_dt(TokenType_t tt) {
 	assert(false); // unreacheable
 }
 
-DataType uni_token_to_dt(Token tok) {
+DataType uni_token_to_dt(const Token& tok) {
 	if(tok.type == TokenType_t::ident) {
 		DataType dt;
 		dt = tok.value.value();
@@ -152,7 +152,7 @@ bool is_type_token(TokenType_t tp) {
 	return (tp == TokenType_t::int_type || tp == TokenType_t::ptr_type || tp == TokenType_t::void_type || tp == TokenType_t::any_type || tp == TokenType_t::ident);
 }
 
-std::ostream& operator<<(std::ostream& out, const DataType dt) {
+std::ostream& operator<<(std::ostream& out, const DataType& dt) {
 	std::cout << dt_to_string(dt); 
 	return out;
 }
@@ -163,7 +163,7 @@ enum class ProcAttr {
 	nosizedargs
 };
 
-std::optional<ProcAttr> string_to_PA(std::string str) {
+std::optional<ProcAttr> string_to_PA(const std::string& str) {
 	if(str == "nostdargs") {
 		return ProcAttr::nostdargs;
 	}
@@ -543,7 +543,7 @@ struct NodeProg {
 	std::vector<NodeStmt*> stmts {};
 };
 
-bool file_exists(std::string name) {
+bool file_exists(const std::string& name) {
 	if(FILE *file = fopen(name.c_str(), "r")) {
 		fclose(file);
 		return true;
@@ -597,11 +597,11 @@ namespace ptools {
 	}
 }
 
-void __normal_console() {
+static inline void __normal_console() {
 	SetConsoleTextAttribute(hConsole, 7);
 }
 
-void __red_console() {
+static inline void __red_console() {
 	SetConsoleTextAttribute(hConsole, FOREGROUND_RED);
 }
 
@@ -626,7 +626,7 @@ public:
 		m_lines[m_tokens[0].file] = std::move(lines);
 	}
 
-	std::optional<Constant> const_lookup(std::string name) {
+	std::optional<Constant> const_lookup(const std::string& name) const noexcept {
 		const auto& search = m_consts.find(name);
 		if(search != m_consts.end()) {
 			return search->second;
@@ -634,7 +634,7 @@ public:
 		return std::nullopt;
 	}
 
-	std::optional<Macro> macro_lookup(std::string name) {
+	std::optional<Macro> macro_lookup(const std::string& name) const noexcept {
 		const auto& search = m_macroses.find(name);
 		if(search != m_macroses.end()) {
 			return search->second;
@@ -893,7 +893,7 @@ public:
 		}
 	}
 
-	std::optional<size_t> __macro_arg_pos(Macro& __macro, std::string __arg) {
+	std::optional<size_t> __macro_arg_pos(Macro& __macro, const std::string& __arg) {
 		for(int i = 0;i < static_cast<int>(__macro.args.size());++i) {
 			if(__macro.args[i] == __arg) {
 				return i;
@@ -902,7 +902,7 @@ public:
 		return std::nullopt;
 	}
 
-	void expand_macro(Macro& _macro, std::vector<std::vector<Token>*>* __args, Token __at) {
+	void expand_macro(Macro& _macro, std::vector<std::vector<Token>*>* __args, const Token& __at) {
 		if(_macro.args.size() != __args->size() && __args->size() != 1ULL) {
 			ParsingError("macro `" + _macro.name + "` except " + std::to_string(_macro.args.size()) + " args, but got " + std::to_string(__args->size()));
 		}
@@ -2022,13 +2022,13 @@ public:
 		return {};
 	}
 
-	std::optional<NodeProg> parse_prog()
+	std::optional<NodeProg*> parse_prog()
 	{
 		hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-		NodeProg prog;
+		NodeProg* prog = new NodeProg;
 		while (peek().has_value()) {
 			if (auto stmt = parse_stmt()) {
-				prog.stmts.push_back(stmt.value());
+				prog->stmts.push_back(stmt.value());
 			}
 			else {
 				if(m_preprocessor_stmt) {
@@ -2041,7 +2041,7 @@ public:
 		return prog;
 	}
 
-	std::unordered_map<std::string, Constant>* get_consts() {
+	std::unordered_map<std::string, Constant>* get_consts() noexcept {
 		return &m_consts;
 	}
 
