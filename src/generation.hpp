@@ -1667,6 +1667,8 @@ public:
 				size_t stack_allign = 0;
 				if(stmt_call->args.has_value()) {
 					gen.__typecheck_call(gen.__getargs(stmt_call->args.value()), proc.params, stmt_call->def, proc, &stack_allign);
+				} else if(proc.params.size() != 0ULL) {
+					gen.GeneratorError(stmt_call->def, "procedure `" + proc.name + "` excepts " + std::to_string(proc.params.size()) + " arguments\nNOTE: but got 0");
 				}
 				if(stmt_call->args.has_value()) {
 					gen.gen_expr(stmt_call->args.value());
