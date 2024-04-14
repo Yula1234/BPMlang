@@ -1,0 +1,11 @@
+#define offsetof
+(
+	__object
+	__field
+) cast( int, 
+(
+	(&(__object.__field)) - cast(ptr, __object))
+)$
+
+#define addrof(__P_v)
+	(&(__P_v))$
