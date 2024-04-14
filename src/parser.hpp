@@ -941,8 +941,14 @@ public:
 	}
 
 	void expand_macro(Macro& _macro, std::vector<std::vector<Token>*>* __args, Token& __at) {
-		if(_macro.args.size() != __args->size() && __args->size() != 1ULL) {
-			ParsingError("macro `" + _macro.name + "` except " + std::to_string(_macro.args.size()) + " args, but got " + std::to_string(__args->size()));
+		if(_macro.args.size() != __args->size()) {
+			if(!(_macro.args.size() == 0ULL && __args->size() == 1ULL)) {
+				ParsingError("macro `" + _macro.name + "` except " + std::to_string(_macro.args.size()) + " args, but got " + std::to_string(__args->size()));
+			}
+		}
+		// printf("expand macro(%s) ex = %d, got = %d", _macro.name.c_str(), );
+		if(_macro.body.size() == 0ULL) {
+			return;
 		}
 		std::vector<Token> body = _macro.body;
 		for(int i = 0;i < static_cast<int>(body.size());++i) {
@@ -1930,9 +1936,6 @@ public:
 				}
 				Macro __macro = { .name = mname, .args = __args, .body = {} };
 				while(peek().has_value() && peek().value().type != TokenType_t::dollar) {
-					if(peek().value().type == TokenType_t::_define) {
-						ParsingError("#define keyword in macro defenition, maybe you forgot a $.");
-					}
 					Token ctok = consume();
 					ctok.expand = m_allocator.emplace<Token>(ctok);
 					__macro.body.push_back(ctok);
