@@ -1,11 +1,16 @@
 include "core"
+include "macro_proc"
 include "string"
 
-proc fabs number:int -> int {
-	if(0 > number)
-	{ return number - number + number; }
-	return number;
-}
+__macro_proc_va1(
+	fabs, {
+		__mproc_tcheck(_p_v1, int, "fabs except argument of type `int`");
+		if(0 > _p_v1)
+		{ __mproc_return((_p_v1) - (_p_v1) + (_p_v1)); }
+		else
+		{ __mproc_return(_p_v1); }
+	}, int
+)$
 
 proc fputs
 	fd:int // File Descriptor
