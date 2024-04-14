@@ -21,7 +21,7 @@ const false 0;
 #define rd32_as(__pointer __type) cast(__type, rd32(__pointer))$
 #define rd16_as(__pointer __type) cast(__type, rd16(__pointer))$
 
-#define neg(__as_positive_value) (0 - __as_positive_value)$
+#define neg(__as_positive_value) (0 - (__as_positive_value))$
 #define typeid_of(__expr) typeid((__expr))$
 
 #define __get(__array __index __elsize)
