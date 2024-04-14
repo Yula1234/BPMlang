@@ -1,0 +1,33 @@
+#define __mproc_bdef(_Stat _Rtype)
+	__expr_stmt {
+		_Stat
+	} (cast(_Rtype, __popfromstack()))$
+
+#define __macro_proc(__name __stmt __rettype)
+	#define __name()
+		__mproc_bdef(__stmt, __rettype)$
+
+#define __macro_proc_va1(__name __stmt __rettype)
+	#define __name(_p_v1)
+		__mproc_bdef(__stmt, __rettype)$
+
+#define __macro_proc_va2(__name __stmt __rettype)
+	#define __name(_p_v1 _p_v2)
+		__mproc_bdef(__stmt, __rettype)$
+
+#define __macro_proc_va3(__name __stmt __rettype)
+	#define __name(_p_v1 _p_v2 _p_v3)
+		__mproc_bdef(__stmt, __rettype)$
+
+#define __macro_proc_va4(__name __stmt __rettype)
+	#define __name(_p_v1 _p_v2 _p_v3 _p_v4)
+		__mproc_bdef(__stmt, __rettype)$
+
+#define __macro_proc_va5(__name __stmt __rettype)
+	#define __name(_p_v1 _p_v2 _p_v3 _p_v4 _p_v5)
+		__mproc_bdef(__stmt, __rettype)$
+
+#define __mproc_tcheck(_p_v _v_type _v_err)
+	static_assert(is_same_t(_p_v, ct_type(_v_type)), _v_err)$
+
+#define __mproc_return(__value) __pushonstack(__value)$
