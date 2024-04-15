@@ -9,6 +9,10 @@
 #define TYPEID_VOID 2
 #define TYPEID_ANY  3
 
+#define v_alt(__v, __tp) std::holds_alternative<__tp>(__v)
+
+#define v_get(__v, __tp) std::get<__tp>(__v)
+
 #define UNUSED_ARG __attribute__((unused))
 
 using __str_ref = const std::string&;
@@ -331,6 +335,9 @@ public:
 			if(std::holds_alternative<NodeTermIntLit*>(term->var)) {
 				return DataTypeInt;
 			}
+			if(std::holds_alternative<NodeTermCtEval*>(term->var)) {
+				return type_of_expr(std::get<NodeTermCtEval*>(term->var)->expr);
+			}
 			if(std::holds_alternative<NodeTermLine*>(term->var)) {
 				return DataTypeInt;
 			}
@@ -618,6 +625,11 @@ public:
 					return;
 				}
 				gen.m_output << "    push s_" << str.value().index << "\n";
+			}
+
+			void operator()(const NodeTermCtEval* term_eval) const
+			{
+				gen.GeneratorError(term_eval->def, "ct_eval is deprecated");
 			}
 
 			void operator()(const NodeTermSizeof* term_sizeof) const
@@ -1378,34 +1390,24 @@ public:
 		if(std::holds_alternative<NodeTerm*>(expr->var)) {
 			NodeTerm* nterm = std::get<NodeTerm*>(expr->var);
 			if(std::holds_alternative<NodeTermIntLit*>(nterm->var)) {
-				return std::stoul(std::get<NodeTermIntLit*>(nterm->var)->int_lit.value.value());
+				return std::stoul(std::get<NodeTermIntLit*>(std::get<NodeTerm*>(expr->var)->var)->int_lit.value.value());
 			}
 			if(std::holds_alternative<NodeTermIdent*>(nterm->var)) {
 				std::string cname = std::get<NodeTermIdent*>(nterm->var)->ident.value.value();
-				if(cname == "iota") {
-					return CTX_IOTA++;
-				}
+				if(cname == "iota") return CTX_IOTA++;
 				if(cname == "reset") {
 					int old = CTX_IOTA;
 					CTX_IOTA = 0;
 					return old;
 				}
-				if(cname == "true") {
-					return 1;
-				}
-				if(cname == "false") {
-					return 0;
-				}
+				if(cname == "true") return 1;
+				if(cname == "false") return 0;
 				std::optional<Constant> cns = const_lookup(cname);
-				if(cns.has_value()) {
-					return cns.value().value;
-				}
+				if(cns.has_value()) return cns.value().value;
 			}
 			if(std::holds_alternative<NodeTermCall*>(nterm->var)) {
 				NodeTermCall* call = std::get<NodeTermCall*>(nterm->var);
-				if(auto vl = __eval_ctcall(call, def)) {
-					return vl.value();
-				}
+				if(auto vl = __eval_ctcall(call, def)) return vl.value();
 				GeneratorError(def, "unkown compile-time procedure `" + call->name + "`");
 			}
 		}
@@ -1452,7 +1454,6 @@ public:
 				return eval(nor->lhs, def) || eval(nor->rhs, def);
 			}
 		}
-		GeneratorError(def, "not constant provided");
 		return result;
 	}
 
@@ -2116,6 +2117,12 @@ public:
 			{
 				gen.m_output << "(";
 				gen.dump_expr(term_paren->expr);
+				gen.m_output << ")";
+			}
+
+			void operator()(const NodeTermCtEval* term_eval) const {
+				gen.m_output << "ct_eval(";
+				gen.dump_expr(term_eval->expr);
 				gen.m_output << ")";
 			}
 

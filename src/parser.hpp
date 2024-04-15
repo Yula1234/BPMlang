@@ -281,6 +281,11 @@ struct NodeTermExprStmt {
 
 struct NodeTermPop {};
 
+struct NodeTermCtEval {
+	Token def;
+	NodeExpr* expr;
+};
+
 struct NodeBinExprAdd {
 	NodeExpr* lhs;
 	NodeExpr* rhs;
@@ -361,7 +366,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*, NodeTermPop*, NodeTermCastTo*> var;
+	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*, NodeTermPop*, NodeTermCastTo*, NodeTermCtEval*> var;
 };
 
 struct NodeExpr {
@@ -1002,6 +1007,19 @@ public:
 		if(auto int_lit = try_consume(TokenType_t::int_lit)) {
 			auto term_int_lit = m_allocator.emplace<NodeTermIntLit>(int_lit.value());
 			auto term = m_allocator.emplace<NodeTerm>(term_int_lit);
+			return term;
+		}
+		if(auto _ct_eval = try_consume(TokenType_t::ct_eval)) {
+			auto term_eval = m_allocator.emplace<NodeTermCtEval>();
+			term_eval->def = _ct_eval.value();
+			try_consume_err(TokenType_t::open_paren);
+			if(auto _expr = parse_expr()) {
+				term_eval->expr = _expr.value();
+			} else {
+				error_expected("expression");
+			}
+			try_consume_err(TokenType_t::close_paren);
+			auto term = m_allocator.emplace<NodeTerm>(term_eval);
 			return term;
 		}
 		if(auto _line = try_consume(TokenType_t::_line)) {

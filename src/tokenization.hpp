@@ -79,6 +79,7 @@ enum class TokenType_t {
     expr_stmt,
     popfromstack,
     cast_to,
+    ct_eval,
 };
 
 std::vector<std::string>* split_string(const std::string& str, const std::string& delimiter) {
@@ -172,6 +173,7 @@ const std::unordered_map<TokenType_t, std::string> map_tok2str {
     {TokenType_t::expr_stmt, "`__expr_stmt`"},
     {TokenType_t::popfromstack, "`__popfromstack`"},
     {TokenType_t::cast_to, "`cast_to`"},
+    {TokenType_t::ct_eval, "`ct_eval`"},
 };
 
 std::string tok_to_string(const TokenType_t type)
@@ -441,6 +443,10 @@ public:
                 }
                 else if (buf == "cast_to") {
                     tokens->push_back({ .type = TokenType_t::cast_to, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
+                    buf.clear();
+                }
+                else if (buf == "ct_eval") {
+                    tokens->push_back({ .type = TokenType_t::ct_eval, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
                     buf.clear();
                 }
                 else {
