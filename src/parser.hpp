@@ -15,6 +15,7 @@ enum class SimpleDataType {
 struct DataType {
 	bool is_object = false;
 	std::variant<SimpleDataType, std::string> type;
+	bool valued = false;
 	bool is_simple() const {
 		return !is_object;
 	}
@@ -88,26 +89,29 @@ struct DataType {
 	DataType(SimpleDataType other) {
 		this->type = other;
 		this->is_object = false;
+		this->valued = false;
 	}
 	DataType(const DataType& other) {
 		this->type = other.type;
 		this->is_object = other.is_object;
+		this->valued = other.valued;
 	}
 	DataType(const std::string& objname) {
 		this->type = objname;
 		this->is_object = true;
 	}
 	void operator=(SimpleDataType other) {
-		type = other;
-		is_object = false;
+		this->type = other;
+		this->is_object = false;
 	}
 	void operator=(const DataType& other) {
-		type = other.type;
-		is_object = other.is_object;
+		this->type = other.type;
+		this->is_object = other.is_object;
+		this->valued = other.valued;
 	}
 	void operator=(const std::string& objname) {
-		type = objname;
-		is_object = true;
+		this->type = objname;
+		this->is_object = true;
 	}
 };
 
@@ -672,6 +676,20 @@ public:
 
 	std::string __get_fline(const std::string& file, const size_t line_n) {
 		return m_lines.operator[](file)[line_n - 1];
+	}
+
+	DataType parse_type() {
+		Token __base = consume();
+		if(!is_type_token(__base.type)) {
+			ParsingError("excepted type");
+		}
+		DataType type;
+		type = uni_token_to_dt(__base);
+		if(peek().has_value() && peek().value().type == TokenType_t::star) {
+			type.valued = true;
+			consume();
+		}
+		return type;
 	}
 
 	void DiagnosticMessage(Token tok, const std::string& header, const std::string& msg, const int col_inc) {
@@ -1569,8 +1587,7 @@ public:
 					if(!is_type_token(peek().value().type)) {
 						error_expected("arg type");
 					}
-					Token ttype = consume();
-					DataType argtype = uni_token_to_dt(ttype);
+					DataType argtype = parse_type();
 					pparams.push_back(std::make_pair(argid.value.value(), argtype));
 				}
 			}

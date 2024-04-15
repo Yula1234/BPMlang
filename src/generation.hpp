@@ -142,6 +142,10 @@ public:
 		std::optional<std::string> __allocator;
 		std::vector<std::pair<std::string, DataType>> __fields;
 		size_t m_typeid;
+
+		size_t size_of() const noexcept {
+			return __fields.size();
+		}
 	};
 	struct Interface {
 		std::string name;
@@ -152,6 +156,42 @@ public:
 			return in.fields == st.fields;
 		}
 	};
+
+	// add asm code for copy object
+	// and pass argument to function
+	// by copying it.
+	void __arg_b_v(const size_t s_offset, const Struct& stof) {
+		// s_offset it offset in
+		// the stack (ebp).
+		// it means for example
+		// offset = 4 its [ebp-(4 * 4)]
+		// where * multiplays by sizeof
+		// single integer.
+
+		// stof it struct of argument
+		// by it compiller can get size
+		// of object and other stuff.
+		
+		const size_t size_of = stof.size_of();
+
+		m_output << "    mov edx, dword [ebp-" << s_offset * 4 << "]\n";
+		m_output << "    push edx\n";
+		m_output << "    push " << size_of << "\n";
+		m_output << "    call malloc\n";
+		m_output << "    add esp, 4\n";
+		m_output << "    pop edx\n";
+		// edx = object&
+		// eax = new_object*
+		m_output << "    push eax\n";
+		m_output << "    push " << size_of << "\n";
+		m_output << "    push edx\n";
+		m_output << "    push eax\n";
+		m_output << "    call memcpy\n";
+		m_output << "    add esp, 12\n";
+		m_output << "    pop eax\n";
+		m_output << "    mov dword [ebp-" << s_offset * 4 << "], eax\n";
+
+	}
 
 	bool inrerface_match(const DataType& ex_type, const DataType& actual) noexcept {
 		if(ex_type.is_object && actual.is_object) {
@@ -1216,6 +1256,13 @@ public:
 				create_var_va(proc->params[i].first, proc->params[i].second, proc->def);
 				m_output << "    mov edx, dword [ebp+" << i * 4 + 8 << "]\n";
 				m_output << "    mov dword [ebp-" << i * 4 + 4 << "], edx\n";
+				if(proc->params[i].second.valued) {
+					std::optional<Struct> st = struct_lookup(proc->params[i].second.getobjectname());
+					if(!st.has_value()) {
+						GeneratorError(proc->def, "unkown struct `" + proc->params[i].second.getobjectname() + "`");
+					}
+					__arg_b_v(static_cast<size_t>(i + 1), st.value());
+				}
 			}
 		}
 		for (const NodeStmt* stmt : scope->stmts) {
