@@ -5,6 +5,7 @@ enum class FlagType {
     run,
     time,
     sasm,
+    dump,
 };
 
 struct Flag {
@@ -39,6 +40,13 @@ public:
                 }
                 m_flags.push_back({ .type = FlagType::output , .operand = m_argv[++i] });
             }
+            else if(strcmp(m_argv[i], "-d") == 0) {
+                if(i == (m_argc - 1)) {
+                    std::cerr << "-d argument except file name\n";
+                    exit(1);
+                }
+                m_flags.push_back({ .type = FlagType::dump , .operand = m_argv[++i] });
+            }
             else if(strcmp(m_argv[i], "-r") == 0) {
                 m_flags.push_back({ .type = FlagType::run , .operand = std::nullopt });
             }
@@ -55,6 +63,9 @@ public:
         }
     }
     int compile() {
+        if(auto d_flag = find_flag(FlagType::dump)) {
+            return EXIT_SUCCESS;
+        }
         system("nasm --gprefix _ -fwin32 output.asm -o output.o");
         if(auto s_flag = find_flag(FlagType::sasm)) {}
         else {

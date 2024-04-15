@@ -1985,3 +1985,614 @@ private:
 	size_t m_var_index = 0U;
 	size_t m_label_count = 0U;
 };
+
+
+
+class Dumper {
+public:
+
+	explicit Dumper(NodeProg* prog)
+		: m_prog(prog)
+	{
+	}
+
+	void dump_term(const NodeTerm* term)
+	{
+		struct TermVisitor {
+			Dumper& gen;
+
+			void operator()(const NodeTermIntLit* term_int_lit) const
+			{
+				gen.m_output << term_int_lit->int_lit.value.value();
+			}
+
+			void operator()(const NodeTermType* tp) {
+				gen.m_output << "ct_type(" << tp->type.to_string_d() << ")";
+			}
+
+			void operator()(const NodeTermCol* term_col) const
+			{
+				gen.m_output << "__COL__";
+			}
+
+			void operator()(const NodeTermLine* term_line) const
+			{
+				gen.m_output << "__LINE__";
+			}
+
+			void operator()(const NodeTermPop* term_pop) const
+			{
+				gen.m_output << "__popfromstack()";
+			}
+
+			void operator()(const NodeTermExprStmt* term_stmt) const
+			{
+				gen.m_output << "__expr_stmt ";
+				gen.dump_scope(term_stmt->scope, 1);
+				gen.m_output.seekp(-2, gen.m_output.cur);
+				gen.m_output << "    } (";
+				gen.dump_expr(term_stmt->expr);
+				gen.m_output << ")";
+			}
+
+			void operator()(const NodeTermFile* term_file) const
+			{
+				gen.m_output << "__FILE__";
+			}
+
+			void operator()(const NodeTermSizeof* term_sizeof) const
+			{
+				gen.m_output << "sizeof(";
+				if(term_sizeof->expr.has_value()) {
+					gen.m_output << "(";
+					gen.dump_expr(term_sizeof->expr.value());
+					gen.m_output << "))";
+					return;
+				}
+				gen.m_output << term_sizeof->type.to_string_d() << ")";
+			}
+
+			void operator()(const NodeTermRd* term_rd) const
+			{
+				gen.m_output << "rd" << std::to_string(term_rd->size) << "(";
+				gen.dump_expr(term_rd->expr);
+				gen.m_output << ")";
+			}
+
+			void operator()(const NodeTermCast* term_cast) const
+			{
+				gen.m_output << "cast(" << term_cast->type.to_string_d() << ", ";
+				gen.dump_expr(term_cast->expr);
+				gen.m_output << ")";
+			}
+
+			void operator()(const NodeTermCastTo* term_cast_to) const
+			{
+				gen.m_output << "cast_to(";
+				gen.dump_expr(term_cast_to->to);
+				gen.m_output << ", ";
+				gen.dump_expr(term_cast_to->expr);
+				gen.m_output << ")";
+			}
+
+			void operator()(const NodeTermTypeid* term_typeid) const
+			{
+				gen.m_output << "typeid(";
+				if(!term_typeid->ptype.has_value()) {
+					gen.m_output << "(";
+					gen.dump_expr(term_typeid->expr);
+					gen.m_output << "))";
+					return;
+				}
+				gen.m_output << term_typeid->ptype.value().to_string_d() << ")";
+			}
+
+			void operator()(const NodeTermStrLit* term_str_lit) const
+			{
+				std::string str = term_str_lit->str_lit;
+				for(int i = 0;i < str.size();++i) {
+					if(str[i] == '\n') {
+						str.erase(i);
+						str.insert(i, "\\n");
+					}
+				}
+				gen.m_output << '"' << str << '"';
+			}
+
+			void operator()(const NodeTermAmpersand* term_amp) const
+			{
+				gen.m_output << "&";
+				gen.dump_expr(term_amp->expr);
+			}
+
+			void operator()(const NodeTermIdent* term_ident) const
+			{
+				gen.m_output << term_ident->ident.value.value();
+			}
+
+			void operator()(const NodeTermParen* term_paren) const
+			{
+				gen.m_output << "(";
+				gen.dump_expr(term_paren->expr);
+				gen.m_output << ")";
+			}
+
+			void operator()(const NodeTermCall* term_call) const
+			{
+				gen.m_output << term_call->name << "(";
+				if(!term_call->args.has_value()) {
+					gen.m_output << ")";
+					return;
+				}
+				gen.dump_expr(term_call->args.value());
+				gen.m_output << ")";
+			}
+		};
+		TermVisitor visitor { .gen = *this };
+		std::visit(visitor, term->var);
+	}
+
+	void dump_bin_expr(const NodeBinExpr* bin_expr)
+	{
+		struct BinExprVisitor {
+			Dumper& gen;
+
+			void operator()(const NodeBinExprSub* sub) const
+			{
+				gen.dump_expr(sub->lhs);
+				gen.m_output << " - ";
+				gen.dump_expr(sub->rhs);
+			}
+
+			void operator()(const NodeBinExprAdd* add) const
+			{
+				gen.dump_expr(add->lhs);
+				gen.m_output << " + ";
+				gen.dump_expr(add->rhs);
+			}
+
+			void operator()(const NodeBinExprMulti* multi) const
+			{
+				gen.dump_expr(multi->lhs);
+				gen.m_output << " * ";
+				gen.dump_expr(multi->rhs);
+			}
+
+			void operator()(const NodeBinExprDiv* div) const
+			{
+				gen.dump_expr(div->lhs);
+				gen.m_output << " / ";
+				gen.dump_expr(div->rhs);
+			}
+
+			void operator()(const NodeBinExprShl* shl) const
+			{
+				gen.dump_expr(shl->lhs);
+				gen.m_output << " << ";
+				gen.dump_expr(shl->rhs);
+			}
+
+			void operator()(const NodeBinExprShr* shr) const
+			{
+				gen.dump_expr(shr->lhs);
+				gen.m_output << " >> ";
+				gen.dump_expr(shr->rhs);
+			}
+
+			void operator()(const NodeBinExprMod* md) const
+			{
+				gen.dump_expr(md->lhs);
+				gen.m_output << " % ";
+				gen.dump_expr(md->rhs);
+			}
+
+			void operator()(const NodeBinExprEqEq* eqeq) const
+			{
+				gen.dump_expr(eqeq->lhs);
+				gen.m_output << " == ";
+				gen.dump_expr(eqeq->rhs);
+			}
+
+			void operator()(const NodeBinExprNotEq* nq) const
+			{
+				gen.dump_expr(nq->lhs);
+				gen.m_output << " != ";
+				gen.dump_expr(nq->rhs);
+			}
+
+			void operator()(const NodeBinExprLess* less) const
+			{
+				gen.dump_expr(less->lhs);
+				gen.m_output << " < ";
+				gen.dump_expr(less->rhs);
+			}
+
+			void operator()(const NodeBinExprAnd* band) const
+			{
+				gen.dump_expr(band->lhs);
+				gen.m_output << " && ";
+				gen.dump_expr(band->rhs);
+			}
+
+			void operator()(const NodeBinExprOr* bor) const
+			{
+				gen.dump_expr(bor->lhs);
+				gen.m_output << " || ";
+				gen.dump_expr(bor->rhs);
+			}
+
+			void operator()(const NodeBinExprAbove* above) const
+			{
+				gen.dump_expr(above->lhs);
+				gen.m_output << " > ";
+				gen.dump_expr(above->rhs);
+			}
+
+			void operator()(const NodeBinExprDot* dot) const
+			{
+				gen.dump_expr(dot->lhs);
+				gen.m_output << ".";
+				gen.dump_expr(dot->rhs);
+			}
+
+			void operator()(const NodeBinExprArgs* args) const
+			{
+				const int size = static_cast<int>(args->args.size());
+				for(int i = 0;i < size;++i) {
+					gen.dump_expr(args->args[i]);
+					if(i != (size - 1)) {
+						gen.m_output << ", ";
+					}
+				}
+			}
+		};
+		BinExprVisitor visitor { .gen = *this };
+		std::visit(visitor, bin_expr->var);
+	}
+
+	void dump_expr(const NodeExpr* expr)
+	{
+		struct ExprVisitor {
+			Dumper& gen;
+
+			void operator()(const NodeTerm* term) const
+			{
+				gen.dump_term(term);
+			}
+
+			void operator()(const NodeBinExpr* bin_expr) const
+			{
+				gen.dump_bin_expr(bin_expr);
+			}
+		};
+
+		ExprVisitor visitor { .gen = *this };
+		std::visit(visitor, expr->var);
+	}
+
+	void dump_scope(const NodeScope* scope, const int lvl)
+	{
+		m_output << "{\n";
+		for (const NodeStmt* stmt : scope->stmts) {
+			dump_stmt(stmt, lvl);
+		}
+		if(lvl != 0) {
+			__spacelvl(lvl - 1);
+		}
+		m_output << "}\n";
+	}
+
+	void dump_if_pred(const NodeIfPred* pred, const int lvl)
+	{
+		struct PredVisitor {
+			Dumper& gen;
+			int lvl;
+
+			void operator()(const NodeIfPredElif* elif) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "elif(";
+				gen.dump_expr(elif->expr);
+				gen.m_output << ") ";
+				gen.dump_scope(elif->scope, lvl + 1);
+				if(elif->pred.has_value()) {
+					gen.dump_if_pred(elif->pred.value(), lvl);
+				}
+			}
+
+			void operator()(const NodeIfPredElse* else_) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "else ";
+				gen.dump_scope(else_->scope, lvl + 1);
+			}
+		};
+
+		PredVisitor visitor { .gen = *this, .lvl = lvl };
+		std::visit(visitor, pred->var);
+	}
+
+	void __spacelvl(const int lvl) {
+		for(int i = 0;i < lvl;++i) {
+			m_output << "\t";
+		}
+	}
+
+	void dump_stmt(const NodeStmt* stmt, const int lvl)
+	{
+		struct StmtVisitor {
+			Dumper& gen;
+			int lvl;
+
+			void operator()(const NodeStmtExit* stmt_exit) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "exit(";
+				gen.dump_expr(stmt_exit->expr);
+				gen.m_output << ");\n";
+			}
+
+			void operator()(const NodeStmtProc* stmt_proc)
+			{
+				gen.m_output << "proc " << stmt_proc->name << " ";
+				yforeach(stmt_proc->params) {
+					gen.m_output << stmt_proc->params[i].first << ":" << stmt_proc->params[i].second.to_string_d();
+					if(i != (stmt_proc->params.size() - 1ULL)) {
+						gen.m_output << " ";
+					}
+				}
+				if(stmt_proc->params.size() != 0) {
+					gen.m_output << ' ';
+				}
+				gen.m_output << "-> " << stmt_proc->rettype.to_string_d();
+				if(stmt_proc->prototype == true) {
+					gen.m_output << ";\n\n";
+					return;
+				} else {
+					gen.m_output << " ";
+				}
+				gen.dump_scope(stmt_proc->scope, lvl + 1);
+				gen.m_output << "\n";
+			}
+
+			void operator()(const NodeStmtReturn* stmt_return) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "return";
+				if(!stmt_return->expr.has_value()) {
+					gen.m_output << ";\n";
+					return;
+				} else {
+					gen.m_output << " ";
+				}
+				gen.dump_expr(stmt_return->expr.value());
+				gen.m_output << ";\n";
+			}
+
+			void operator()(const NodeStmtLet* stmt_let) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "let " << stmt_let->ident.value.value() << " = ";
+				gen.dump_expr(stmt_let->expr);
+				gen.m_output << ";\n";
+			}
+
+			void operator()(const NodeStmtLetNoAssign* stmt_let) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "let " << stmt_let->ident.value.value() << ": " << stmt_let->type.to_string_d() << ";\n";
+			}
+
+			void operator()(const NodeStmtCompileTimeIf* stmt_ctif) const {
+				gen.__spacelvl(lvl);
+				gen.m_output << "#if(";
+				gen.dump_expr(stmt_ctif->condition);
+				gen.m_output << ") ";
+				gen.dump_scope(stmt_ctif->_if, lvl + 1);
+				if(stmt_ctif->_else.has_value()) {
+					gen.__spacelvl(lvl);
+					gen.m_output << "else ";
+					gen.dump_scope(stmt_ctif->_else.value(), lvl + 1);
+				}
+			}
+
+			void operator()(const NodeStmtAssign* stmt_assign) const
+			{
+				gen.__spacelvl(lvl);
+				gen.dump_expr(stmt_assign->lvalue);
+				gen.m_output << " = ";
+				gen.dump_expr(stmt_assign->expr);
+				gen.m_output << ";\n";
+			}
+
+			void operator()(const NodeStmtIncBy* stmt_assign) const
+			{
+				gen.__spacelvl(lvl);
+				gen.dump_expr(stmt_assign->lvalue);
+				gen.m_output << " += ";
+				gen.dump_expr(stmt_assign->expr);
+				gen.m_output << ";\n";
+			}
+
+			void operator()(const NodeStmtDecBy* stmt_assign) const
+			{
+				gen.__spacelvl(lvl);
+				gen.dump_expr(stmt_assign->lvalue);
+				gen.m_output << " -= ";
+				gen.dump_expr(stmt_assign->expr);
+				gen.m_output << ";\n";
+			}
+
+			void operator()(const NodeStmtMulBy* stmt_assign) const
+			{
+				gen.__spacelvl(lvl);
+				gen.dump_expr(stmt_assign->lvalue);
+				gen.m_output << " *= ";
+				gen.dump_expr(stmt_assign->expr);
+				gen.m_output << ";\n";
+			}
+
+			void operator()(const NodeStmtDivBy* stmt_assign) const
+			{
+				gen.__spacelvl(lvl);
+				gen.dump_expr(stmt_assign->lvalue);
+				gen.m_output << " /= ";
+				gen.dump_expr(stmt_assign->expr);
+				gen.m_output << ";\n";
+			}
+
+			void operator()(const NodeStmtCall* stmt_call) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << stmt_call->name << "(";
+				if(!stmt_call->args.has_value()) {
+					gen.m_output << ");\n";
+					return;
+				}
+				gen.dump_expr(stmt_call->args.value());
+				gen.m_output << ");\n";
+			}
+
+			void operator()(const NodeScope* scope) const
+			{
+				gen.dump_scope(scope, lvl + 1);
+			}
+
+			void operator()(const NodeStmtPushOnStack* stmt_push) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "__pushonstack(";
+				gen.dump_expr(stmt_push->expr);
+				gen.m_output << ");\n";
+			}
+
+			void operator()(const NodeStmtIf* stmt_if) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "if(";
+				gen.dump_expr(stmt_if->expr);
+				gen.m_output << ") ";
+				gen.dump_scope(stmt_if->scope, lvl + 1);
+				if(stmt_if->pred.has_value()) {
+					gen.dump_if_pred(stmt_if->pred.value(), lvl);
+				}
+			}
+
+			void operator()(const NodeStmtWhile* stmt_while) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "while(";
+				gen.dump_expr(stmt_while->expr);
+				gen.m_output << ") ";
+				gen.dump_scope(stmt_while->scope, lvl + 1);
+			}
+
+			void operator()(const NodeStmtBreak* stmt_break)
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "break;\n";
+			}
+
+			void operator()(const NodeStmtStore* stmt_store) const
+			{
+				gen.__spacelvl(lvl);
+				gen.m_output << "store" << std::to_string(stmt_store->size) << "(";
+				gen.dump_expr(stmt_store->ptr);
+				gen.m_output << ", ";
+				gen.dump_expr(stmt_store->expr);
+				gen.m_output << ");\n";
+			}
+
+			void operator()(const NodeStmtBuffer* stmt_buf) {
+				gen.__spacelvl(lvl);
+				gen.m_output << "buffer " << stmt_buf->name << "(" << stmt_buf->size << ");\n";
+			}
+
+			void operator()(const NodeStmtAsm* stmt_asm) {
+				gen.__spacelvl(lvl);
+				gen.m_output << "asm " << '"' << stmt_asm->code << '"' << ";\n";
+			}
+
+			void operator()(const NodeStmtCextern* stmt_cextern) {
+				gen.__spacelvl(lvl);
+				gen.m_output << "cextern " << '"' << stmt_cextern->name << '"' << ";\n\n";
+			}
+
+			void operator()(const NodeStmtStruct* stmt_struct) {
+				gen.__spacelvl(lvl);
+				gen.m_output << "struct " << stmt_struct->name;
+				if(stmt_struct->__allocator.has_value()) {
+					gen.m_output << "(" << stmt_struct->__allocator.value() << ") ";
+				} else {
+					gen.m_output << " ";
+				}
+				gen.m_output << "{\n";
+				yforeach(stmt_struct->fields) {
+					gen.__spacelvl(lvl + 1);
+					gen.m_output << stmt_struct->fields[i].first << ": " << stmt_struct->fields[i].second.to_string_d();
+					if(i != (stmt_struct->fields.size() - 1)) {
+						gen.m_output << ",";
+					}
+					gen.m_output << "\n";
+				}
+				gen.__spacelvl(lvl);
+				gen.m_output << "}\n";
+			}
+
+			void operator()(const NodeStmtInterface* stmt_inter) {
+				gen.__spacelvl(lvl);
+				gen.m_output << "interface " << stmt_inter->name;
+				gen.m_output << " ";
+				gen.m_output << "{\n";
+				yforeach(stmt_inter->fields) {
+					gen.__spacelvl(lvl + 1);
+					gen.m_output << stmt_inter->fields[i].first << ": " << stmt_inter->fields[i].second.to_string_d();
+					if(i != (stmt_inter->fields.size() - 1)) {
+						gen.m_output << ",";
+					}
+					gen.m_output << "\n";
+				}
+				gen.__spacelvl(lvl);
+				gen.m_output << "}\n";
+			}
+
+			void operator()(const NodeStmtOninit* stmt_oninit) {
+				gen.__spacelvl(lvl);
+				gen.m_output << "__oninit ";
+				gen.dump_scope(stmt_oninit->scope, lvl + 1);
+			}
+
+			void operator()(const NodeStmtStaticAssert* stmt_st) {
+				gen.__spacelvl(lvl);
+				gen.m_output << "static_assert(";
+				gen.dump_expr(stmt_st->condition);
+				gen.m_output << ", " << '"' << stmt_st->msg << '"' << ");\n";
+			}
+
+			void operator()(const NodeStmtDelete* stmt_delete) {
+				gen.__spacelvl(lvl);
+				gen.m_output << "delete ";
+				gen.dump_expr(stmt_delete->expr);
+				gen.m_output << ";\n";
+			}
+		};
+
+		StmtVisitor visitor { .gen = *this, .lvl = lvl };
+		std::visit(visitor, stmt->var);
+	}
+
+	void dump_prog(FILE* _stream)
+	{
+		m_stream = _stream;
+		for(const NodeStmt* stmt : m_prog->stmts) {
+			dump_stmt(stmt, 0);
+		}
+		fputs(m_output.str().c_str(), m_stream);
+		fclose(m_stream);
+	}
+
+private:
+	const NodeProg* m_prog;
+	FILE* m_stream;
+	std::stringstream m_output;
+};

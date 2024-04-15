@@ -43,6 +43,25 @@ struct DataType {
 			return "`object<" + this->getobjectname() + ">`";
 		}
 	}
+	std::string to_string_d() const {
+		if(!this->is_object) {
+			switch(this->getsimpletype()) {
+			case SimpleDataType::_int:
+				return "int";
+			case SimpleDataType::ptr:
+				return "ptr";
+			case SimpleDataType::_void:
+				return "void";
+			case SimpleDataType::any:
+				return "any";
+			default:
+				break;
+			}
+			assert(false);
+		} else {
+			return this->getobjectname();
+		}
+	}
 	bool eq(const DataType& two) const {
 		if(two.is_simple() && two.getsimpletype() == SimpleDataType::any) {
 			return true;

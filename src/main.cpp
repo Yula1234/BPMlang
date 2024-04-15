@@ -24,7 +24,7 @@ bool __slashinpath;
 #include "argsparser.hpp"
 #include "generation.hpp"
 
-void usage(std::ostream& stream) {
+void show_usage(std::ostream& stream) {
     stream << "Incorrect usage. Correct usage is..." << std::endl;
     stream << "bpm <input.bpm> <flags>" << std::endl;
 }
@@ -32,10 +32,9 @@ void usage(std::ostream& stream) {
 int main(int argc, char* argv[]) {
 
     auto start = std::chrono::system_clock::now();
-    
-    if (argc < 2) {
 
-        usage(std::cerr);
+    if (argc < 2) {
+        show_usage(std::cerr);
         return EXIT_FAILURE;
     }
 
@@ -81,18 +80,26 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    std::string genordump = "Compilation";
     {
-        Generator generator(prog.value());
-        generator.get_props_from_parser(&parser);
-        const std::string& generated_asm = generator.gen_prog();
-        std::fstream file("output.asm", std::ios::out);
-        file << generated_asm;
+        if(auto _f_dump = argparser.find_flag(FlagType::dump)) {
+            Dumper dumper(prog.value());
+            dumper.dump_prog(fopen(_f_dump.value().operand.value().c_str(), "w"));
+            genordump = "Dump";
+        }
+        else {
+            Generator generator(prog.value());
+            generator.get_props_from_parser(&parser);
+            const std::string& generated_asm = generator.gen_prog();
+            std::fstream file("output.asm", std::ios::out);
+            file << generated_asm;
+        }
     }
 
     if(auto _f_time = argparser.find_flag(FlagType::time)) {
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> elapsed_seconds = end-start;
-        std::cout << "Compilation took: " << elapsed_seconds.count() << "s" << std::endl;
+        std::cout << genordump << " took: " << elapsed_seconds.count() << "s" << std::endl;
     }
     return argparser.compile();
 }
