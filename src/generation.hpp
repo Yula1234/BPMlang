@@ -9,6 +9,8 @@
 #define TYPEID_VOID 2
 #define TYPEID_ANY  3
 
+#define UNUSED_ARG __attribute__((unused))
+
 using __str_ref = const std::string&;
 
 void consume_un(...) {}
@@ -2006,21 +2008,21 @@ public:
 				gen.m_output << term_int_lit->int_lit.value.value();
 			}
 
-			void operator()(const NodeTermType* tp) {
+			void operator()(UNUSED_ARG const NodeTermType* tp) {
 				gen.m_output << "ct_type(" << tp->type.to_string_d() << ")";
 			}
 
-			void operator()(const NodeTermCol* term_col) const
+			void operator()(UNUSED_ARG const NodeTermCol* term_col) const
 			{
 				gen.m_output << "__COL__";
 			}
 
-			void operator()(const NodeTermLine* term_line) const
+			void operator()(UNUSED_ARG const NodeTermLine* term_line) const
 			{
 				gen.m_output << "__LINE__";
 			}
 
-			void operator()(const NodeTermPop* term_pop) const
+			void operator()(UNUSED_ARG const NodeTermPop* term_pop) const
 			{
 				gen.m_output << "__popfromstack()";
 			}
@@ -2035,7 +2037,7 @@ public:
 				gen.m_output << ")";
 			}
 
-			void operator()(const NodeTermFile* term_file) const
+			void operator()(UNUSED_ARG const NodeTermFile* term_file) const
 			{
 				gen.m_output << "__FILE__";
 			}
@@ -2090,7 +2092,7 @@ public:
 			void operator()(const NodeTermStrLit* term_str_lit) const
 			{
 				std::string str = term_str_lit->str_lit;
-				for(int i = 0;i < str.size();++i) {
+				for(int i = 0;i < static_cast<int>(str.size());++i) {
 					if(str[i] == '\n') {
 						str.erase(i);
 						str.insert(i, "\\n");
@@ -2337,7 +2339,7 @@ public:
 				gen.m_output << "proc " << stmt_proc->name << " ";
 				yforeach(stmt_proc->params) {
 					gen.m_output << stmt_proc->params[i].first << ":" << stmt_proc->params[i].second.to_string_d();
-					if(i != (stmt_proc->params.size() - 1ULL)) {
+					if(i != static_cast<int>(stmt_proc->params.size() - 1ULL)) {
 						gen.m_output << " ";
 					}
 				}
@@ -2487,7 +2489,7 @@ public:
 				gen.dump_scope(stmt_while->scope, lvl + 1);
 			}
 
-			void operator()(const NodeStmtBreak* stmt_break)
+			void operator()(UNUSED_ARG const NodeStmtBreak* stmt_break)
 			{
 				gen.__spacelvl(lvl);
 				gen.m_output << "break;\n";
@@ -2530,7 +2532,7 @@ public:
 				yforeach(stmt_struct->fields) {
 					gen.__spacelvl(lvl + 1);
 					gen.m_output << stmt_struct->fields[i].first << ": " << stmt_struct->fields[i].second.to_string_d();
-					if(i != (stmt_struct->fields.size() - 1)) {
+					if(i != static_cast<int>(stmt_struct->fields.size() - 1ULL)) {
 						gen.m_output << ",";
 					}
 					gen.m_output << "\n";
@@ -2547,7 +2549,7 @@ public:
 				yforeach(stmt_inter->fields) {
 					gen.__spacelvl(lvl + 1);
 					gen.m_output << stmt_inter->fields[i].first << ": " << stmt_inter->fields[i].second.to_string_d();
-					if(i != (stmt_inter->fields.size() - 1)) {
+					if(i != static_cast<int>(stmt_inter->fields.size() - 1ULL)) {
 						gen.m_output << ",";
 					}
 					gen.m_output << "\n";
