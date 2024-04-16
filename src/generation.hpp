@@ -9,6 +9,8 @@
 #define TYPEID_VOID 2
 #define TYPEID_ANY  3
 
+#define __DTOR_PREFIX "__dtor__"
+
 #define v_alt(__v, __tp) std::holds_alternative<__tp>(__v)
 
 #define v_get(__v, __tp) std::get<__tp>(__v)
@@ -118,6 +120,10 @@ public:
 		std::string name {};
 		size_t stack_loc {};
 		DataType type;
+
+		std::string ref() {
+		return "dword [ebp-" + std::to_string(stack_loc) + "]";
+	}
 	};
 	struct GVar {
 		std::string name;
@@ -131,6 +137,21 @@ public:
 		std::vector<ProcAttr> attrs;
 		Token def;
 		bool prototype;
+
+		void gen_ret(Generator& gen) {
+			size_t allign = gen.__compute_allign_ret();
+			if(allign != 0) {
+				gen.m_output << "    add esp, " << allign << "\n";
+			}
+			gen.m_output << "    jmp __" << name << "@ret\n";
+		}
+
+		void call(Generator& gen, const size_t allign) {
+			gen.m_output << "    call " << name << "\n";
+			if(allign != 0ULL) {
+				gen.m_output << "    add esp, " << allign << "\n";
+			}
+		}
 	};
 	struct String {
 		std::string value {};
@@ -145,6 +166,38 @@ public:
 
 		size_t size_of() const noexcept {
 			return __fields.size();
+		}
+
+		bool has_allocator() const noexcept {
+			return __allocator.has_value();
+		}
+
+		void alloc(Generator& gen) const noexcept {
+			gen.m_output << "    push " << size_of() * 4ULL << "\n";
+			if(has_allocator()) gen.m_output << "    call " << __allocator.value() << "\n";
+			else gen.m_output << "    call malloc\n";
+			gen.m_output << "    add esp, 4\n";
+		}
+
+		void dealloc(Generator& gen) {
+			gen.m_output << "    call free\n";
+			gen.m_output << "    add esp, 4\n";
+		}
+
+		void call_dtor(Generator& gen, const std::string& offset, const Token& def) const {
+			if(has_allocator()) gen.GeneratorWarning(def, "deleting object with custom allocator function.");
+			std::optional<Procedure> __dtor = gen.proc_lookup(__DTOR_PREFIX + name);
+			if(!__dtor.has_value()) return;
+			gen.push(offset);
+			__dtor.value().call(gen, 4ULL);
+		}
+
+		void call_dtor_s(Generator& gen, const Token& def) const {
+			if(has_allocator()) gen.GeneratorWarning(def, "deleting object with custom allocator function.");
+			std::optional<Procedure> __dtor = gen.proc_lookup(__DTOR_PREFIX + name);
+			if(!__dtor.has_value()) return;
+			gen.m_output << "    push dword [esp]\n";
+			__dtor.value().call(gen, 4ULL);
 		}
 	};
 	struct Interface {
@@ -176,14 +229,14 @@ public:
 
 		m_output << "    mov edx, dword [ebp-" << s_offset * 4 << "]\n";
 		m_output << "    push edx\n";
-		m_output << "    push " << size_of << "\n";
+		m_output << "    push " << size_of * 4ULL << "\n";
 		m_output << "    call malloc\n";
 		m_output << "    add esp, 4\n";
 		m_output << "    pop edx\n";
 		// edx = object&
 		// eax = new_object*
 		m_output << "    push eax\n";
-		m_output << "    push " << size_of << "\n";
+		m_output << "    push " << size_of * 4 << "\n";
 		m_output << "    push edx\n";
 		m_output << "    push eax\n";
 		m_output << "    call memcpy\n";
@@ -213,10 +266,6 @@ public:
 	explicit Generator(NodeProg* prog)
 		: m_prog(prog)
 	{
-	}
-
-	std::string _ref_to(Var& v) {
-		return "dword [ebp-" + std::to_string(v.stack_loc) + "]";
 	}
 
 	/*procedure lookup on only last scope.
@@ -863,7 +912,7 @@ public:
 						return;
 					}
 					gen.m_output << "    push dword " << objectSize * 4U << "\n";
-					if(st.value().__allocator.has_value()) {
+					if(st.value().has_allocator()) {
 						gen.m_output << "    call " << st.value().__allocator.value() << "\n";
 					}
 					else { 
@@ -1251,6 +1300,7 @@ public:
 	void gen_scope_sp(const NodeScope* scope, const NodeStmtProc* proc)
 	{
 		begin_scope(proc->params.size() + collect_alligns(scope));
+		std::vector<std::pair<size_t, Struct>> v_args;
 		if(std::find(proc->attrs.begin(), proc->attrs.end(), ProcAttr::nostdargs) == proc->attrs.end()) {
 			for(int i = 0;i < static_cast<int>(proc->params.size());++i) {
 				create_var_va(proc->params[i].first, proc->params[i].second, proc->def);
@@ -1261,6 +1311,7 @@ public:
 					if(!st.has_value()) {
 						GeneratorError(proc->def, "unkown struct `" + proc->params[i].second.getobjectname() + "`");
 					}
+					v_args.push_back(std::make_pair(static_cast<size_t>(i + 1), st.value()));
 					__arg_b_v(static_cast<size_t>(i + 1), st.value());
 				}
 			}
@@ -1268,7 +1319,7 @@ public:
 		for (const NodeStmt* stmt : scope->stmts) {
 			gen_stmt(stmt);
 		}
-		end_scope();
+		end_scope_sp(proc->name, v_args, proc->def);
 	}
 
 	void create_var(__str_ref name, NodeExpr* value, const Token& where) {
@@ -1584,12 +1635,7 @@ public:
 					gen.gen_expr(stmt_return->expr.value());
 					gen.pop("eax");
 				}
-				size_t allign = gen.__compute_allign_ret();
-				if(allign != 0) {
-					gen.m_output << "    add esp, " << allign * 4 << "\n";
-				}
-				gen.m_output << "    pop ebp\n";
-				gen.m_output << "    ret\n";
+				cproc.value().gen_ret(gen);
 			}
 
 			void operator()(const NodeStmtLet* stmt_let) const
@@ -1661,7 +1707,7 @@ public:
 					Var vr = gen.var_lookup_err(ident.value()->ident.value.value(), stmt_assign->def);
 					gen.gen_expr(stmt_assign->expr);
 					gen.asmg.pop("edx");
-					gen.asmg.add(gen._ref_to(vr), "edx");
+					gen.asmg.add(vr.ref(), "edx");
 					return;
 				}
 				gen.gen_expr(stmt_assign->lvalue, true);
@@ -1677,7 +1723,7 @@ public:
 					Var vr = gen.var_lookup_err(ident.value()->ident.value.value(), stmt_assign->def);
 					gen.gen_expr(stmt_assign->expr);
 					gen.asmg.pop("edx");
-					gen.asmg.sub(gen._ref_to(vr), "edx");
+					gen.asmg.sub(vr.ref(), "edx");
 					return;
 				}
 				gen.gen_expr(stmt_assign->lvalue, true);
@@ -1868,27 +1914,16 @@ public:
 				}
 				std::string objectName = type.getobjectname();
 				std::optional<Struct> st = gen.struct_lookup(objectName);
-				if(st.has_value()) {
-					if(st.value().__allocator.has_value()) {
-						gen.GeneratorWarning(stmt_delete->def, "objects of type `" + objectName + "` uses custom allocator function.\nNOTE: delete of object of this type may free youre arena-pool.");
-					}
+				if(!st.has_value()) {
+					gen.GeneratorError(stmt_delete->def, "unkown type " + type.to_string());
 				}
 				std::optional<Procedure> __dtor = gen.proc_lookup("__dtor__" + objectName);
-				if(__dtor.has_value()) {
-					Procedure dtor = __dtor.value();
-					if(dtor.params.size() != 1) {
-						gen.GeneratorError(stmt_delete->def, "destructor `__dtor__" + objectName + "` must have 1 argument");
-					}
-					if(dtor.params[0].second != type) {
-						gen.GeneratorError(stmt_delete->def, "destructor `__dtor__" + objectName + "` must have first argument of type `" + objectName + "`");
-					}
-					gen.gen_expr(stmt_delete->expr);
-					gen.m_output << "    call __dtor__" + objectName + "\n";
-					gen.m_output << "    add esp, 4\n";
-				}
 				gen.gen_expr(stmt_delete->expr);
-				gen.m_output << "    call free\n";
-				gen.m_output << "    add esp, 4\n";
+				if(st.value().has_allocator()) {
+					gen.m_output << "    push dword [esp]\n";
+					st.value().call_dtor_s(gen, stmt_delete->def);
+				}
+				st.value().dealloc(gen);
 			}
 		};
 
@@ -1992,9 +2027,28 @@ private:
 		m_scopes_vi.pop_back();
 	}
 
+	void end_scope_sp(std::string pname, const std::vector<std::pair<size_t, Struct>>& v_args, const Token& def)
+	{	m_output << "    __" << pname << "@ret:\n";
+		yforeach(v_args) {
+			std::string offset = "dword [ebp-" + std::to_string((v_args[i].first) * 4ULL) + "]";
+			v_args[i].second.call_dtor(*this, offset, def);
+			m_output << "    push " << offset << "\n";
+			m_output << "    call free\n";
+			m_output << "    add esp, 4\n";
+		}
+		if(m_scopes[m_scopes.size() - 1ULL] != 0ULL) {
+			m_output << "    add esp, " << m_scopes[m_scopes.size() - 1ULL] * 4 << "\n";
+		}
+		m_scopes.pop_back();
+		m_vars.pop_back();
+		m_var_index = m_scopes_vi[m_scopes_vi.size() - 1ULL];
+		m_scopes_vi.pop_back();
+	}
+
 	inline size_t __compute_allign_ret() noexcept {
 		size_t res = 0ULL;
 		yforeach(m_scopes) {
+			if(i == 0) continue;
 			res += m_scopes[i];
 		}
 		return res;
@@ -2028,7 +2082,8 @@ private:
 	std::vector<std::string> m_cexterns = {
 		"ExitProcess@4",
 		"malloc",
-		"free"
+		"free",
+		"memcpy"
 	};
 	std::vector<NodeScope*> __oninits;
 	size_t CTX_IOTA = 0ULL;
@@ -2036,6 +2091,9 @@ private:
 	size_t m_label_count = 0U;
 };
 
+
+
+// DUMPER
 
 
 class Dumper {
