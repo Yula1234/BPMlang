@@ -141,7 +141,7 @@ public:
 		void gen_ret(Generator& gen) {
 			size_t allign = gen.__compute_allign_ret();
 			if(allign != 0) {
-				gen.m_output << "    add esp, " << allign << "\n";
+				gen.m_output << "    add esp, " << allign * 4 << "\n";
 			}
 			gen.m_output << "    jmp __" << name << "@ret\n";
 		}
@@ -1914,16 +1914,27 @@ public:
 				}
 				std::string objectName = type.getobjectname();
 				std::optional<Struct> st = gen.struct_lookup(objectName);
-				if(!st.has_value()) {
-					gen.GeneratorError(stmt_delete->def, "unkown type " + type.to_string());
+				if(st.has_value()) {
+					if(st.value().__allocator.has_value()) {
+						gen.GeneratorWarning(stmt_delete->def, "objects of type `" + objectName + "` uses custom allocator function.\nNOTE: delete of object of this type may free youre arena-pool.");
+					}
 				}
 				std::optional<Procedure> __dtor = gen.proc_lookup("__dtor__" + objectName);
-				gen.gen_expr(stmt_delete->expr);
-				if(st.value().has_allocator()) {
-					gen.m_output << "    push dword [esp]\n";
-					st.value().call_dtor_s(gen, stmt_delete->def);
+				if(__dtor.has_value()) {
+					Procedure dtor = __dtor.value();
+					if(dtor.params.size() != 1) {
+						gen.GeneratorError(stmt_delete->def, "destructor `__dtor__" + objectName + "` must have 1 argument");
+					}
+					if(dtor.params[0].second != type) {
+						gen.GeneratorError(stmt_delete->def, "destructor `__dtor__" + objectName + "` must have first argument of type `" + objectName + "`");
+					}
+					gen.gen_expr(stmt_delete->expr);
+					gen.m_output << "    call __dtor__" + objectName + "\n";
+					gen.m_output << "    add esp, 4\n";
 				}
-				st.value().dealloc(gen);
+				gen.gen_expr(stmt_delete->expr);
+				gen.m_output << "    call free\n";
+				gen.m_output << "    add esp, 4\n";
 			}
 		};
 
