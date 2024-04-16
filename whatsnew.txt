@@ -1,3 +1,44 @@
-release 1.6.1
+release 2.0.0
 
-pretty errors.
+passign object arguments to procedures
+by value (copy).
+
+syntax:
+
+```c++
+include "std"
+
+struct SST {
+	a: int,
+	b: int
+}
+
+proc print_sst a:SST {
+	printf("SST(%d, %d)\n", a.a, a.b);
+}
+
+proc foo a:SST* // * is passing by
+// value
+{
+	a.b = 400;
+	print_sst(a);
+}
+
+proc main {
+	let x = SST(1, 5);
+	/*
+
+	T* its not allowed in let defenition
+	and procedure return type.
+	ONLY PROCEDURE ARGUMENT TYPE.
+		
+	*/
+	print_sst(x);
+	foo(x);
+	print_sst(x);
+	delete x;
+}
+```
+
+new technology for compiling return.
+small bugs fixing.
