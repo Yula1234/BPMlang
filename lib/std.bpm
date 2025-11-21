@@ -204,9 +204,9 @@ namespace std {
 		return __tmp;
 	}
 
-	proc __container_move<CT, T>(CT<T>&& __src, CT<T>&& __dst) -> void {
+	proc __container_move<T>(T&& __src, T&& __dst) -> void {
 		let __gsrc = std::__grab_object(__src);
-		delete *cast(CT<T>&, __dst);
+		delete *cast(T&, __dst);
 		store32(cast(ptr, __dst), __gsrc);
 	}
 
