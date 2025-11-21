@@ -2391,45 +2391,83 @@ AFTER_GEN:
 	}
 
 	void substitute_template(DataType& type) {
-		if(m_temps.empty()) return;
-		if(type.root().is_object) {
-			std::string oname = type.root().getobjectname();
-			const auto& search = m_temps.back().find(oname);
-			if(search != m_temps.back().end()) {
-				BaseDataType old = type.root();
-				type = search->second;
-				if(old.rvalue) type.root().rvalue = true;
-				if(old.link) type.root().link = true;
-			}
-			TreeNode<BaseDataType>* cur = type.list.get_root()->right;
-			while(cur != nullptr) {
-				DataType tmp = cur->data;
-				substitute_template(tmp);
-				cur->data = tmp.root();
-				cur = cur->right;
-			}
-		}
-	}
+    	if (m_temps.empty()) return;
+    	if (!type.root().is_object) return;
+	
+    	std::string oname = type.root().getobjectname();
+    	const auto& env = m_temps.back();
+    	const auto it = env.find(oname);
+    	if (it != env.end()) {
+    	    BaseDataType old = type.root();
+    	    DataType mapped = it->second;
+	
+    	    TreeNode<BaseDataType>* root_node = type.list.get_root();
+    	    bool has_template_args   = (root_node->right != nullptr);
+    	    bool mapped_has_children = (mapped.list.get_root() &&
+    	                                mapped.list.get_root()->right != nullptr);
+	
+    	    if (has_template_args && !mapped_has_children) {
+    	        // Случай CT<T>: заменяем только имя типа,
+    	        // оставляя цепочку параметров (<T, ...>) как есть.
+    	        BaseDataType new_root = mapped.root();
+    	        new_root.ptrlvl = old.ptrlvl;
+    	        new_root.link   = old.link;
+    	        new_root.rvalue = old.rvalue;
+    	        root_node->data = new_root;
+    	    } else {
+    	        // Обычный T: заменяем весь DataType целиком.
+    	        type = mapped;
+    	        type.root().ptrlvl += old.ptrlvl;
+    	        if (old.link)   type.root().link   = true;
+    	        if (old.rvalue) type.root().rvalue = true;
+    	    }
+    	}
+	
+    	// Рекурсивно подставляем в аргументах шаблона (цепочка справа)
+    	TreeNode<BaseDataType>* cur = type.list.get_root()->right;
+    	while (cur != nullptr) {
+    	    DataType tmp = cur->data;
+    	    substitute_template(tmp);
+    	    cur->data = tmp.root();
+    	    cur = cur->right;
+    	}
+    }
 
 	void substitute_template_wct(DataType& type, __map<std::string, DataType>& temps) {
-		if(type.root().is_object) {
-			std::string oname = type.root().getobjectname();
-			const auto& search = temps.find(oname);
-			if(search != temps.end()) {
-				BaseDataType old = type.root();
-				type = search->second;
-				if(old.rvalue) type.root().rvalue = true;
-				if(old.link) type.root().link = true;
-				if(old.ptrlvl != 0ULL) type.root().ptrlvl = old.ptrlvl;
-			}
-			TreeNode<BaseDataType>* cur = type.list.get_root()->right;
-			while(cur != nullptr) {
-				DataType tmp = cur->data;
-				substitute_template_wct(tmp, temps);
-				cur->data = tmp.root();
-				cur = cur->right;
-			}
-		}
+    	if (!type.root().is_object) return;
+
+    	std::string oname = type.root().getobjectname();
+    	const auto it = temps.find(oname);
+    	if (it != temps.end()) {
+    	    BaseDataType old = type.root();
+    	    DataType mapped = it->second;
+	
+    	    TreeNode<BaseDataType>* root_node = type.list.get_root();
+    	    bool has_template_args   = (root_node->right != nullptr);
+    	    bool mapped_has_children = (mapped.list.get_root() &&
+    	                                mapped.list.get_root()->right != nullptr);
+	
+    	    if (has_template_args && !mapped_has_children) {
+    	        BaseDataType new_root = mapped.root();
+    	        new_root.ptrlvl = old.ptrlvl;
+    	        new_root.link   = old.link;
+    	        new_root.rvalue = old.rvalue;
+    	        root_node->data = new_root;
+    	    } else {
+    	        type = mapped;
+    	        type.root().ptrlvl += old.ptrlvl;
+    	        if (old.link)   type.root().link   = true;
+    	        if (old.rvalue) type.root().rvalue = true;
+    	    }
+    	}
+	
+    	TreeNode<BaseDataType>* cur = type.list.get_root()->right;
+    	while (cur != nullptr) {
+    	    DataType tmp = cur->data;
+    	    substitute_template_wct(tmp, temps);
+    	    cur->data = tmp.root();
+    	    cur = cur->right;
+    	}
 	}
 
 	bool __try_typecheck_call(const std::vector<NodeExpr*>& args, const Procedure& proc) {
@@ -2640,24 +2678,34 @@ AFTER_GEN:
 				if(is_temp_s) break;
 				else temp_s = -1;
 			}
-			if(counter != -1) {
-				if(targs[counter].is_simple() && targs[counter].getsimpletype() == SimpleDataType::_void) {
-					if(is_temp_s) {
-						DataType ct = type_of_expr(args[i]);
-						TreeNode<BaseDataType>* cur = ct.list.get_root()->right;
-						for(int k = 0;k < temp_s;++k) {
-							cur = cur->right;
-						}
-						assert(cur != nullptr);
-						
-						// Здесь вызывается исправленная функция
-						targs[counter] = create_datatype_from_chain(cur);
-					}
-					else targs[counter] = type_of_expr(args[i]);
-				}
-				counter = -1;
-				is_temp_s = false;
-				temp_s = -1;
+			if (counter != -1) {
+    			if (targs[counter].is_simple() && targs[counter].getsimpletype() == SimpleDataType::_void) {
+    			    if (is_temp_s) {
+    			        DataType ct = type_of_expr(args[i]);
+    			        TreeNode<BaseDataType>* cur = ct.list.get_root()->right;
+			
+    			        // Аккуратно двигаемся по цепочке, учитывая, что у аргумента
+    			        // цепочка может быть короче, чем у параметра.
+    			        for (int k = 0; k < temp_s && cur; ++k) {
+    			            cur = cur->right;
+    			        }
+			
+    			        if (cur) {
+    			            // Удалось сопоставить форму параметра и аргумента —
+    			            // забираем поддерево типов начиная с cur.
+    			            targs[counter] = create_datatype_from_chain(cur);
+    			        }
+    			        // else: форма аргумента не подходит под параметр — просто не
+    			        // выводим этот шаблонный параметр отсюда, пусть попробуют
+    			        // вывести его по другим параметрам.
+    			    }
+    			    else {
+    			        targs[counter] = type_of_expr(args[i]);
+    			    }
+    			}
+    			counter = -1;
+    			is_temp_s = false;
+    			temp_s = -1;
 			}
 		}
 		size_t i {0};
@@ -2716,25 +2764,32 @@ AFTER_GEN:
 				if(is_temp_s) break;
 				else temp_s = -1;
 			}
-			if(counter != -1) {
-				if(targs[counter].is_simple() && targs[counter].getsimpletype() == SimpleDataType::_void) {
-					if(is_temp_s) {
-						DataType ct = type_of_expr(args[i]);
-						TreeNode<BaseDataType>* cur = ct.list.get_root()->right;
-						for(int k = 0;k < temp_s;++k) {
-							cur = cur->right;
-						}
-						assert(cur != nullptr);
-
-						// БЫЛО: targs[counter] = cur->data;
-						// СТАЛО:
-						targs[counter] = create_datatype_from_chain(cur);
-					}
-					else targs[counter] = type_of_expr(args[i]);
-				}
-				counter = -1;
-				is_temp_s = false;
-				temp_s = -1;
+			if (counter != -1) {
+			    if (targs[counter].is_simple() && targs[counter].getsimpletype() == SimpleDataType::_void) {
+			        if (is_temp_s) {
+			            DataType ct = type_of_expr(args[i]);
+			            TreeNode<BaseDataType>* cur = ct.list.get_root()->right;
+			
+			            for (int k = 0; k < temp_s && cur; ++k) {
+			                cur = cur->right;
+			            }
+			
+			            if (!cur) {
+			                // Форма аргумента не соответствует форме параметра
+			                // (например, параметр deque<T>, а аргумент int) —
+			                // вывод шаблонных аргументов для этого кандидата невозможен.
+			                return std::make_pair(__L_map{}, false);
+			            }
+			
+			            targs[counter] = create_datatype_from_chain(cur);
+			        }
+			        else {
+			            targs[counter] = type_of_expr(args[i]);
+			        }
+			    }
+			    counter = -1;
+			    is_temp_s = false;
+			    temp_s = -1;
 			}
 		}
 		size_t i {0};
