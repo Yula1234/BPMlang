@@ -1340,48 +1340,65 @@ public:
 			auto term = m_allocator.emplace<NodeTerm>(term_eval);
 			return term;
 		}
-		if(!cmethod && peek(1).has_value() && peek(1).value().type == TokenType_t::tilda) {
-			NodeExpr* objv;
-			if(auto _expr = parse_term(true)) {
-				NodeTerm* asterm = _expr.value();
-				NodeExpr* aex = m_allocator.emplace<NodeExpr>();
-				aex->var = asterm;
-				objv = aex;
-			}
-			else error_expected("expression");
-			consume();
-			Token identif = try_consume_err(TokenType_t::ident);
-			auto term_call = m_allocator.emplace<NodeTermMtCall>();
-			term_call->def = identif;
-			term_call->mt = objv;
-			term_call->name = identif.value.value();
-			if(peek().has_value() && peek().value().type == TokenType_t::less) {
-				consume();
-				while(peek().has_value() && peek().value().type != TokenType_t::above) {
-					DataType dt = parse_type();
-					term_call->targs.push_back(dt);
-					if(peek().has_value() && peek().value().type != TokenType_t::above) {
-						try_consume_err(TokenType_t::comma);
-					}
-				}
-				consume();
-			}
-			try_consume_err(TokenType_t::open_paren);
-			if(peek().has_value() && peek().value().type == TokenType_t::close_paren) {
-				NodeBinExprArgs* _args = m_allocator.emplace<NodeBinExprArgs>();
-				_args->args.push_back(objv);
-				NodeBinExpr* ab = m_allocator.emplace<NodeBinExpr>();
-				ab->var = _args;
-				NodeExpr* ex = m_allocator.emplace<NodeExpr>();
-				ex->var = ab;
-				term_call->args = ex;
-			} else {
-				std::pair<NodeExpr*, size_t> pargs = parse_args(objv);
-				term_call->args = pargs.first;
-			}
-			try_consume_err(TokenType_t::close_paren);
-			auto term = m_allocator.emplace<NodeTerm>(term_call);
-			return term;
+		if (!cmethod && peek(1).has_value() && peek(1).value().type == TokenType_t::tilda) {
+    		// 1. Парсим выражение слева от первой '~'
+    		NodeExpr* objv;
+    		if (auto _expr = parse_term(true)) {
+    		    NodeTerm* asterm = _expr.value();
+    		    objv = m_allocator.emplace<NodeExpr>();
+    		    objv->var = asterm;
+    		} else {
+    		    error_expected("expression");
+    		}
+		
+    		NodeTerm* last_term = nullptr;
+		
+    		// 2. Цепочка вызовов: ~name<...>(...)
+    		while (peek().has_value() && peek().value().type == TokenType_t::tilda) {
+    		    consume(); // '~'
+    		    Token identif = try_consume_err(TokenType_t::ident);
+		
+    		    auto term_call = m_allocator.emplace<NodeTermMtCall>();
+    		    term_call->def  = identif;
+    		    term_call->mt   = objv;
+    		    term_call->name = identif.value.value();
+		
+    		    // Опциональные шаблонные аргументы <...>
+    		    if (peek().has_value() && peek().value().type == TokenType_t::less) {
+    		        consume(); // '<'
+    		        while (peek().has_value() && peek().value().type != TokenType_t::above) {
+    		            DataType dt = parse_type();
+    		            term_call->targs.push_back(dt);
+    		            if (peek().has_value() && peek().value().type != TokenType_t::above) {
+    		                try_consume_err(TokenType_t::comma);
+    		            }
+    		        }
+    		        try_consume_err(TokenType_t::above); // '>'
+    		    }
+		
+    		    // Аргументы (...) — первый аргумент это self
+    		    try_consume_err(TokenType_t::open_paren);
+    		    if (peek().has_value() && peek().value().type == TokenType_t::close_paren) {
+    		        auto* _args = m_allocator.emplace<NodeBinExprArgs>();
+    		        _args->args.push_back(objv);
+    		        auto* ab = m_allocator.emplace<NodeBinExpr>();
+    		        ab->var = _args;
+    		        auto* ex = m_allocator.emplace<NodeExpr>();
+    		        ex->var = ab;
+    		        term_call->args = ex;
+    		    } else {
+    		        std::pair<NodeExpr*, size_t> pargs = parse_args(objv);
+    		        term_call->args = pargs.first;
+    		    }
+    		    try_consume_err(TokenType_t::close_paren);
+		
+    		    // Оборачиваем в Term и Expr для возможного следующего '~'
+    		    last_term = m_allocator.emplace<NodeTerm>(term_call);
+    		    objv = m_allocator.emplace<NodeExpr>();
+    		    objv->var = last_term;
+    		}
+		
+    		return last_term;
 		}
 		if(auto _sr = try_consume(TokenType_t::star)) {
 			NodeTerm* trm;
@@ -2758,41 +2775,80 @@ public:
 				auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
 				return stmt;
 			}
-			else if(curtok.type == TokenType_t::tilda) {
-				consume();
-				Token identif = try_consume_err(TokenType_t::ident);
-				auto stmt_call = m_allocator.emplace<NodeStmtMtCall>();
-				stmt_call->def = identif;
-				stmt_call->mt = lvalue.value();
-				stmt_call->name = identif.value.value();
-				if(peek().has_value() && peek().value().type == TokenType_t::less) {
-					consume();
-					while(peek().has_value() && peek().value().type != TokenType_t::above) {
-						DataType dt = parse_type();
-						stmt_call->targs.push_back(dt);
-						if(peek().has_value() && peek().value().type != TokenType_t::above) {
-							try_consume_err(TokenType_t::comma);
-						}
-					}
-					consume();
-				}
-				try_consume_err(TokenType_t::open_paren);
-				if(peek().has_value() && peek().value().type == TokenType_t::close_paren) {
-					NodeBinExprArgs* _args = m_allocator.emplace<NodeBinExprArgs>();
-					_args->args.push_back(lvalue.value());
-					NodeBinExpr* ab = m_allocator.emplace<NodeBinExpr>();
-					ab->var = _args;
-					NodeExpr* ex = m_allocator.emplace<NodeExpr>();
-					ex->var = ab;
-					stmt_call->args = ex;
-				} else {
-					std::pair<NodeExpr*, size_t> pargs = parse_args(lvalue.value());
-					stmt_call->args = pargs.first;
-				}
-				try_consume_err(TokenType_t::close_paren);
-				try_consume_err(TokenType_t::semi);
-				auto stmt = m_allocator.emplace<NodeStmt>(stmt_call);
-				return stmt;
+			else if (curtok.type == TokenType_t::tilda) {
+    			// Базовый объект для цепочки методов: vec, vec~get(0), ...
+    			NodeExpr* obj = lvalue.value();
+			
+    			NodeStmtMtCall* final_stmt = nullptr;
+			
+    			while (true) {
+    			    // '~'
+    			    consume();
+    			    Token identif = try_consume_err(TokenType_t::ident);
+			
+    			    __stdvec<DataType> targs;
+			
+    			    // Шаблонные аргументы <...> (опционально)
+    			    if (peek().has_value() && peek().value().type == TokenType_t::less) {
+    			        consume(); // '<'
+    			        while (peek().has_value() && peek().value().type != TokenType_t::above) {
+    			            DataType dt = parse_type();
+    			            targs.push_back(dt);
+    			            if (peek().has_value() && peek().value().type != TokenType_t::above) {
+    			                try_consume_err(TokenType_t::comma);
+    			            }
+    			        }
+    			        try_consume_err(TokenType_t::above); // '>'
+    			    }
+			
+    			    // Аргументы (...) – первый аргумент всегда self = obj
+    			    try_consume_err(TokenType_t::open_paren);
+    			    NodeExpr* args_expr = nullptr;
+    			    if (peek().has_value() && peek().value().type == TokenType_t::close_paren) {
+    			        NodeBinExprArgs* _args = m_allocator.emplace<NodeBinExprArgs>();
+    			        _args->args.push_back(obj);
+    			        NodeBinExpr* ab = m_allocator.emplace<NodeBinExpr>();
+    			        ab->var = _args;
+    			        args_expr = m_allocator.emplace<NodeExpr>();
+    			        args_expr->var = ab;
+    			    } else {
+    			        std::pair<NodeExpr*, size_t> pargs = parse_args(obj);
+    			        args_expr = pargs.first;
+    			    }
+    			    try_consume_err(TokenType_t::close_paren);
+			
+    			    // Смотрим, есть ли ещё один '~' после этого вызова
+    			    if (peek().has_value() && peek().value().type == TokenType_t::tilda) {
+    			        // ПРОМЕЖУТОЧНЫЙ метод в цепочке: строим выражение NodeTermMtCall
+    			        auto term_call = m_allocator.emplace<NodeTermMtCall>();
+    			        term_call->def  = identif;
+    			        term_call->mt   = obj;
+    			        term_call->name = identif.value.value();
+    			        term_call->args = args_expr;
+    			        term_call->targs = targs;
+			
+    			        NodeTerm* term_node = m_allocator.emplace<NodeTerm>(term_call);
+    			        obj = m_allocator.emplace<NodeExpr>();
+    			        obj->var = term_node;
+    			        // продолжаем цепочку
+    			        continue;
+    			    } else {
+    			        // ЭТО ПОСЛЕДНИЙ метод в цепочке – формируем именно NodeStmtMtCall
+    			        auto stmt_call = m_allocator.emplace<NodeStmtMtCall>();
+    			        stmt_call->def  = identif;
+    			        stmt_call->mt   = obj;
+    			        stmt_call->name = identif.value.value();
+    			        stmt_call->args = args_expr;
+    			        stmt_call->targs = targs;
+    			        final_stmt = stmt_call;
+    			        break;
+    			    }
+    			}
+			
+    			// После всей цепочки ожидаем ';'
+    			try_consume_err(TokenType_t::semi);
+    			auto stmt = m_allocator.emplace<NodeStmt>(final_stmt);
+    			return stmt;
 			}
 			else if(curtok.type == TokenType_t::plus_eq) {
 				const auto stmt_assign = m_allocator.emplace<NodeStmtIncBy>();

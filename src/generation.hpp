@@ -825,17 +825,13 @@ public:
 					TreeNode<BaseDataType>* current = dt.list.get_root();
 					
 					// --- НАЧАЛО ИЗМЕНЕНИЙ ---
-					for(int i = 0;i < static_cast<int>(call->targs.size());++i) {
-						substitute_template(call->targs[i]);
-						
-						// Вместо одной вставки, вставляем всю цепочку типа аргумента
-						append_type_chain(dt, current, call->targs[i]);
-						
-						// Проматываем current до конца только что вставленного хвоста,
-						// чтобы следующий аргумент (если он есть) добавился после.
-						while(current->right != nullptr) {
-							current = current->right;
-						}
+					for (int i = 0; i < static_cast<int>(call->targs.size()); ++i) {
+    					DataType arg_tp = call->targs[i];    // копия
+    					substitute_template(arg_tp);         // подставляем шаблоны только в копии
+    					append_type_chain(dt, current, arg_tp);
+    					while (current->right != nullptr) {
+    					    current = current->right;
+    					}
 					}
 					// --- КОНЕЦ ИЗМЕНЕНИЙ ---
 					
@@ -1437,8 +1433,9 @@ public:
 				std::string tsign;
 				if (!term_call->targs.empty()) {
 				    for (int i = 0; i < static_cast<int>(term_call->targs.size()); ++i) {
-				        gen.substitute_template(term_call->targs[i]);
-				        tsign += term_call->targs[i].sign();
+				        DataType t = term_call->targs[i];   // копия
+       					gen.substitute_template(t);
+        				tsign += t.sign();
 				    }
 				
 				    // Берём именно тот Procedure, который реально выбран оверлоад-резолвером
@@ -1554,8 +1551,9 @@ public:
 					std::string tsign;
 					if(!term_call->targs.empty()) {
 						for(int i = 0;i < static_cast<int>(term_call->targs.size());++i) {
-							gen.substitute_template(term_call->targs[i]);
-							tsign += term_call->targs[i].sign();
+							DataType t = term_call->targs[i];   // копия
+        					gen.substitute_template(t);
+        					tsign += t.sign();
 						}
 						if(!proc.instanceated[tsign]) {
 							Generator dop_gen(gen);
@@ -2441,12 +2439,33 @@ AFTER_GEN:
 	
     	// Рекурсивно подставляем в аргументах шаблона (цепочка справа)
     	TreeNode<BaseDataType>* cur = type.list.get_root()->right;
-    	while (cur != nullptr) {
-    	    DataType tmp = cur->data;
-    	    substitute_template(tmp);
-    	    cur->data = tmp.root();
-    	    cur = cur->right;
-    	}
+		while (cur != nullptr) {
+		    DataType tmp = cur->data;
+		    substitute_template(tmp);           // здесь tmp может превратиться, например, в vector<int>
+		
+		    // 1) заменяем сам узел
+		    cur->data = tmp.root();
+		
+		    // 2) если у tmp есть хвост (например, <int>), пришиваем его сюда
+		    TreeNode<BaseDataType>* extra = nullptr;
+		    TreeNode<BaseDataType>* tmp_root = tmp.list.get_root();
+		    if (tmp_root) {
+		        extra = tmp_root->right;        // это цепочка параметров шаблона: T1, T2, ...
+		    }
+		
+		    TreeNode<BaseDataType>* last = cur;
+		    while (extra != nullptr) {
+		        // создаем новый узел после last и вешаем на него extra->data
+		        auto* new_node = new TreeNode<BaseDataType>(extra->data);
+		        new_node->right = last->right;  // подвешиваем старый хвост после нового узла
+		        last->right = new_node;
+		        last = new_node;
+		        extra = extra->right;
+		    }
+		
+		    // 3) переходим к узлу, который был исходным "следующим" после cur
+		    cur = last->right;
+		}
     }
 
 	void substitute_template_wct(DataType& type, __map<std::string, DataType>& temps) {
@@ -2478,12 +2497,29 @@ AFTER_GEN:
     	}
 	
     	TreeNode<BaseDataType>* cur = type.list.get_root()->right;
-    	while (cur != nullptr) {
-    	    DataType tmp = cur->data;
-    	    substitute_template_wct(tmp, temps);
-    	    cur->data = tmp.root();
-    	    cur = cur->right;
-    	}
+		while (cur != nullptr) {
+		    DataType tmp = cur->data;
+		    substitute_template_wct(tmp, temps);
+		
+		    cur->data = tmp.root();
+		
+		    TreeNode<BaseDataType>* extra = nullptr;
+		    TreeNode<BaseDataType>* tmp_root = tmp.list.get_root();
+		    if (tmp_root) {
+		        extra = tmp_root->right;
+		    }
+		
+		    TreeNode<BaseDataType>* last = cur;
+		    while (extra != nullptr) {
+		        auto* new_node = new TreeNode<BaseDataType>(extra->data);
+		        new_node->right = last->right;
+		        last->right = new_node;
+		        last = new_node;
+		        extra = extra->right;
+		    }
+		
+		    cur = last->right;
+		}
 	}
 
 	bool __try_typecheck_call(const std::vector<NodeExpr*>& args, const Procedure& proc) {
@@ -3415,8 +3451,9 @@ AFTER_GEN:
 				if(!stmt_call->targs.empty()) {
 					gen.substitute_template(proc.rettype);
 					for(int i = 0;i < static_cast<int>(stmt_call->targs.size());++i) {
-						gen.substitute_template(stmt_call->targs[i]);
-						tsign += stmt_call->targs[i].sign();
+						DataType t = stmt_call->targs[i];   // копия
+        				gen.substitute_template(t);
+        				tsign += t.sign();
 					}
 					if(!proc.instanceated[tsign]) {
 						Generator dop_gen(gen);
@@ -3747,8 +3784,9 @@ AFTER_GEN:
 				std::string tsign;
 				if(!stmt_call->targs.empty()) {
 					for(int i = 0;i < static_cast<int>(stmt_call->targs.size());++i) {
-						gen.substitute_template(stmt_call->targs[i]);
-						tsign += stmt_call->targs[i].sign();
+						DataType t = stmt_call->targs[i];   // копия
+        				gen.substitute_template(t);
+        				tsign += t.sign();
 					}
 					Procedure* _inst_p = proc.override ? gen.m_namespaces[nname]->procs[pname].overrides[proc.overload_nth - 1] : &gen.m_namespaces[nname]->procs[pname];
 					if(!_inst_p->instanceated[tsign]) {
