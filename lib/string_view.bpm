@@ -65,6 +65,9 @@ namespace string_view {
 		}
 		return NOT_FINDED;
 	}
+	proc m_assign(string_view& self, string_view&& other) -> void {
+		std::__container_move(other, cast(string_view&&, self));
+	}
 }
 
 namespace std {

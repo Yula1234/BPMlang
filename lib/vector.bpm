@@ -107,6 +107,9 @@ impl vector<T> [new] {
 		self.m_size -= 1;
 		return self~get(self.m_size);
 	}
+	proc m_assign(vector<T>& self, vector<T>&& other) -> void {
+		std::__container_move(other, cast(vector<T>&&, self));
+	}
 	proc destroy(vector<T> self) {
 		#if(is_object_t(ct_type(T))) {
 			let i: int = 0;

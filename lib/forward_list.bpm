@@ -116,6 +116,10 @@ impl forward_list<T> [new] {
         return ForwardListIterator::new<T>(null());
     }
 
+    proc m_assign(forward_list<T>& self, forward_list<T>&& other) -> void {
+        std::__container_move(other, cast(forward_list<T>&&, self));
+    }
+
     proc destroy(forward_list<T> self) {
         #if(is_object_t(ct_type(T))) {
             let cur = self.m_head;

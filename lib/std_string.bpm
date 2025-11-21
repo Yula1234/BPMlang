@@ -96,8 +96,7 @@ namespace string {
 		return self;
 	}
 	proc m_assign(string& self, string&& other) -> string {
-		store32(cast(ptr, self), *cast(string&, other));
-		store32(cast(ptr, other), null());
+		std::__container_move(other, cast(string&&, self));
 		return *self;
 	}
 	proc m_inc(string self, int chr) -> string {

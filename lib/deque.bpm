@@ -182,15 +182,8 @@ impl deque<T> [new] {
 		return other~clone();
 	}
 
-	proc __move(deque<T>&& src, deque<T>&& dst) -> void {
-		let __tmp: deque<T> = *cast(deque<T>&, src);
-		store32(cast(ptr, src), null());
-		delete *cast(deque<T>&, dst);
-		store32(cast(ptr, dst), __tmp);
-	}
-
 	proc m_assign(deque<T>& self, deque<T>&& other) -> void {
-		deque::__move(other, cast(deque<T>&&, self));
+		std::__container_move(other, cast(deque<T>&&, self));
 	}
 
 	proc new<T>(deque<T>&& other) -> deque<T> {
