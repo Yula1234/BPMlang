@@ -1,0 +1,210 @@
+include "core"
+include "string"
+
+proc fabs(int value) -> int {
+	if(0 > value)
+	{ return (value) - (value) + (value); }
+	else
+	{ return value; }
+}
+
+proc fputs(int fd, char* string) = write(fd, string, strlen(string));
+proc puts(char* string) = fputs(stdout, string);
+
+const UTOS_BUFFER_CAPACITY = 128;
+
+proc tmp_utos(char* src, int number) -> int {
+	let i = 0;
+	let result = number;
+	buffer bf(UTOS_BUFFER_CAPACITY);
+	while(result != 0) {
+		store8(&bf + i, (result % 10) + '0');
+		result /= 10;
+		i += 1;
+	}
+	memcpy(src, &bf, i);
+	return i;
+}
+
+struct pair<First, Second> {
+	first: First,
+	second: Second
+}
+
+namespace std {
+	proc make_pair<First, Second>(First first, Second second) -> pair<First, Second> {
+		return pair<First, Second>(first, second);
+	}
+
+	proc alloc<T>(int size) -> T* = return cast(T*, memalloc(size));
+	proc dealloc(ptr p) = memfree(p);
+	
+	proc itos(char* src, int number) -> char* {
+		sprintf(src, "%d", number);
+		return src;
+	}
+
+	proc utos(char* src, int number) -> void {
+		if(number == 0) {
+			store8(src, 48);
+			store8(src + 1, 0);
+			return;
+		}
+		let i = 0;
+		let strsize_i = tmp_utos(src, number);
+		let strsize_m = strsize_i - 1;
+		buffer tmpb(UTOS_BUFFER_CAPACITY);
+		memcpy(&tmpb, src, strsize_i);
+		while(i < strsize_i) {
+			store8(src + i, rd8(&tmpb + strsize_m));
+			strsize_m -= 1;
+			i += 1;
+		}
+		store8(src + strsize_i, 0);
+	}
+	
+	proc stou(char* str) -> int {
+		let i = 0;
+		let result = 0;
+		while(rd8(str + i) != 0) {
+			result = (rd8(str + i) - '0') + (result * 10);
+			i += 1;
+		}
+		return result;
+	}
+}
+
+proc fputc(int fd, int chr) -> void {
+	buffer bf(2);
+	store8(&bf, chr);
+	store8(&bf + 1, 0);
+	write(fd, &bf, 1);
+}
+
+proc putc(int chr) = fputc(stdout, chr);
+
+const FPUTU_BUFFER_CAPACITY = 128;
+
+proc fputuwnl(int fd, int number) -> void {
+	buffer tmp(FPUTU_BUFFER_CAPACITY);
+	std::utos(&tmp, number);
+	fputs(fd, &tmp);
+}
+
+proc fputu(int fd, int number) -> void {
+	buffer tmp(FPUTU_BUFFER_CAPACITY);
+	std::utos(&tmp, number);
+	fputs(fd, &tmp);
+	fputc(fd, NEWLINE);
+}
+
+proc putuwnl(int number) = fputuwnl(stdout, number);
+proc putu(int number) = fputu(stdout, number);
+
+proc nth_arg<T>(int frame, int nth) -> T
+[nostdargs] {
+	asm "mov ecx, dword [ebp+8]";
+	asm "mov edx, dword [ebp+12]";
+	asm "imul edx, 4";
+	asm "add edx, 8";
+	asm "mov eax, dword [ecx+edx]";
+}
+
+proc format_fprint_frame(int fd, int frame, char* format_str) -> void
+[nosizedargs] {
+	let nth = 1;
+	let i = 0;
+	while(rd8(format_str + i) != 0) {
+		if(rd8(format_str + i) == '%') {
+			if(rd8(format_str + (i + 1)) == 'd') {
+				i += 1;
+				fputuwnl(fd, nth_arg<int>(frame, nth));
+				nth += 1;
+			}
+			elif(rd8(format_str + (i + 1)) == 's') {
+				i += 1;
+				fputs(fd, nth_arg<char*>(frame, nth));
+				nth += 1;
+			} elif(rd8(format_str + (i + 1)) == 'c') {
+				i += 1;
+				fputc(fd, nth_arg<int>(frame, nth));
+				nth += 1;
+			} else {
+				fputc(fd, rd8(format_str + i));
+			}
+		} else {
+			fputc(fd, rd8(format_str + i));
+		}
+		i += 1;
+	}
+}
+
+#define assert(__expr __message)
+	static_assert(is_same_t(__message, ct_type(ptr)), "`assert` __message must be of type `ptr`");
+	if(not(__expr)) {
+		format_print("%s:%d:%d AssertionFailed: %s\n", __FILE__, __LINE__, __COL__, __message);
+		exit(1);
+	}
+	__empty_stmt$
+
+cextern "scanf";
+
+proc scanf(ptr format_str) -> void [nosizedargs];
+
+namespace std {
+	proc fprintf(int fd, char* format_str) -> void
+	[nosizedargs] {
+		let frame = __frame_ebp() + 4;
+		format_fprint_frame(fd, frame, format_str);
+	}
+	
+	proc printf(char* format_str) -> void
+	[nosizedargs] {
+		let frame = __frame_ebp();
+		format_fprint_frame(stdout, frame, format_str);
+	}
+
+	proc readint() -> int {
+		let x: int;
+		scanf("%d", &x);
+		return x;
+	}
+
+	proc readint(char* predicate) -> int {
+		puts(predicate);
+		return std::readint();
+	}
+
+	proc write<T>(int FILE, T value) = std::fprint(FILE, value);
+
+	proc fprint(int fd, int value) = fputuwnl(fd, value);
+	proc fprint(int fd, char* value) = fputs(fd, value);
+	proc print(int value) = std::fprint(stdout, value);
+	proc print(int value, int dpchr) { std::fprint(stdout, value); putc(dpchr); }
+	proc print(char* value) = std::fprint(stdout, value);
+
+	proc exchange<T>(T& __s, T __v) -> T {
+		let __tmp: T = *__s;
+		*__s = __v;
+		return __tmp;
+	}
+
+	proc swap<T>(T& __one, T& __two) {
+		let __tmp = *__one;
+		*__one = *__two;
+		*__two = __tmp;
+	}
+
+	proc move<T>(T& __P_v) -> T&& =
+		return cast(T&&, __P_v);
+
+	proc equal(int lhs, int rhs) -> int = return lhs == rhs; 
+	proc equal(char* lhs, char* rhs) -> int = return streq(lhs, rhs);
+
+	proc add(int lhs, int rhs) -> int = return lhs + rhs;
+	proc sub(int lhs, int rhs) -> int = return lhs - rhs;
+	proc div(int lhs, int rhs) -> int = return lhs / rhs;
+	proc mul(int lhs, int rhs) -> int = return lhs * rhs;
+	proc shl(int lhs, int rhs) -> int = return lhs << rhs;
+	proc shr(int lhs, int rhs) -> int = return lhs >> rhs;
+}

@@ -1,0 +1,62 @@
+namespace std {
+	proc find_if<Iter>(Iter begin, Iter end, ProcPtr<int> pred) -> Iter {
+		let __it: Iter = begin;
+		while(__it != end) {
+			__pushonstack(*__it);
+			__pushonstack(pred);
+			asm "pop ebx";
+			asm "call ebx";
+			asm "add esp, 4";
+			asm "push eax";
+			let __fres = cast(int, __popfromstack());
+			if(__fres) return __it;
+			__it += 1;
+		}
+		return end;
+	}
+	proc find<Iter, T>(Iter begin, Iter end, T value) -> Iter {
+		static_assert(is_same_t(*begin, ct_type(T)), "std::find(Iter<T>, Iter<T>, T) except that *Iter return -> T");
+		let __it: Iter = begin;
+		while(__it != end) {
+			if(*__it == value) return __it;
+			__it += 1;
+		}
+		return end;
+	}
+	proc distance<Iter>(Iter begin, Iter end) -> int {
+		let __it: Iter = begin;
+		let __counter: int = 0;
+		while(__it != end) {
+			__counter += 1;
+			__it += 1;
+		}
+		return __counter;
+	}
+	proc copy_range<Iter, Iter2>(Iter src, Iter2 begin, Iter2 end) {
+		let __it: Iter2 = begin;
+		let __input: Iter = src;
+		while(__it != end) {
+			*__input = __it~deref_to();
+			__input += 1;
+			__it += 1;
+		}
+	}
+	proc copy_if_range<Iter, Iter2>(Iter src, Iter2 begin, Iter2 end, ProcPtr<int> pred) {
+		let __it: Iter2 = begin;
+		let __input: Iter = src;
+		while(__it != end) {
+			__pushonstack(*__it);
+			__pushonstack(pred);
+			asm "pop ebx";
+			asm "call ebx";
+			asm "add esp, 4";
+			asm "push eax";
+			let __fres = cast(int, __popfromstack());
+			if(__fres) {
+				*__input = *__it;
+				__input += 1;
+			}
+			__it += 1;
+		}
+	}
+}

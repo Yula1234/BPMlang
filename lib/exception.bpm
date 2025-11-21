@@ -1,0 +1,14 @@
+struct exception {
+	__message: char*
+}
+
+impl exception {
+	proc what(exception self) -> char* {
+		return self.__message;
+	}
+}
+
+namespace std {
+	proc exception(char* mess_) -> exception =
+		return exception(mess_);
+}

@@ -1,0 +1,9 @@
+release 3.0.0
+
+added template procedures.
+
+```c++
+proc foo<T> a:T {
+	std::print(a);
+}
+```

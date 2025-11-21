@@ -1,0 +1,6 @@
+*.exe
+*.o
+input.bpm
+git_push.bat
+*.asm
+*.s

@@ -1,0 +1,70 @@
+include "std_string"
+
+cextern "fopen";
+cextern "fclose";
+cextern "fileno";
+cextern "fgetc";
+cextern "fseek";
+cextern "ftell";
+cextern "fread";
+
+#define EOF() neg(1)$
+
+proc fopen(char* FilePath, char* Mode) -> ptr;
+proc fclose(ptr CFile) -> int;
+proc fileno(ptr CFile) -> int;
+proc fgetc(ptr CFile) -> int;
+proc fseek(ptr CFile, int val, int opt) -> void;
+proc ftell(ptr CFile) -> int;
+proc fread(ptr buf, int size, int count, ptr filestream) -> void;
+
+const FSEEK_END = 2;
+const FSEEK_SET = 0;
+
+struct FILE {
+	cfile: ptr, // FILE*
+	desc: int,  //  descriptor for fputs and format_fprint 
+	flag: int   // FILE* -> _flag 
+}
+
+namespace FILE {
+	proc open(char* FilePath, char* Mode) -> FILE {
+		let cfile = fopen(FilePath, Mode);
+		let desc = fileno(cfile);
+		return FILE(
+			cfile,
+			desc,
+			rd32(cfile + 12)
+		);
+	}
+	proc close(FILE self) -> void {
+		fclose(self.cfile);
+	}
+	proc destroy(FILE self) -> void {
+		self~close();
+	}
+	proc size(FILE self) -> int {
+		fseek(self.cfile, 0, FSEEK_END);
+		let __sz = ftell(self.cfile);
+		fseek(self.cfile, 0, FSEEK_SET);
+		return __sz;
+	}
+	proc getc(FILE self) -> int {
+		return fgetc(self.cfile);
+	}
+	proc read_to_buffer(FILE self, char* buf) -> int {
+		fread(buf, self~size(), 1, self.cfile);
+		store8(buf + (self~size()), 0);
+	}
+	proc read_to_string(FILE self) -> string {
+		let __bf = cast(char*, memalloc(self~size()));
+		self~read_to_buffer(__bf);
+		let __s = std::string(__bf);
+		memfree(__bf);
+		return __s;
+	}
+	proc writeln(FILE self, char* str) {
+		fputs(self.desc, str);
+		fputc(self.desc, '\n');
+	}
+}

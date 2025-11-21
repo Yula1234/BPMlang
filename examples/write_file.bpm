@@ -1,0 +1,8 @@
+include "std"
+include "fsys"
+
+proc main -> void {
+	let file = FILE::open("test.txt", "w");
+	file~writeln("Hello, World!\n");
+	delete file;
+}

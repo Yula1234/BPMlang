@@ -1,0 +1,74 @@
+include "std"
+
+struct string_view {
+	count:int,
+	data:char*
+}
+
+namespace std {
+	proc fprint(int fd, string_view value) {
+		printf("%.*s", value.count, value.data);
+	}
+	proc print(string_view value) { std::fprint(stdout, value); }
+}
+
+const NOT_FINDED = 4294967295;
+
+namespace string_view {
+	proc new(char* cstr) -> string_view {
+		return string_view(strlen(cstr), cstr);
+	}
+	
+	proc equal(string_view self, string_view rhs) -> int {
+    	if (self.count != rhs.count) { return false; }
+    	return memcmp(self.data, rhs.data, self.count) == 0;
+	}
+	
+	proc cut(string_view self) {
+		self.data += 1;
+		self.count -= 1;
+	}
+	proc cut(string_view self, int times) {
+		foreach_range(i, 0, times, 1, {
+			self.data += 1;
+			self.count -= 1;
+		})
+	}
+	proc first_chr(string_view self) -> int {
+		return rd8(self.data);
+	}
+	proc at(string_view self, int index) -> int {
+		return rd8((self.data) + index);
+	}
+	proc trim_left(string_view self) {
+		while(self~first_chr() == ' ') {
+			self~cut();
+		}
+	}
+	proc chop_by(string_view self, int chr) -> int {
+		while(self~first_chr() != chr) {
+			if(self~first_chr() == 0) {
+				return 0;
+			}
+			self~cut();
+		}
+		self~cut();
+		return 0;
+	}
+	proc find(string_view self, int chr) -> int {
+		let i = 0;
+		while(i < (self.count)) {
+			if(self~at(i) == chr) {
+				return i;
+			}
+			i += 1;
+		}
+		return NOT_FINDED;
+	}
+}
+
+namespace std {
+	proc string_view<T>(T __ctor_v) -> string_view {
+		return string_view::new(__ctor_v);
+	}
+}

@@ -1,0 +1,130 @@
+include "std"
+
+struct string {
+	m_data: char*,
+	m_size: int,
+	m_cap:  int
+}
+
+namespace std {
+	proc cpchr(char*& dest, char*& src) -> void {
+		store8(*dest, rd8(*src));
+		*dest += 1;
+		*src += 1;
+	}
+	proc strcat(char* dest, char* src) -> char* {
+    	let rdest = dest;
+    	while (rd8(dest)) {
+    		dest += 1;
+    	}
+    	std::cpchr(dest, src);
+    	while(rd8(src)) {
+    		std::cpchr(dest, src);
+    	}
+    	return rdest;
+	}
+	proc fprint(int fd, string value) { fputs(fd, value.m_data); }
+	proc print(string value) { std::fprint(stdout, value); }
+}
+
+namespace string {
+	proc new(char* _cstr) -> string {
+		let __sz = strlen(_cstr);
+		let __s = string(std::alloc<char>(__sz), __sz, __sz);
+		memcpy(__s.m_data, _cstr, __sz + 1);
+		return __s;
+	}
+	proc clone(string self) -> string {
+		return string::new(self.m_data);
+	}
+	proc new(string other) -> string {
+		return other~clone();
+	}
+	proc new(string&& other) -> string {
+		let __tmp: string = *cast(string&, other);
+		store32(cast(ptr, other), null());
+		return __tmp;
+	}
+	proc at(string self, int pos) -> int {
+		return rd8(self.m_data + pos);
+	}
+	proc m_add(string self, char* rhs) -> string {
+		if(self.m_size == 0) { return string::new(rhs); }
+		let __rlen = strlen(rhs);
+		if(__rlen == 0) { return self; }
+		let __szlr = self.m_size + __rlen;
+		let __np = cast(char*, memalloc(__szlr + 2));
+		memcpy(__np, self.m_data, self.m_size + 1);
+		std::strcat(__np, rhs);
+		return string(__np, __szlr, __szlr + 2);
+	}
+	proc m_add(string self, string rhs) -> string {
+		return self + rhs.m_data;
+	}
+	proc size(string self) -> int {
+		return self.m_size;
+	}
+	proc m_equal(string self, string rhs) -> int {
+		return streq(self.m_data, rhs.m_data);
+	}
+	proc m_equal(string self, char* rhs) -> int {
+		return streq(self.m_data, rhs);
+	}
+	proc extend(string self, int size) {
+		if(size < self.m_cap) { return; }
+		if(size == self.m_cap) { return; }
+		let __nmem = std::alloc<char>(size);
+		memcpy(__nmem, self.m_data, self.m_size + 1);
+		memfree(self.m_data);
+		self.m_data = __nmem;
+		self.m_cap = size;
+	}
+	proc m_assign(string self, char* _cstr) -> string {
+		let __sz = strlen(_cstr);
+		if(__sz == 0) { return self; }
+		if((__sz + 1) > self.m_cap) {
+			self~extend(__sz + 1);
+		}
+		memcpy(self.m_data, _cstr, __sz + 1);
+		return self;
+	}
+	proc m_assign(string self, string other) -> string {
+		if(self.m_cap < other.m_size) { self~extend(other.m_size + 1); }
+		memcpy(self.m_data, other.m_data, other.m_size + 1);
+		self.m_size = other.m_size;
+		self.m_cap = other.m_cap;
+		return self;
+	}
+	proc m_assign(string& self, string&& other) -> string {
+		store32(cast(ptr, self), *cast(string&, other));
+		store32(cast(ptr, other), null());
+		return *self;
+	}
+	proc m_inc(string self, int chr) -> string {
+		if((self.m_size + 1) > self.m_cap) { self~extend(self.m_size + 4); }
+		store8((self.m_data + self.m_size), chr);
+		store8((self.m_data + self.m_size) + 1, 0);
+	}
+	proc m_inc(string self, char* _cstr) -> string {
+		let __sz = strlen(_cstr);
+		if(__sz == 0) { return self; }
+		let __nsz = __sz + ((self.m_size) + 2);
+		if(__nsz > self.m_cap) { self~extend(__nsz); }
+		std::strcat(self.m_data, _cstr);
+		self.m_size = __nsz;
+		return self;
+	}
+	proc m_inc(string self, string other) -> string {
+        self += other.m_data;
+        return self;
+    }
+	proc destroy(string self) {
+		memfree(self.m_data);
+	}
+}
+
+namespace std {
+	proc string<T>(T __ctor_v) -> string {
+		return string::new(__ctor_v);
+	}
+}

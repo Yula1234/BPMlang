@@ -1,0 +1,9 @@
+include "std"
+include "fsys"
+
+proc main() -> void {
+	let file = FILE::open("file.txt", "r");
+	let content: string = file~read_to_string();
+	std::print(content);
+	delete file; // auto close
+}

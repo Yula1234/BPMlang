@@ -1,0 +1,16 @@
+include "core"
+
+cextern "strlen";
+cextern "strcmp";
+proc strlen(char* str) -> int;
+proc strcmp(char* str1, char* str2) -> int;
+
+proc streq(char* str1, char* str2) -> int {
+	return strcmp(str1, str2) == 0;
+}
+
+proc strcpy(char* src, char* dst) -> void {
+	let srcsize = strlen(src);
+	memcpy(src, dst, srcsize);
+	store8(dst + srcsize, 0);
+}

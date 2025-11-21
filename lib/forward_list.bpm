@@ -1,0 +1,169 @@
+include "std"
+include "exception"
+
+struct forward_list<T> {
+    m_head: ptr,  // указатель на первый узел (или null)
+    m_size: int
+}
+
+struct ForwardListIterator<T> {
+    _node: ptr    // указатель на текущий узел
+}
+
+impl ForwardListIterator<T> [new] {
+    proc new<T>(ptr __p) -> ForwardListIterator<T> {
+        return ForwardListIterator<T>(__p);
+    }
+
+    proc m_inc(ForwardListIterator<T> self, int __count) {
+        let i = 0;
+        while((i < __count) && (cast(int, self._node) != cast(int, null()))) {
+            // next лежит по адресу _node + 4
+            self._node = cast(ptr, rd32(self._node + 4));
+            i += 1;
+        }
+    }
+
+    proc m_equal(ForwardListIterator<T> lhs, ForwardListIterator<T> rhs) -> int {
+        return lhs._node == rhs._node;
+    }
+
+    proc m_not_equal(ForwardListIterator<T> lhs, ForwardListIterator<T> rhs) -> int {
+        return lhs._node != rhs._node;
+    }
+
+    proc m_deref(ForwardListIterator<T> self) -> T {
+        return cast(T, rd32(self._node));
+    }
+
+    proc deref_to(ForwardListIterator<T> self) -> T {
+        return self~m_deref();
+    }
+}
+
+impl forward_list<T> [new] {
+    proc new<T>() -> forward_list<T> {
+        return forward_list<T>(null(), 0);
+    }
+
+    proc empty(forward_list<T> self) -> int {
+        return self.m_size == 0;
+    }
+
+    proc size(forward_list<T> self) -> int {
+        return self.m_size;
+    }
+
+    // Внутренний helper: аллоцирует узел [value, next]
+    proc __alloc_node(forward_list<T> self, T value, ptr next) -> ptr {
+        let node = memalloc(8);      // 2 * 4 байта
+        store32(node, value);        // value по offset 0
+        store32(node + 4, next);     // next  по offset 4
+        return node;
+    }
+
+    proc push_front(forward_list<T> self, T value) {
+        let node = self~__alloc_node(value, self.m_head);
+        self.m_head = node;
+        self.m_size += 1;
+    }
+
+    proc push_back(forward_list<T> self, T value) {
+        if(self.m_head == null()) {
+            self~push_front(value);
+            return;
+        }
+        let cur = self.m_head;
+        while(cast(ptr, rd32(cur + 4)) != null()) {
+            cur = cast(ptr, rd32(cur + 4));
+        }
+        let node = self~__alloc_node(value, null());
+        store32(cur + 4, node);
+        self.m_size += 1;
+    }
+
+    proc front(forward_list<T> self) -> T {
+        if(self.m_size == 0) raise std::exception("forward_list empty");
+        return cast(T, rd32(self.m_head));
+    }
+
+    proc pop_front(forward_list<T> self) -> T {
+        if(self.m_size == 0) raise std::exception("forward_list::pop_front empty");
+        let node = self.m_head;
+        let val: T = cast(T, rd32(node));
+        self.m_head = cast(ptr, rd32(node + 4));
+        memfree(node);
+        self.m_size -= 1;
+        return val;
+    }
+
+    proc clear(forward_list<T> self) {
+        let cur = self.m_head;
+        while(cur != null()) {
+            let next = cast(ptr, rd32(cur + 4));
+            memfree(cur);
+            cur = next;
+        }
+        self.m_head = null();
+        self.m_size = 0;
+    }
+
+    proc begin(forward_list<T> self) -> ForwardListIterator<T> {
+        return ForwardListIterator::new<T>(self.m_head);
+    }
+
+    proc end(forward_list<T> self) -> ForwardListIterator<T> {
+        return ForwardListIterator::new<T>(null());
+    }
+
+    proc destroy(forward_list<T> self) {
+        #if(is_object_t(ct_type(T))) {
+            let cur = self.m_head;
+            try {
+                while(cur != null()) {
+                    let val = cast(T, rd32(cur)); // value
+                    delete val;
+                    cur = cast(ptr, rd32(cur + 4)); // next
+                }
+            } catch (err: exception) {
+            }
+        }
+        self~clear();
+    }
+
+    proc clone(forward_list<T> self) -> forward_list<T> {
+        let res = forward_list::new<T>();
+        let it = self~begin();
+        let ed = self~end();
+        while(it != ed) {
+            res~push_back(*it);
+            it += 1;
+        }
+        return res;
+    }
+}
+
+namespace std {
+    proc fprint<T>(int fd, forward_list<T> fl) {
+        let sz: int = fl.m_size;
+        if(sz == 0) {
+            std::fprint(fd, "forward_list[]\n");
+            return;
+        }
+        std::fprint(fd, "forward_list[");
+        let it = fl~begin();
+        let ed = fl~end();
+        while(it != ed) {
+            std::fprint(fd, *it);
+            it += 1;
+            if(it != ed) {
+                std::fprint(fd, ", ");
+            }
+        }
+        std::fprint(fd, "]\n");
+    }
+
+    proc print<T>(forward_list<T> fl) {
+        std::fprint(stdout, fl);
+    }
+}

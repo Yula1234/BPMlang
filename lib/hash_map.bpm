@@ -1,0 +1,192 @@
+struct hash_map<Key, Value> {
+	arr: ptr,
+	full_factor: int,
+	m_size: int
+}
+
+namespace std {
+	proc hash(string str) -> int {
+		let hash: int = 5381;
+		let i = 0;
+    	while(str~at(i) != 0) {
+    	    hash = ((hash << 5) + hash) + str~at(i);
+    	    i += 1;
+    	}
+    	return fabs(hash);
+	}
+	proc hash(char* str) -> int {
+		let hash: int = 5381;
+		let i = 0;
+    	while(rd8(str + i) != 0) {
+    	    hash = ((hash << 5) + hash) + rd8(str + i);
+    	    i += 1;
+    	}
+    	return fabs(hash);
+	}
+}
+
+// TODO HashMapIterator needs to be rewrited
+struct HashMapIterator<Key, Value> {
+	_ptr: ptr
+}
+
+namespace HashMapIterator {
+	proc new<Key, Value>(ptr _ptr) -> HashMapIterator<Key, Value> {
+		return HashMapIterator<Key, Value>(_ptr);
+	}
+	proc m_deref<Key, Value>(HashMapIterator<Key, Value> self) -> pair<Key, Value> {
+		return cast(pair<Key, Value>, (rd32(self._ptr)));
+	}
+	proc m_equal<Key, Value>(HashMapIterator<Key, Value> self, HashMapIterator<Key, Value> other) -> int {
+		return self._ptr == other._ptr;
+	}
+	proc m_not_equal<Key, Value>(HashMapIterator<Key, Value> self, HashMapIterator<Key, Value> other) -> int {
+		return self._ptr != other._ptr;
+	}
+	proc deref_to<Key, Value>(HashMapIterator<Key, Value> self) -> Value {
+		return (self~m_deref()).second;
+	}
+	proc m_inc<Key, Value>(HashMapIterator<Key, Value> self, int count) {
+		let i: int = count * 4;
+		while(rd32(self._ptr + i) == neg(1)) {
+			i += 4;
+		}
+		self._ptr += i;
+	}
+}
+
+namespace hash_map {
+	proc new<Key, Value>() -> hash_map<Key, Value> {
+		const MAP_DEF_SIZE = 16;
+		const MAP_DEF_CAP = MAP_DEF_SIZE * 4;
+		let __mem = memalloc(MAP_DEF_CAP);
+		memset(__mem, neg(1), MAP_DEF_CAP);
+		return hash_map<Key, Value>(__mem, 0, MAP_DEF_SIZE);
+	}
+	proc begin<Key, Value>(hash_map<Key, Value> self) -> HashMapIterator<Key, Value> {
+		let i: int = 0;
+		while(self~arr_at<Key, Value, int>(i) == neg(1)) {
+			i += 1;
+		}
+		return HashMapIterator<Key, Value>(self~arr_at_ptr(i));
+	}
+	proc end<Key, Value>(hash_map<Key, Value> self) -> HashMapIterator<Key, Value> {
+		return HashMapIterator<Key, Value>(self~arr_at_ptr(self.m_size));
+	}
+	proc to_index<Key, Value>(hash_map<Key, Value> self, int hash) -> int {
+		return hash % (self.m_size);
+	}
+	proc arr_at<Key, Value, As>(hash_map<Key, Value> self, int pos) -> As {
+		return cast(As, rd32(self.arr + (pos * 4)));
+	}
+	proc arr_at_ptr<Key, Value>(hash_map<Key, Value> self, int pos) -> ptr {
+		return cast(ptr, self.arr + (pos * 4));
+	}
+	proc m_assign<Key, Value>(hash_map<Key, Value> self, hash_map<Key, Value>&& other) {
+		let _other = *cast(hash_map<Key, Value>&, other);
+		memcpy(cast(ptr, self), cast(ptr, _other), sizeof(hash_map));
+		memset(cast(ptr, _other), 0, sizeof(hash_map));
+	}
+	proc extend<Key, Value>(hash_map<Key, Value> self) {
+		let __nmap: hash_map<Key, Value> = hash_map<Key, Value>();
+		__nmap.arr = memalloc((self.m_size * 2) * 4);
+		memset(__nmap.arr, neg(1), (self.m_size * 2) * 4);
+		__nmap.full_factor = self.full_factor;
+		__nmap.m_size = self.m_size * 2;
+		let __it = self~begin();
+		while(__it != self~end()) {
+			__nmap~insert(*__it.first, *__it.second);
+			__it += 1;
+		}
+		self~destroy();
+		self = std::move(__nmap);
+	}
+	proc insert<Key, Value>(hash_map<Key, Value> self, Key key, Value value) {
+		if(self.full_factor > (self.m_size / 4)) {
+			self~extend();
+		}
+		let hash: int = std::hash(key);
+		let index: int = self~to_index(hash);
+		// TODO: rewrite for this language
+		//while (arr[idx] != -1) {
+    	//	if (arr[idx].first == key) { break; }
+    	//		idx = (idx + 1) % size;
+		//}
+		if(self~arr_at<Key, Value, int>(index) == neg(1)) {
+			self.full_factor += 1;
+		}
+		store32(self~arr_at_ptr(index), std::make_pair(key, value));
+	}
+	proc destroy<Key, Value>(hash_map<Key, Value> self) {
+		memfree(self.arr);
+	}
+	proc find<Key, Value>(hash_map<Key, Value> self, Key key) -> HashMapIterator<Key, Value> {
+		let hash: int = std::hash(key);
+		let index: int = self~to_index(hash);
+		// TODO: rewrite for this language
+		// while (arr[idx] != -1) {
+    	// 	if (arr[idx].first == key) {
+        // 		return Iterator(ptr);
+    	// 	}
+    	// 	idx = (idx + 1) % size;
+		// }
+		if(self~arr_at<Key, Value, int>(index) != neg(1)) {
+			return HashMapIterator<Key, Value>(self~arr_at_ptr(index));
+		}
+		return self~end();
+	}
+	proc m_assign<Key, Value>(hash_map<Key, Value> self, hash_map<Key, Value> other) {
+		if(self.arr != null()) memfree(self.arr);
+		self.arr = memalloc(other.m_size * 4);
+		memset(self.arr, neg(1), other.m_size * 4);
+		let __it = other~begin();
+		while(__it != other~end()) {
+			self~insert(*__it.first, *__it.second);
+			__it += 1;
+		}
+	}
+	proc erase<Key, Value>(hash_map<Key, Value> self, HashMapIterator<Key, Value> pos) {
+		store32(pos._ptr, neg(1));
+		self.full_factor -= 1;
+	}
+	proc contains<Key, Value>(hash_map<Key, Value> self, Key key) -> int {
+		return self~find(key) != self~end();
+	}
+	proc insert<Key, Value>(hash_map<Key, Value> self, HashMapIterator<Key, Value> begin, HashMapIterator<Key, Value> end) {
+		let __it = begin;
+		while(__it != end) {
+			self~insert(*__it.first, *__it.second);
+			__it += 1;
+		}
+	}
+	proc m_equal<Key, Value>(hash_map<Key, Value> self, hash_map<Key, Value> other) -> int {
+		if((self.full_factor) != (other.full_factor)) return false;
+		let __it1 = self~begin();
+		let __it2 = other~begin();
+		while(__it1 != self~end()) {
+			if((*__it1.first) != (*__it2.first)) return false;
+			if((*__it1.second) != (*__it2.second)) return false;
+			__it1 += 1;
+			__it2 += 1;
+		}
+		return true;
+	}
+	proc m_not_equal<Key, Value>(hash_map<Key, Value> self, hash_map<Key, Value> other) -> int {
+		return not(self == other);
+	}
+	proc clone<Key, Value>(hash_map<Key, Value> self) -> hash_map<Key, Value> {
+		let __np = hash_map::new<Key, Value>();
+		__np~insert(self~begin(), self~end());
+		return __np;
+	}
+	proc dump<Key, Value>(hash_map<Key, Value> self) {
+		let __it = self~begin();
+		while(__it != self~end()) {
+			std::print(*__it.first);
+			std::print(" -> ");
+			std::print(*__it.second);
+			putc('\n');
+			__it += 1;
+		}
+	}
+}

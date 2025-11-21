@@ -1,0 +1,10 @@
+include "std"
+
+proc main(int argc, char** argv) -> void {
+	let i = 0;
+	while(i < argc) {
+		std::printf("%s ", std::nth_argv(argv, i));
+		i = i + 1;
+	}
+	putc('\n');
+}

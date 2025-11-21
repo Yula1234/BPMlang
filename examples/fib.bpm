@@ -1,0 +1,17 @@
+include "std"
+
+proc fib(int n) -> int {
+	if(n < 2) {
+		return n;
+	}
+	return fib(n - 1) + fib(n - 2);
+}
+
+proc main() {
+	let x = 10;
+	while(x != 0) {
+		x = std::readint("enter number: ");
+		if(x == 0) break;
+		std::printf("fib at %d = %d\n", x, fib(x));
+	}
+}
