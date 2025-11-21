@@ -773,6 +773,14 @@ public:
 				tp.root().ptrlvl += 1;
 				return tp;
 			}
+			if(std::holds_alternative<NodeTermDrvalue*>(term->var)) {
+				DataType tp = type_of_expr(std::get<NodeTermDrvalue*>(term->var)->expr);
+				if (!tp.root().link) {
+					GeneratorError(std::get<NodeTermDrvalue*>(term->var)->def, "__disable_rvalue__ on a non-rvalue expression");
+				}
+				tp.root().link = false;
+				return tp;
+			}
 			if(std::holds_alternative<NodeTermCall*>(term->var)) {
 				NodeTermCall* call = std::get<NodeTermCall*>(term->var);
 				std::string name = call->name;
@@ -1347,6 +1355,14 @@ public:
 			void operator()(const NodeTermAmpersand* term_amp) const
 			{
 				gen.gen_expr(term_amp->expr, true);
+			}
+
+			void operator()(const NodeTermDrvalue* term_drval) const
+			{
+				if (lvalue) {
+					gen.GeneratorError(term_drval->def, "using __disable_rvalue__ as rvalue");
+				}
+				gen.gen_expr(term_drval->expr, false);
 			}
 
 			void operator()(const NodeTermIdent* term_ident) const
@@ -2700,8 +2716,12 @@ AFTER_GEN:
     			        // вывести его по другим параметрам.
     			    }
     			    else {
-    			        targs[counter] = type_of_expr(args[i]);
-    			    }
+    					DataType arg_tp = type_of_expr(args[i]);
+    					// снимаем ссылку и rvalue-ссылку
+    					arg_tp.root().link = false;
+    					arg_tp.root().rvalue = false;
+    					targs[counter] = arg_tp;
+					}
     			}
     			counter = -1;
     			is_temp_s = false;
@@ -2784,7 +2804,10 @@ AFTER_GEN:
 			            targs[counter] = create_datatype_from_chain(cur);
 			        }
 			        else {
-			            targs[counter] = type_of_expr(args[i]);
+			            DataType arg_tp = type_of_expr(args[i]);
+    					arg_tp.root().link = false;
+    					arg_tp.root().rvalue = false;
+    					targs[counter] = arg_tp;
 			        }
 			    }
 			    counter = -1;

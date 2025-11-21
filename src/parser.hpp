@@ -495,6 +495,11 @@ struct NodeTermFile {
 	Token def;
 };
 
+struct NodeTermDrvalue {
+	Token def;
+	NodeExpr* expr;
+};
+
 struct NodeTermType {
 	Token def;
 	DataType type;
@@ -612,7 +617,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*, NodeTermPop*, NodeTermCastTo*, NodeTermCtEval*, NodeTermNmCall*, NodeTermCtMdefined*, NodeTermUnref*, NodeTermMtCall*> var;
+	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*, NodeTermPop*, NodeTermCastTo*, NodeTermCtEval*, NodeTermNmCall*, NodeTermCtMdefined*, NodeTermUnref*, NodeTermMtCall*, NodeTermDrvalue*> var;
 };
 
 struct NodeExpr {
@@ -1543,6 +1548,19 @@ public:
 			}
 			try_consume_err(TokenType_t::close_paren);
 			auto term = m_allocator.emplace<NodeTerm>(term_rd32);
+			return term;
+		}
+		if (auto drval = try_consume(TokenType_t::__drvalue)) {
+			auto term_drval = m_allocator.emplace<NodeTermDrvalue>();
+			term_drval->def = drval.value();
+			try_consume_err(TokenType_t::open_paren);
+			if(auto expr = parse_expr()) {
+				term_drval->expr = expr.value();
+			} else {
+				error_expected("expression");
+			}
+			try_consume_err(TokenType_t::close_paren);
+			auto term = m_allocator.emplace<NodeTerm>(term_drval);
 			return term;
 		}
 		if((peek().has_value() && peek().value().type == TokenType_t::ident &&
