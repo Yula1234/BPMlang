@@ -34,18 +34,14 @@ struct BaseDataType {
 	std::string sign() const {
 		std::string res;
 		
-		// 1. Кодируем модификаторы (указатели, ссылки)
 		if(ptrlvl > 0) res += "P" + std::to_string(ptrlvl);
 		if(link) res += "R";
 		if(rvalue) res += "V";
 
-		// 2. Кодируем сам тип
 		if(is_object) {
-			// Формат: [Длина][Имя] (например, 3AAA)
 			std::string name = getobjectname();
 			res += std::to_string(name.length()) + name;
 		} else {
-			// Короткие коды для примитивов
 			switch(getsimpletype()) {
 			case SimpleDataType::_int:   res += "i"; break;
 			case SimpleDataType::ptr:    res += "p"; break;
@@ -256,7 +252,6 @@ struct DataType {
 		
 		while(current != nullptr) {
 			res += current->data.sign();
-			// Добавляем разделитель, чтобы аргументы не слипались
 			res += "_"; 
 			current = current->right;
 		}
@@ -330,10 +325,8 @@ void copy_tree_chain(TreeNode<BaseDataType>* src, TreeNode<BaseDataType>* dest_p
     TreeNode<BaseDataType>* current_dest = dest_parent;
     
     while(current_src != nullptr) {
-        // Вставляем данные в список справа
         dest_dt.list.insert_right(current_src->data, current_dest);
         
-        // Переходим к только что созданному узлу справа
         if (current_dest->right != nullptr) {
             current_dest = current_dest->right;
         }
@@ -1000,27 +993,20 @@ public:
 		DataType res = type;
 		TreeNode<BaseDataType>* current = res.list.get_root();
 		if(peek().has_value() && peek().value().type == TokenType_t::less) {
-			consume(); // <
+			consume();
 			while(peek().has_value() && peek().value().type != TokenType_t::above) {
-                // 1. Исправление сдвига (>>)
 				check_split_shr(); 
 				if(peek().value().type == TokenType_t::above) break;
 
-                // 2. Парсим аргумент (например, AAA<int>)
                 DataType arg_type = parse_type();
                 
-                // 3. Вставляем корень аргумента (AAA)
 				res.list.insert_right(arg_type.root(), current);
                 
-                // 4. Переходим к узлу, который только что вставили (AAA)
 				current = current->right; 
 
-                // 5. ВАЖНО: Копируем хвост аргумента (int), если он есть
                 if (arg_type.list.get_root()->right != nullptr) {
                     copy_tree_chain(arg_type.list.get_root()->right, current, res);
                     
-                    // Проматываем current до конца вставленной цепочки, 
-                    // чтобы следующий аргумент (если он есть) встал после int
                     while(current->right != nullptr) {
                         current = current->right;
                     }
@@ -1031,7 +1017,7 @@ public:
 					try_consume_err(TokenType_t::comma);
 				}
 			}
-			consume(); // >
+			consume();
 		}
 		while(peek().has_value() && peek().value().type == TokenType_t::star) {
 			consume();
@@ -1105,10 +1091,8 @@ public:
 	    if (tok_opt.has_value()) {
 	        DiagnosticMessage(tok_opt.value(), "error", msg, 0);
 	    } else if (peek().has_value()) {
-	        // хотя бы текущий токен есть
 	        DiagnosticMessage(peek().value(), "error", msg, 0);
 	    } else {
-	        // вообще нет токенов: искусственный "EOF"-токен
 	        Token fake;
 	        fake.type = TokenType_t::ident;
 	        fake.line = 0;
@@ -1229,7 +1213,6 @@ public:
 				ParsingError("macro `" + _macro.name + "` except " + std::to_string(_macro.args.size()) + " args, but got " + std::to_string(__args->size()));
 			}
 		}
-		// printf("expand macro(%s) ex = %d, got = %d", _macro.name.c_str(), );
 		if(_macro.body.size() == 0ULL) {
 			return;
 		}
@@ -1341,7 +1324,6 @@ public:
 			return term;
 		}
 		if (!cmethod && peek(1).has_value() && peek(1).value().type == TokenType_t::tilda) {
-    		// 1. Парсим выражение слева от первой '~'
     		NodeExpr* objv;
     		if (auto _expr = parse_term(true)) {
     		    NodeTerm* asterm = _expr.value();
@@ -1353,9 +1335,8 @@ public:
 		
     		NodeTerm* last_term = nullptr;
 		
-    		// 2. Цепочка вызовов: ~name<...>(...)
     		while (peek().has_value() && peek().value().type == TokenType_t::tilda) {
-    		    consume(); // '~'
+    		    consume();
     		    Token identif = try_consume_err(TokenType_t::ident);
 		
     		    auto term_call = m_allocator.emplace<NodeTermMtCall>();
@@ -1363,9 +1344,8 @@ public:
     		    term_call->mt   = objv;
     		    term_call->name = identif.value.value();
 		
-    		    // Опциональные шаблонные аргументы <...>
     		    if (peek().has_value() && peek().value().type == TokenType_t::less) {
-    		        consume(); // '<'
+    		        consume();
     		        while (peek().has_value() && peek().value().type != TokenType_t::above) {
     		            DataType dt = parse_type();
     		            term_call->targs.push_back(dt);
@@ -1373,10 +1353,9 @@ public:
     		                try_consume_err(TokenType_t::comma);
     		            }
     		        }
-    		        try_consume_err(TokenType_t::above); // '>'
+    		        try_consume_err(TokenType_t::above);
     		    }
 		
-    		    // Аргументы (...) — первый аргумент это self
     		    try_consume_err(TokenType_t::open_paren);
     		    if (peek().has_value() && peek().value().type == TokenType_t::close_paren) {
     		        auto* _args = m_allocator.emplace<NodeBinExprArgs>();
@@ -1392,7 +1371,6 @@ public:
     		    }
     		    try_consume_err(TokenType_t::close_paren);
 		
-    		    // Оборачиваем в Term и Expr для возможного следующего '~'
     		    last_term = m_allocator.emplace<NodeTerm>(term_call);
     		    objv = m_allocator.emplace<NodeExpr>();
     		    objv->var = last_term;
@@ -1629,7 +1607,7 @@ public:
 			)
 		) {
 			Token def = try_consume_err(TokenType_t::ident);
-			consume(); // ::
+			consume();
 			Token identif = try_consume_err(TokenType_t::ident);
 			auto expr_call = m_allocator.emplace<NodeTermNmCall>();
 			expr_call->def = def;
@@ -1727,7 +1705,6 @@ public:
 
 		auto get_op_prec = [&](TokenType_t t) -> std::optional<int> {
 			if (t == TokenType_t::dot) return 10000;
-			// if (t == TokenType_t::arrow) return 10000; 
 			return bin_prec(t);
 		};
 
@@ -1762,28 +1739,21 @@ public:
 
 			if(type == TokenType_t::dot) {
 				bool rotated = false;
-				// Проверяем, является ли правая часть вызовом метода (NodeTermMtCall)
 				if(std::holds_alternative<NodeTerm*>(expr_rhs.value()->var)) {
 					NodeTerm* rhs_term = std::get<NodeTerm*>(expr_rhs.value()->var);
 					if(std::holds_alternative<NodeTermMtCall*>(rhs_term->var)) {
 						NodeTermMtCall* call = std::get<NodeTermMtCall*>(rhs_term->var);
 						
-						// 1. Создаем узел точки: (LHS . call->mt) -> (obj.b . c)
 						auto dot_node = m_allocator.emplace<NodeBinExprDot>(expr_lhs2, call->mt);
-						
-						// 2. Оборачиваем этот узел точки в NodeExpr
+					
 						auto new_obj_expr = m_allocator.emplace<NodeExpr>();
 						auto dot_bin_expr = m_allocator.emplace<NodeBinExpr>();
 						dot_bin_expr->def = ctok; 
 						dot_bin_expr->var = dot_node;
 						new_obj_expr->var = dot_bin_expr;
 
-						// 3. Подменяем объект lookup-а (mt) на новый (obj.b.c)
 						call->mt = new_obj_expr;
 
-						// 4. !!! ВАЖНОЕ ИСПРАВЛЕНИЕ !!!
-						// Нужно также обновить первый аргумент (self) в списке аргументов.
-						// Иначе в аргументы пойдет просто 'c', который компилятор не найдет.
 						if (call->args.has_value()) {
 							NodeExpr* args_expr = call->args.value();
 							if (std::holds_alternative<NodeBinExpr*>(args_expr->var)) {
@@ -1791,14 +1761,11 @@ public:
 								if (std::holds_alternative<NodeBinExprArgs*>(args_bin->var)) {
 									NodeBinExprArgs* args_list = std::get<NodeBinExprArgs*>(args_bin->var);
 									if (!args_list->args.empty()) {
-										// Заменяем старый 'c' на новый 'obj.b.c'
 										args_list->args[0] = new_obj_expr; 
 									}
 								}
 							}
 						}
-
-						// 5. Результатом левой части становится сам исправленный вызов метода
 						expr_lhs->var = rhs_term;
 						
 						rotated = true;
@@ -1968,7 +1935,7 @@ public:
 	{
 		std::optional<Token> tok0 = peek();
 		if (!tok0.has_value()) {
-    		return {};  // нет токена -> нет оператора
+    		return {};
 		}
 		if (peek().has_value() && peek().value().type == TokenType_t::exit && peek(1).has_value()
 			&& peek(1).value().type == TokenType_t::open_paren) {
@@ -1991,7 +1958,7 @@ public:
 		if(auto _let = try_consume(TokenType_t::let)) {
 			Token name = try_consume_err(TokenType_t::ident);
 			if(peek().has_value() && peek().value().type == TokenType_t::double_dot) {
-				consume(); // :
+				consume();
 				DataType tp = parse_type();
 				if(peek().has_value() && peek().value().type == TokenType_t::semi) {
 					auto stmt_let = m_allocator.emplace<NodeStmtLetNoAssign>();
@@ -2021,7 +1988,7 @@ public:
 				auto stmt_let = m_allocator.emplace<NodeStmtLet>();
 				stmt_let->type = std::nullopt;
 				stmt_let->ident = name;
-				try_consume_err(TokenType_t::eq); // =
+				try_consume_err(TokenType_t::eq);
 				if (const auto expr = parse_expr()) {
 					stmt_let->expr = expr.value();
 				}
@@ -2442,14 +2409,14 @@ public:
 				stmt_struct->__allocator = allc_id.value.value();
 			}
 			if(peek().has_value() && peek().value().type == TokenType_t::less) {
-				consume(); // <
+				consume();
 				while(peek().has_value() && peek().value().type != TokenType_t::above) {
 					stmt_struct->temps.push_back(try_consume_err(TokenType_t::ident).value.value());
 					if(peek().has_value() && peek().value().type != TokenType_t::above) {
 						try_consume_err(TokenType_t::comma);
 					}
 				}
-				consume(); // >
+				consume();
 				stmt_struct->temp = true;
 			}
 			try_consume_err(TokenType_t::open_curly);
@@ -2458,7 +2425,6 @@ public:
 				try_consume_err(TokenType_t::double_dot);
 				DataType dtype(parse_type());
 				if (dtype.is_object() && dtype.getobjectname() == stmt_struct->name) {
-                    // Проверяем, является ли это указателем или ссылкой
                     if (dtype.root().ptrlvl == 0 && !dtype.root().link) {
                     	DiagnosticMessage(ident, "error", "Recursive struct definition `" + stmt_struct->name + 
                                        "` contains itself without pointer or reference indirection.", 0);
@@ -2718,7 +2684,7 @@ public:
 						try_consume_err(TokenType_t::comma);
 					}
 				}
-				consume(); // >
+				consume();
 			}
 			if(auto bracket = try_consume(TokenType_t::open_bracket)) {
 				while(peek().has_value() && peek().value().type != TokenType_t::close_bracket) {
@@ -2727,7 +2693,7 @@ public:
 						try_consume_err(TokenType_t::comma);
 					}
 				}
-				consume(); // ]
+				consume();
 			}
 			if(auto _scope = parse_scope()) {
 				stmt_impl->scope = _scope.value();
@@ -2776,21 +2742,18 @@ public:
 				return stmt;
 			}
 			else if (curtok.type == TokenType_t::tilda) {
-    			// Базовый объект для цепочки методов: vec, vec~get(0), ...
     			NodeExpr* obj = lvalue.value();
 			
     			NodeStmtMtCall* final_stmt = nullptr;
 			
     			while (true) {
-    			    // '~'
     			    consume();
     			    Token identif = try_consume_err(TokenType_t::ident);
 			
     			    __stdvec<DataType> targs;
-			
-    			    // Шаблонные аргументы <...> (опционально)
+		
     			    if (peek().has_value() && peek().value().type == TokenType_t::less) {
-    			        consume(); // '<'
+    			        consume();
     			        while (peek().has_value() && peek().value().type != TokenType_t::above) {
     			            DataType dt = parse_type();
     			            targs.push_back(dt);
@@ -2798,10 +2761,9 @@ public:
     			                try_consume_err(TokenType_t::comma);
     			            }
     			        }
-    			        try_consume_err(TokenType_t::above); // '>'
+    			        try_consume_err(TokenType_t::above);
     			    }
 			
-    			    // Аргументы (...) – первый аргумент всегда self = obj
     			    try_consume_err(TokenType_t::open_paren);
     			    NodeExpr* args_expr = nullptr;
     			    if (peek().has_value() && peek().value().type == TokenType_t::close_paren) {
@@ -2817,9 +2779,7 @@ public:
     			    }
     			    try_consume_err(TokenType_t::close_paren);
 			
-    			    // Смотрим, есть ли ещё один '~' после этого вызова
     			    if (peek().has_value() && peek().value().type == TokenType_t::tilda) {
-    			        // ПРОМЕЖУТОЧНЫЙ метод в цепочке: строим выражение NodeTermMtCall
     			        auto term_call = m_allocator.emplace<NodeTermMtCall>();
     			        term_call->def  = identif;
     			        term_call->mt   = obj;
@@ -2830,10 +2790,8 @@ public:
     			        NodeTerm* term_node = m_allocator.emplace<NodeTerm>(term_call);
     			        obj = m_allocator.emplace<NodeExpr>();
     			        obj->var = term_node;
-    			        // продолжаем цепочку
     			        continue;
     			    } else {
-    			        // ЭТО ПОСЛЕДНИЙ метод в цепочке – формируем именно NodeStmtMtCall
     			        auto stmt_call = m_allocator.emplace<NodeStmtMtCall>();
     			        stmt_call->def  = identif;
     			        stmt_call->mt   = obj;
@@ -2845,7 +2803,6 @@ public:
     			    }
     			}
 			
-    			// После всей цепочки ожидаем ';'
     			try_consume_err(TokenType_t::semi);
     			auto stmt = m_allocator.emplace<NodeStmt>(final_stmt);
     			return stmt;

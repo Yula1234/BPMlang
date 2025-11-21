@@ -161,7 +161,6 @@ public:
 			}
 			std::string res;
 			for(size_t i = 0; i < params.size(); ++i) {
-				// Теперь просто вызываем sign(), он сам обработает вложенность
 				res += params[i].second.sign();
 			}
 			return res;
@@ -490,10 +489,8 @@ public:
         DataType dt;
         if (!start_node) return dt;
 
-        // Копируем корень
         dt = start_node->data;
 
-        // Копируем хвост
         if (start_node->right) {
             TreeNode<BaseDataType>* src = start_node->right;
             TreeNode<BaseDataType>* dest = dt.list.get_root();
@@ -511,18 +508,14 @@ public:
         DataType dt;
         if (!start_node) return dt;
 
-        // 1. Сначала обязательно создаем корень
         dt.list.insert_data(start_node->data, dt.list.get_root_ptr());
         
-        // 2. Теперь копируем хвост
         TreeNode<BaseDataType>* src = start_node->right;
-        TreeNode<BaseDataType>* dest = dt.list.get_root(); // Теперь это не nullptr
+        TreeNode<BaseDataType>* dest = dt.list.get_root();
 
         while(src != nullptr) {
             dt.list.insert_right(src->data, dest);
             
-            // Сдвигаем указатель назначения на только что созданный узел.
-            // В BinaryTree insert_right создает узел в dest->right.
             dest = dest->right; 
             
             src = src->right;
@@ -531,7 +524,7 @@ public:
     }
 
 	void append_type_chain(DataType& target_dt, TreeNode<BaseDataType>* target_node, DataType& source_dt) {
-		TreeNode<BaseDataType>* src_curr = source_dt.list.get_root(); // Берем корень типа-аргумента (например AAA)
+		TreeNode<BaseDataType>* src_curr = source_dt.list.get_root();
 		TreeNode<BaseDataType>* dst_curr = target_node;
 		
 		while(src_curr != nullptr) {
@@ -544,7 +537,7 @@ public:
 	size_t count_template_nodes(TreeNode<BaseDataType>* start_node) {
         if (!start_node) return 0;
         
-        size_t total_nodes = 1; // Текущий узел (например, AAA)
+        size_t total_nodes = 1;
         
         if (start_node->data.is_object) {
             std::string name = start_node->data.getobjectname();
@@ -554,19 +547,14 @@ public:
             if (st.has_value() && st.value().temp) {
                 expected_args = st.value().temps.size();
             } 
-            // Если есть интерфейсы с шаблонами, добавить проверку inter_lookup здесь
-
-            // Указатель на первый аргумент (следующий в списке right)
             TreeNode<BaseDataType>* child_iter = start_node->right;
             
             for(size_t i = 0; i < expected_args; ++i) {
-                if (!child_iter) break; // Защита от битых типов
+                if (!child_iter) break;
 
-                // Рекурсивно узнаем, сколько узлов занимает этот аргумент
                 size_t arg_len = count_template_nodes(child_iter);
                 total_nodes += arg_len;
                 
-                // Пропускаем все узлы этого аргумента, чтобы перейти к следующему
                 for(size_t k = 0; k < arg_len; ++k) {
                     if (child_iter) child_iter = child_iter->right;
                 }
@@ -576,23 +564,19 @@ public:
         return total_nodes;
     }
 
-    // Создает новый DataType, копируя count узлов из цепочки start_node
     DataType extract_type_nodes(TreeNode<BaseDataType>* start_node, size_t count) {
         DataType dt;
         if (count == 0 || !start_node) return dt;
         
-        // Копируем корень
         dt = start_node->data; 
         
         TreeNode<BaseDataType>* src = start_node->right;
         TreeNode<BaseDataType>* dst = dt.list.get_root();
         
-        // Копируем хвост (count-1 узлов)
         for(size_t i = 1; i < count; ++i) {
             if(!src) break;
             dt.list.insert_right(src->data, dst);
             
-            // insert_right создает узел справа, сдвигаем dst на него
             dst = dst->right; 
             src = src->right;
         }
@@ -623,24 +607,16 @@ public:
                 Struct stc = st.value();
                 Field fd = field.value();
                 
-                // --- ИСПРАВЛЕННАЯ ЛОГИКА ШАБЛОНОВ ---
                 if(stc.temp) {
                     __stdvec<DataType> targs;
                     TreeNode<BaseDataType>* current = otype.list.get_root()->right;
                     
-                    // Итерируемся ровно по количеству ожидаемых параметров шаблона
                     for(size_t i = 0; i < stc.temps.size(); ++i) {
                         if (current == nullptr) {
                             GeneratorError(def, "Internal Compiler Error: malformed template type inside type_of_dot.");
                         }
-
-                        // 1. Считаем длину текущего типа-аргумента
                         size_t arg_len = count_template_nodes(current);
-                        
-                        // 2. Извлекаем его в отдельный DataType
                         targs.push_back(extract_type_nodes(current, arg_len));
-                        
-                        // 3. Сдвигаем current на следующий аргумент
                         for(size_t k = 0; k < arg_len; ++k) {
                             if (current) current = current->right;
                         }
@@ -649,7 +625,6 @@ public:
                     __map<std::string, DataType> temps = compute_temps(stc.temps, targs);
                     substitute_template_wct(fd.type, temps);
                 }
-                // -------------------------------------
 
                 return fd.type;
             }
@@ -803,11 +778,9 @@ public:
 					}
 					size_t counter {0};
 					if(!substituted) {
-                        // --- FIX START ---
 						if (proc.templates != NULL && call->targs.size() != proc.templates->size()) {
 							GeneratorError(call->def, "procedure `" + call->name + "` expects " + std::to_string(proc.templates->size()) + " template arguments, but got " + std::to_string(call->targs.size()));
 						}
-                        // --- FIX END ---
 						for(auto&& el : *proc.templates) {
 							temps[el] = call->targs[counter++];
 						}
@@ -824,16 +797,14 @@ public:
 					if(st.temp && call->targs.size() != st.temps.size()) GeneratorError(call->def, "struct `" + st.name + "` except " + std::to_string(st.temps.size()) + " template arguments in <...>, bug got " + std::to_string(call->targs.size()) + ".");
 					TreeNode<BaseDataType>* current = dt.list.get_root();
 					
-					// --- НАЧАЛО ИЗМЕНЕНИЙ ---
 					for (int i = 0; i < static_cast<int>(call->targs.size()); ++i) {
-    					DataType arg_tp = call->targs[i];    // копия
-    					substitute_template(arg_tp);         // подставляем шаблоны только в копии
+    					DataType arg_tp = call->targs[i];
+    					substitute_template(arg_tp);
     					append_type_chain(dt, current, arg_tp);
     					while (current->right != nullptr) {
     					    current = current->right;
     					}
 					}
-					// --- КОНЕЦ ИЗМЕНЕНИЙ ---
 					
 					return dt;
 				}
@@ -864,11 +835,9 @@ public:
 				}
 				size_t counter {0};
 				if(!substituted) {
-                    // --- FIX START ---
 					if (proc.templates != NULL && call->targs.size() != proc.templates->size()) {
 						GeneratorError(call->def, "procedure `" + call->name + "` expects " + std::to_string(proc.templates->size()) + " template arguments, but got " + std::to_string(call->targs.size()));
 					}
-                    // --- FIX END ---
 					for(auto&& el : *proc.templates) {
 						temps[el] = call->targs[counter++];
 					}
@@ -1433,12 +1402,11 @@ public:
 				std::string tsign;
 				if (!term_call->targs.empty()) {
 				    for (int i = 0; i < static_cast<int>(term_call->targs.size()); ++i) {
-				        DataType t = term_call->targs[i];   // копия
+				        DataType t = term_call->targs[i];
        					gen.substitute_template(t);
         				tsign += t.sign();
 				    }
 				
-				    // Берём именно тот Procedure, который реально выбран оверлоад-резолвером
 				    Procedure* inst_p = proc.override
 				        ? gen.m_namespaces[nname]->procs[pname].overrides[proc.overload_nth - 1]
 				        : &gen.m_namespaces[nname]->procs[pname];
@@ -1461,7 +1429,7 @@ public:
 				
 				        dop_gen.m_output << nname << "@" << proc.name << tsign;
 				        if (proc.override)
-				            dop_gen.m_output << proc.get_sign(); // ВАЖНО: различать перегрузки
+				            dop_gen.m_output << proc.get_sign();
 				        dop_gen.m_output << ":\n";
 				
 				        dop_gen.m_output << "    push ebp\n";
@@ -1551,7 +1519,7 @@ public:
 					std::string tsign;
 					if(!term_call->targs.empty()) {
 						for(int i = 0;i < static_cast<int>(term_call->targs.size());++i) {
-							DataType t = term_call->targs[i];   // копия
+							DataType t = term_call->targs[i];
         					gen.substitute_template(t);
         					tsign += t.sign();
 						}
@@ -2421,15 +2389,12 @@ AFTER_GEN:
     	                                mapped.list.get_root()->right != nullptr);
 	
     	    if (has_template_args && !mapped_has_children) {
-    	        // Случай CT<T>: заменяем только имя типа,
-    	        // оставляя цепочку параметров (<T, ...>) как есть.
     	        BaseDataType new_root = mapped.root();
     	        new_root.ptrlvl = old.ptrlvl;
     	        new_root.link   = old.link;
     	        new_root.rvalue = old.rvalue;
     	        root_node->data = new_root;
     	    } else {
-    	        // Обычный T: заменяем весь DataType целиком.
     	        type = mapped;
     	        type.root().ptrlvl += old.ptrlvl;
     	        if (old.link)   type.root().link   = true;
@@ -2437,33 +2402,25 @@ AFTER_GEN:
     	    }
     	}
 	
-    	// Рекурсивно подставляем в аргументах шаблона (цепочка справа)
     	TreeNode<BaseDataType>* cur = type.list.get_root()->right;
 		while (cur != nullptr) {
 		    DataType tmp = cur->data;
-		    substitute_template(tmp);           // здесь tmp может превратиться, например, в vector<int>
-		
-		    // 1) заменяем сам узел
+		    substitute_template(tmp);
 		    cur->data = tmp.root();
-		
-		    // 2) если у tmp есть хвост (например, <int>), пришиваем его сюда
 		    TreeNode<BaseDataType>* extra = nullptr;
 		    TreeNode<BaseDataType>* tmp_root = tmp.list.get_root();
 		    if (tmp_root) {
-		        extra = tmp_root->right;        // это цепочка параметров шаблона: T1, T2, ...
+		        extra = tmp_root->right;
 		    }
 		
 		    TreeNode<BaseDataType>* last = cur;
 		    while (extra != nullptr) {
-		        // создаем новый узел после last и вешаем на него extra->data
 		        auto* new_node = new TreeNode<BaseDataType>(extra->data);
-		        new_node->right = last->right;  // подвешиваем старый хвост после нового узла
+		        new_node->right = last->right;
 		        last->right = new_node;
 		        last = new_node;
 		        extra = extra->right;
 		    }
-		
-		    // 3) переходим к узлу, который был исходным "следующим" после cur
 		    cur = last->right;
 		}
     }
@@ -2735,25 +2692,16 @@ AFTER_GEN:
     			    if (is_temp_s) {
     			        DataType ct = type_of_expr(args[i]);
     			        TreeNode<BaseDataType>* cur = ct.list.get_root()->right;
-			
-    			        // Аккуратно двигаемся по цепочке, учитывая, что у аргумента
-    			        // цепочка может быть короче, чем у параметра.
     			        for (int k = 0; k < temp_s && cur; ++k) {
     			            cur = cur->right;
     			        }
 			
     			        if (cur) {
-    			            // Удалось сопоставить форму параметра и аргумента —
-    			            // забираем поддерево типов начиная с cur.
     			            targs[counter] = create_datatype_from_chain(cur);
     			        }
-    			        // else: форма аргумента не подходит под параметр — просто не
-    			        // выводим этот шаблонный параметр отсюда, пусть попробуют
-    			        // вывести его по другим параметрам.
     			    }
     			    else {
     					DataType arg_tp = type_of_expr(args[i]);
-    					// снимаем ссылку и rvalue-ссылку
     					arg_tp.root().link = false;
     					arg_tp.root().rvalue = false;
     					targs[counter] = arg_tp;
@@ -2831,9 +2779,6 @@ AFTER_GEN:
 			            }
 			
 			            if (!cur) {
-			                // Форма аргумента не соответствует форме параметра
-			                // (например, параметр deque<T>, а аргумент int) —
-			                // вывод шаблонных аргументов для этого кандидата невозможен.
 			                return std::make_pair(__L_map{}, false);
 			            }
 			
@@ -3208,10 +3153,7 @@ AFTER_GEN:
                         		if (std::holds_alternative<NodeTermIdent*>(tt->var)) {
                         			NodeTermIdent* id = std::get<NodeTermIdent*>(tt->var);
                         			std::string name = id->ident.value.value();
-                        			if (gen.var_lookup_cs(name).has_value()) { // _cs ищет только в текущем скоупе? Или во всех локальных?
-                            		 	// Если мы берем адрес локальной переменной...
-                            		 	// ...и если этот код находится внутри выражения return (это сложно отследить здесь).
-                            		 	// Но можно выдать предупреждение.
+                        			if (gen.var_lookup_cs(name).has_value()) {
                             		 	gen.GeneratorWarning(stmt_return->def, "Taking address of local variable `" + name + "`. "
                             		                      "Ensure this pointer does not outlive the scope.");
                         			}
@@ -3451,7 +3393,7 @@ AFTER_GEN:
 				if(!stmt_call->targs.empty()) {
 					gen.substitute_template(proc.rettype);
 					for(int i = 0;i < static_cast<int>(stmt_call->targs.size());++i) {
-						DataType t = stmt_call->targs[i];   // копия
+						DataType t = stmt_call->targs[i];
         				gen.substitute_template(t);
         				tsign += t.sign();
 					}
@@ -3784,7 +3726,7 @@ AFTER_GEN:
 				std::string tsign;
 				if(!stmt_call->targs.empty()) {
 					for(int i = 0;i < static_cast<int>(stmt_call->targs.size());++i) {
-						DataType t = stmt_call->targs[i];   // копия
+						DataType t = stmt_call->targs[i];
         				gen.substitute_template(t);
         				tsign += t.sign();
 					}
