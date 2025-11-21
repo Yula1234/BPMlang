@@ -1390,19 +1390,22 @@ public:
 				}
 				__map<std::string, DataType> temps;
 				bool substituted = false;
-				if(proc.templates != NULL && term_call->targs.empty()) {
+				
+				std::vector<DataType> local_targs = term_call->targs;
+
+				if(proc.templates != NULL && local_targs.empty()) {
 					if(term_call->args.has_value()) {
-						temps = gen.try_derive_templates(term_call->targs, proc.params, term_call->def, proc.templates, gen.__getargs(term_call->args.value()), proc);
+						temps = gen.try_derive_templates(local_targs, proc.params, term_call->def, proc.templates, gen.__getargs(term_call->args.value()), proc);
 						substituted = true;
 					}
 				}
-				if(proc.templates != NULL && term_call->targs.empty()) {
+				if(proc.templates != NULL && local_targs.empty()) {
 					gen.GeneratorError(term_call->def, "procedure `" + term_call->name + "` excepts template arguments in <...>.");
 				}
 				std::string tsign;
-				if (!term_call->targs.empty()) {
-				    for (int i = 0; i < static_cast<int>(term_call->targs.size()); ++i) {
-				        DataType t = term_call->targs[i];
+				if (!local_targs.empty()) {
+				    for (int i = 0; i < static_cast<int>(local_targs.size()); ++i) {
+				        DataType t = local_targs[i];
        					gen.substitute_template(t);
         				tsign += t.sign();
 				    }
@@ -1417,7 +1420,7 @@ public:
 				        dop_gen.m_temps.emplace_back(__map<std::string, DataType>{});
 				        size_t counter {0};
 				        for (auto&& el : *proc.templates) {
-				            dop_gen.m_temps.back()[el] = term_call->targs[counter++];
+				            dop_gen.m_temps.back()[el] = local_targs[counter++];
 				        }
 				
 				        if (substituted)
@@ -1456,7 +1459,7 @@ public:
 						if(!substituted) {
 							size_t counter {0};
 							for(auto&& el : *proc.templates) {
-								temps[el] = term_call->targs[counter++];
+								temps[el] = local_targs[counter++];
 							}
 						}
 						gen.substitute_template_params(temps, proc.params);
@@ -1473,7 +1476,7 @@ public:
 					gen.gen_args(gen.__getargs(term_call->args.value()), proc.params);
 				}
 				gen.m_output << "    call " << nname << "@" << pname;
-				if (!term_call->targs.empty())
+				if (!local_targs.empty())
 				    gen.m_output << tsign;
 				if (proc.override)
 				    gen.m_output << proc.get_sign();
@@ -1507,19 +1510,22 @@ public:
 					if(proc.rettype.root() == BaseDataTypeVoid) gen.GeneratorError(term_call->def, "can't use void " + term_call->name + "(...) as value");
 					__map<std::string, DataType> temps;
 					bool substituted = false;
-					if(proc.templates != NULL && term_call->targs.empty()) {
+					
+					std::vector<DataType> local_targs = term_call->targs;
+
+					if(proc.templates != NULL && local_targs.empty()) {
 						if(term_call->args.has_value()) {
-							temps = gen.try_derive_templates(term_call->targs, proc.params, term_call->def, proc.templates, gen.__getargs(term_call->args.value()), proc);
+							temps = gen.try_derive_templates(local_targs, proc.params, term_call->def, proc.templates, gen.__getargs(term_call->args.value()), proc);
 							substituted = true;
 						}
 					}
-					if(proc.templates != NULL && term_call->targs.empty()) {
+					if(proc.templates != NULL && local_targs.empty()) {
 						gen.GeneratorError(term_call->def, "procedure `" + term_call->name + "` excepts template arguments in <...>.");
 					}
 					std::string tsign;
-					if(!term_call->targs.empty()) {
-						for(int i = 0;i < static_cast<int>(term_call->targs.size());++i) {
-							DataType t = term_call->targs[i];
+					if(!local_targs.empty()) {
+						for(int i = 0;i < static_cast<int>(local_targs.size());++i) {
+							DataType t = local_targs[i];
         					gen.substitute_template(t);
         					tsign += t.sign();
 						}
@@ -1535,7 +1541,7 @@ public:
 							size_t counter {0};
 							dop_gen.m_temps.emplace_back(__map<std::string, DataType>{});
 							for(auto&& el : *proc.templates) {
-								dop_gen.m_temps[dop_gen.m_temps.size() - 1][el] = term_call->targs[counter++];
+								dop_gen.m_temps[dop_gen.m_temps.size() - 1][el] = local_targs[counter++];
 							}
 							if(substituted) gen.substitute_template_params(temps, proc.params);
 							else gen.substitute_template_params(dop_gen.m_temps.back(), proc.params);
@@ -1561,7 +1567,7 @@ public:
 					if(term_call->args.has_value()) gen.gen_args(gen.__getargs(term_call->args.value()), proc.params);
 					gen.m_output << "    call " << name;
 					if(proc.override) gen.m_output << proc.get_sign();
-					if(!term_call->targs.empty()) gen.m_output << tsign;
+					if(!local_targs.empty()) gen.m_output << tsign;
 					gen.m_output << "\n";
 					if(stack_allign != 0) gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
 					gen.m_output << "    push eax\n";
@@ -3380,20 +3386,23 @@ AFTER_GEN:
 				if(!proc.overrides.empty()) gen.resolve_overrides_tp(&proc, stmt_call->args, stmt_call->def, stmt_call->targs);
 				__map<std::string, DataType> temps;
 				bool substituted = false;
-				if(proc.templates != NULL && stmt_call->targs.empty()) {
+				
+				std::vector<DataType> local_targs = stmt_call->targs;
+
+				if(proc.templates != NULL && local_targs.empty()) {
 					if(stmt_call->args.has_value()) {
-						temps = gen.try_derive_templates(stmt_call->targs, proc.params, stmt_call->def, proc.templates, gen.__getargs(stmt_call->args.value()), proc);
+						temps = gen.try_derive_templates(local_targs, proc.params, stmt_call->def, proc.templates, gen.__getargs(stmt_call->args.value()), proc);
 						substituted = true;
 					}
 				}
-				if(proc.templates != NULL && stmt_call->targs.empty()) {
+				if(proc.templates != NULL && local_targs.empty()) {
 					gen.GeneratorError(stmt_call->def, "procedure `" + stmt_call->name + "` excepts template arguments in <...>.");
 				}
 				std::string tsign;
-				if(!stmt_call->targs.empty()) {
+				if(!local_targs.empty()) {
 					gen.substitute_template(proc.rettype);
-					for(int i = 0;i < static_cast<int>(stmt_call->targs.size());++i) {
-						DataType t = stmt_call->targs[i];
+					for(int i = 0;i < static_cast<int>(local_targs.size());++i) {
+						DataType t = local_targs[i];
         				gen.substitute_template(t);
         				tsign += t.sign();
 					}
@@ -3413,7 +3422,7 @@ AFTER_GEN:
 						else {
 							dop_gen.m_temps.emplace_back(__map<std::string, DataType>{});
 							for(auto&& el : *proc.templates) {
-								dop_gen.m_temps[dop_gen.m_temps.size() - 1][el] = stmt_call->targs[counter++];
+								dop_gen.m_temps[dop_gen.m_temps.size() - 1][el] = local_targs[counter++];
 							}
 						}
 						if(substituted) gen.substitute_template_params(temps, proc.params);
@@ -3442,7 +3451,7 @@ AFTER_GEN:
 					gen.gen_args(gen.__getargs(stmt_call->args.value()), proc.params);
 				}
 				gen.m_output << "    call " << name;
-				if(!stmt_call->targs.empty()) {
+				if(!local_targs.empty()) {
 					gen.m_output << tsign;
 				} else {
 					if(proc.override) gen.m_output << proc.get_sign();
@@ -3714,19 +3723,22 @@ AFTER_GEN:
 				}
 				__map<std::string, DataType> temps;
 				bool substituted = false;
-				if(proc.templates != NULL && stmt_call->targs.empty()) {
+				
+				std::vector<DataType> local_targs = stmt_call->targs;
+
+				if(proc.templates != NULL && local_targs.empty()) {
 					if(stmt_call->args.has_value()) {
-						temps = gen.try_derive_templates(stmt_call->targs, proc.params, stmt_call->def, proc.templates, gen.__getargs(stmt_call->args.value()), proc);
+						temps = gen.try_derive_templates(local_targs, proc.params, stmt_call->def, proc.templates, gen.__getargs(stmt_call->args.value()), proc);
 						substituted = true;
 					}
 				}
-				if(proc.templates != NULL && stmt_call->targs.empty()) {
+				if(proc.templates != NULL && local_targs.empty()) {
 					gen.GeneratorError(stmt_call->def, "procedure `" + stmt_call->name + "` excepts template arguments in <...>.");
 				}
 				std::string tsign;
-				if(!stmt_call->targs.empty()) {
-					for(int i = 0;i < static_cast<int>(stmt_call->targs.size());++i) {
-						DataType t = stmt_call->targs[i];
+				if(!local_targs.empty()) {
+					for(int i = 0;i < static_cast<int>(local_targs.size());++i) {
+						DataType t = local_targs[i];
         				gen.substitute_template(t);
         				tsign += t.sign();
 					}
@@ -3736,7 +3748,7 @@ AFTER_GEN:
 						dop_gen.m_temps.emplace_back(__map<std::string, DataType>{});
 						size_t counter {0};
 						for(auto&& el : *proc.templates) {
-							dop_gen.m_temps[dop_gen.m_temps.size() - 1][el] = stmt_call->targs[counter++];
+							dop_gen.m_temps[dop_gen.m_temps.size() - 1][el] = local_targs[counter++];
 						}
 						if(substituted) gen.substitute_template_params(temps, proc.params);
 						else gen.substitute_template_params(dop_gen.m_temps.back(), proc.params);
@@ -3777,7 +3789,7 @@ AFTER_GEN:
 					gen.gen_args(gen.__getargs(stmt_call->args.value()), proc.params);
 				}
 				gen.m_output << "    call " << nname << "@" << pname;
-				if(!stmt_call->targs.empty()) gen.m_output << tsign;
+				if(!local_targs.empty()) gen.m_output << tsign;
 				if(proc.override) gen.m_output << proc.get_sign();
 				gen.m_output << "\n";
 				if(stack_allign != 0) {
