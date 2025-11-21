@@ -198,11 +198,16 @@ namespace std {
 	proc move<T>(T& __P_v) -> T&& =
 		return cast(T&&, __P_v);
 
-	proc __container_move<CT, T>(CT<T>&& src, CT<T>&& dst) -> void {
-		let __tmp: CT<T> = *cast(CT<T>&, src);
-		store32(cast(ptr, src), null());
-		delete *cast(CT<T>&, dst);
-		store32(cast(ptr, dst), __tmp);
+	proc __grab_object<T>(T&& __O_v) -> T {
+		let __tmp = *cast(T&, __O_v);
+		store32(cast(ptr, __O_v), null());
+		return __tmp;
+	}
+
+	proc __container_move<CT, T>(CT<T>&& __src, CT<T>&& __dst) -> void {
+		let __gsrc = std::__grab_object(__src);
+		delete *cast(CT<T>&, __dst);
+		store32(cast(ptr, __dst), __gsrc);
 	}
 
 	proc equal(int lhs, int rhs) -> int = return lhs == rhs; 
