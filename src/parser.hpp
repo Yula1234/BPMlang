@@ -1643,23 +1643,25 @@ public:
 			return term;
 		}
 		if(auto _sizeof = try_consume(TokenType_t::_sizeof)) {
-			try_consume_err(TokenType_t::open_paren);
-			auto sizeof_term = m_allocator.emplace<NodeTermSizeof>();
-			sizeof_term->def = _sizeof.value();
-			Token ttype = peek().value();
-			if(!is_type_token(ttype.type)) {
-				if(auto _expr = parse_expr()) {
-					sizeof_term->expr = _expr;
-				} else {
-					error_expected("expression");
-				}
-			} else {
-				sizeof_term->type = uni_token_to_dt(ttype);
-				consume();
-			}
-			try_consume_err(TokenType_t::close_paren);
-			auto term = m_allocator.emplace<NodeTerm>(sizeof_term);
-			return term;
+    		auto sizeof_term = m_allocator.emplace<NodeTermSizeof>();
+    		sizeof_term->def = _sizeof.value();
+    		try_consume_err(TokenType_t::open_paren);
+		
+    		// Если следующий токен похож на тип – парсим полный тип (включая шаблонные аргументы)
+    		if (peek().has_value() && is_type_token(peek().value().type)) {
+    		    sizeof_term->type = parse_type();
+    		} else {
+    		    // Иначе считаем, что это выражение
+    		    if (auto _expr = parse_expr()) {
+    		        sizeof_term->expr = _expr;
+    		    } else {
+    		        error_expected("expression");
+    		    }
+    		}
+		
+    		try_consume_err(TokenType_t::close_paren);
+    		auto term = m_allocator.emplace<NodeTerm>(sizeof_term);
+    		return term;
 		}
 		if(auto _typeid = try_consume(TokenType_t::_typeid)) {
 			auto typeid_term = m_allocator.emplace<NodeTermTypeid>();

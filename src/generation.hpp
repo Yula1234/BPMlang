@@ -582,6 +582,35 @@ public:
         }
         return dt;
     }
+    std::vector<DataType> get_template_args(const DataType& dt) {
+    	std::vector<DataType> res;
+    	if (!dt.is_object()) return res;
+	
+    	std::string name = dt.getobjectname();
+    	std::optional<Struct> st = struct_lookup(name);
+    	if (!st.has_value() || !st.value().temp) {
+    	    // Структура не шаблонная — аргументов нет
+    	    return res;
+    	}
+	
+    	TreeNode<BaseDataType>* current = dt.list.get_root()->right;
+	
+    	// Вытаскиваем ровно st->temps.size() аргументов, игнорируя возможный "хвост"
+    	for (size_t i = 0; i < st.value().temps.size(); ++i) {
+    	    if (!current) break;
+	
+    	    size_t len = count_template_nodes(current);
+    	    res.push_back(extract_type_nodes(current, len));
+	
+    	    // Сдвигаем current на len узлов вперёд
+    	    for (size_t k = 0; k < len && current; ++k) {
+    	        current = current->right;
+    	    }
+    	}
+
+    	return res;
+	}
+
 	/*function returns type of field {}.{}*/
 	DataType type_of_dot(const NodeBinExprDot* dot, const Token& def) {
         DataType otype = type_of_expr(dot->lhs);
@@ -2342,40 +2371,73 @@ AFTER_GEN:
 		return proc.value();
 	}
 
-	void __typecheck_call(const std::vector<NodeExpr*>& args, const std::vector<std::pair<std::string, DataType>>& params, const Token& def, const Procedure& proc, size_t* stack_allign) {
-		if(params.size() == 0) {
-			GeneratorError(def, "procedure `" + proc.name + "` don't excepts any arguments");
-		}
-		bool nosizedargs = std::find(proc.attrs.begin(), proc.attrs.end(), ProcAttr::nosizedargs) != proc.attrs.end();
-		if(args.size() != proc.params.size() && !nosizedargs) {
-			GeneratorError(def, "procedure `" + proc.name + "` excepts " + std::to_string(proc.params.size()) + " arguments\nNOTE: but got " + std::to_string(args.size()));
-		}
-		if(args.size() < proc.params.size() && nosizedargs) {
-			GeneratorError(def, "procedure `" + proc.name + "` excepts minimum" + std::to_string(proc.params.size()) + " arguments\nNOTE: but got " + std::to_string(args.size()));
-		}
-		for(int i = 0;i < static_cast<int>(proc.params.size());++i) {
-			DataType argtype = type_of_expr(args[i]);
-			const DataType& ex_type = proc.params[i].second;
-			TreeNode<BaseDataType>* current1 = argtype.list.get_root()->right;
-			TreeNode<BaseDataType>* current2 = ex_type.list.get_root()->right;
-			if(!argtype.root().arg_eq(ex_type.root())) {
-				goto TYPECHECK_FAIL;
-			}
-			if(argtype.list.get_root()->size() != ex_type.list.get_root()->size()) {
-				goto TYPECHECK_FAIL;
-			}
-			while(current1 != nullptr) {
-				if(!current1->data.arg_eq(current2->data)) {
-					goto TYPECHECK_FAIL;
-				}
-				current1 = current1->right;
-				current2 = current2->right;
-			}
-			continue;
-			TYPECHECK_FAIL:
-			GeneratorError(def, "procedure `" + proc.name + "`\nexcept type " + proc.params[i].second.to_string() + " at " + std::to_string(i) + " argument\nNOTE: but found type " + type_of_expr(args[i]).to_string());
-		}
-		*stack_allign += args.size();
+	void __typecheck_call(const std::vector<NodeExpr*>& args,
+                      const std::vector<std::pair<std::string, DataType>>& params,
+                      const Token& def,
+                      const Procedure& proc,
+                      size_t* stack_allign)
+	{
+	    if (params.size() == 0) {
+	        GeneratorError(def, "procedure `" + proc.name + "` don't excepts any arguments");
+	    }
+	
+	    bool nosizedargs =
+	        std::find(proc.attrs.begin(), proc.attrs.end(), ProcAttr::nosizedargs) != proc.attrs.end();
+	
+	    if (args.size() != proc.params.size() && !nosizedargs) {
+	        GeneratorError(def,
+	                       "procedure `" + proc.name + "` excepts " +
+	                           std::to_string(proc.params.size()) +
+	                           " arguments\nNOTE: but got " + std::to_string(args.size()));
+	    }
+	    if (args.size() < proc.params.size() && nosizedargs) {
+	        GeneratorError(def,
+	                       "procedure `" + proc.name + "` excepts minimum" +
+	                           std::to_string(proc.params.size()) +
+	                           " arguments\nNOTE: but got " + std::to_string(args.size()));
+	    }
+	
+	    for (int i = 0; i < static_cast<int>(proc.params.size()); ++i) {
+	        DataType argtype = type_of_expr(args[i]);
+	        const DataType& ex_type = proc.params[i].second;
+	
+	        // 1) Сначала проверяем соответствие "корней" типов
+	        //    (учитывая ptr-уровень, &, &&, any, ptr и т.п.)
+	        if (!argtype.root().arg_eq(ex_type.root())) {
+	            GeneratorError(
+	                def,
+	                "procedure `" + proc.name + "`\nexcept type " +
+	                    proc.params[i].second.to_string() + " at " + std::to_string(i) +
+	                    " argument\nNOTE: but found type " + type_of_expr(args[i]).to_string());
+	        }
+	
+	        // 2) Если оба типа объектные (struct/шаблонная struct), нужно сверить шаблонные аргументы
+	        if (argtype.is_object() && ex_type.is_object()) {
+	            auto arg_targs = get_template_args(argtype);
+	            auto ex_targs  = get_template_args(ex_type);
+	
+	            if (arg_targs.size() != ex_targs.size()) {
+	                GeneratorError(
+	                    def,
+	                    "procedure `" + proc.name + "`\nexcept type " +
+	                        proc.params[i].second.to_string() + " at " + std::to_string(i) +
+	                        " argument\nNOTE: but found type " + type_of_expr(args[i]).to_string());
+	            }
+	
+	            for (size_t j = 0; j < arg_targs.size(); ++j) {
+	                if (arg_targs[j] != ex_targs[j]) {
+	                    GeneratorError(
+	                        def,
+	                        "procedure `" + proc.name + "`\nexcept type " +
+	                            proc.params[i].second.to_string() + " at " + std::to_string(i) +
+	                            " argument\nNOTE: but found type " +
+	                            type_of_expr(args[i]).to_string());
+	                }
+	            }
+	        }
+	    }
+	
+	    *stack_allign += args.size();
 	}
 
 	void substitute_template(DataType& type) {
@@ -2486,32 +2548,43 @@ AFTER_GEN:
 	}
 
 	bool __try_typecheck_call(const std::vector<NodeExpr*>& args, const Procedure& proc) {
-		bool nosizedargs = std::find(proc.attrs.begin(), proc.attrs.end(), ProcAttr::nosizedargs) != proc.attrs.end();
-		if(args.size() != proc.params.size() && !nosizedargs) {
-			return false;
-		}
-		if(args.size() < proc.params.size() && nosizedargs) {
-			return false;
-		}
-		for(int i = 0;i < static_cast<int>(proc.params.size());++i) {
-			DataType argtype = type_of_expr(args[i]);
-			const DataType& ex_type = proc.params[i].second;
-			TreeNode<BaseDataType>* current1 = argtype.list.get_root()->right;
-			TreeNode<BaseDataType>* current2 = ex_type.list.get_root()->right;
-			if(!argtype.root().arg_eq(ex_type.root())) goto TRY_TYPECHECK_FAIL;
-			if(argtype.list.get_root()->size() != ex_type.list.get_root()->size()) {
-				goto TRY_TYPECHECK_FAIL;
-			}
-			while(current1 != nullptr) {
-				if(current1->data != current2->data) goto TRY_TYPECHECK_FAIL;
-				current1 = current1->right;
-				current2 = current2->right;
-			}
-			continue;
-			TRY_TYPECHECK_FAIL:
-			return false;
-		}
-		return true;
+	    bool nosizedargs =
+	        std::find(proc.attrs.begin(), proc.attrs.end(), ProcAttr::nosizedargs) != proc.attrs.end();
+	
+	    if (args.size() != proc.params.size() && !nosizedargs) {
+	        return false;
+	    }
+	    if (args.size() < proc.params.size() && nosizedargs) {
+	        return false;
+	    }
+	
+	    for (int i = 0; i < static_cast<int>(proc.params.size()); ++i) {
+	        DataType argtype = type_of_expr(args[i]);
+	        const DataType& ex_type = proc.params[i].second;
+	
+	        // 1) Сравниваем корневые типы
+	        if (!argtype.root().arg_eq(ex_type.root())) {
+	            return false;
+	        }
+	
+	        // 2) Если оба объектные — сверяем шаблонные аргументы
+	        if (argtype.is_object() && ex_type.is_object()) {
+	            auto arg_targs = get_template_args(argtype);
+	            auto ex_targs  = get_template_args(ex_type);
+	
+	            if (arg_targs.size() != ex_targs.size()) {
+	                return false;
+	            }
+	
+	            for (size_t j = 0; j < arg_targs.size(); ++j) {
+	                if (arg_targs[j] != ex_targs[j]) {
+	                    return false;
+	                }
+	            }
+	        }
+	    }
+	
+	    return true;
 	}
 
 	std::vector<NodeExpr*> __getargs(NodeExpr* __expr) {
@@ -3207,27 +3280,38 @@ AFTER_GEN:
 				DataType vtype = gen.type_of_expr(stmt_assign->expr);
 				if(ltype.root().link && vtype.root().link) gen.GeneratorError(stmt_assign->def, "reference variable reassigning.");
 				if(!ltype.root().is_object) {
-					if(ltype != vtype) {
-						if(ltype.root().link && !vtype.root().link) {
-							NodeTermUnref unr;
-							unr.def = stmt_assign->def;
-							unr.expr = lvalue;
-							NodeTerm at;
-							at.var = &unr;
-							NodeExpr ae;
-							ae.var = &at;
-
-							NodeStmtAssign newas;
-							newas.def = stmt_assign->def;
-							newas.lvalue = &ae;
-							newas.expr = stmt_assign->expr;
-							NodeStmt stmt;
-							stmt.var = &newas;
-							gen.gen_stmt(&stmt);
-							return;
-						}
-						else gen.GeneratorError(stmt_assign->def, "at = except type " + ltype.to_string() + "\nNOTE: but got " + vtype.to_string());
-					}
+					auto nonobj_compatible = [&](const DataType& L, const DataType& R) -> bool {
+        			    if(!L.is_object() && !R.is_object())
+        			        return L.root().arg_eq(R.root());
+        			    // Если один вдруг объектный — требуем полное равенство
+        			    return L == R;
+        			};
+			
+        			if(!nonobj_compatible(ltype, vtype)) {
+        			    if(ltype.root().link && !vtype.root().link) {
+        			        NodeTermUnref unr;
+        			        unr.def = stmt_assign->def;
+        			        unr.expr = lvalue;
+        			        NodeTerm at;
+        			        at.var = &unr;
+        			        NodeExpr ae;
+        			        ae.var = &at;
+			
+        			        NodeStmtAssign newas;
+        			        newas.def = stmt_assign->def;
+        			        newas.lvalue = &ae;
+        			        newas.expr = stmt_assign->expr;
+        			        NodeStmt stmt;
+        			        stmt.var = &newas;
+        			        gen.gen_stmt(&stmt);
+        			        return;
+        			    }
+        			    else {
+        			        gen.GeneratorError(stmt_assign->def,
+        			            "at = except type " + ltype.to_string() +
+        			            "\nNOTE: but got " + vtype.to_string());
+        			    }
+        			}
 					if(std::holds_alternative<NodeTerm*>(lvalue->var)) {
 						NodeTerm* lvterm = std::get<NodeTerm*>(lvalue->var);
 						if(std::holds_alternative<NodeTermIdent*>(lvterm->var)) {
