@@ -198,6 +198,13 @@ namespace std {
 	proc move<T>(T& __P_v) -> T&& =
 		return cast(T&&, __P_v);
 
+	proc __container_move<CT, T>(CT<T>&& src, CT<T>&& dst) -> void {
+		let __tmp: CT<T> = *cast(CT<T>&, src);
+		store32(cast(ptr, src), null());
+		delete *cast(CT<T>&, dst);
+		store32(cast(ptr, dst), __tmp);
+	}
+
 	proc equal(int lhs, int rhs) -> int = return lhs == rhs; 
 	proc equal(char* lhs, char* rhs) -> int = return streq(lhs, rhs);
 
