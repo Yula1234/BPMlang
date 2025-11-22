@@ -368,19 +368,44 @@ void heap_collect()
     }
 }
 
-char* __sigsegv_wh_exception(uintptr_t __val) {
-    return "segmentation fault";
+char* __sigsegv_wh_exception(void* addr) {
+    static char buf[128];
+    // addr – это уже адрес, можно печатать напрямую
+    snprintf(buf, sizeof(buf), "segmentation fault at address %p", addr);
+    return buf;
+}
+
+char* __wexcp_wh_exception(void* code_ptr) {
+    static char buf[128];
+    // сюда мы будем передавать код исключения как число,
+    // восстановим его из uintptr_t
+    DWORD code = (DWORD)(uintptr_t)code_ptr;
+    snprintf(buf, sizeof(buf), "windows exception code 0x%08lx",
+             (unsigned long)code);
+    return buf;
 }
 
 LONG WINAPI unhandled_exception_filter(struct _EXCEPTION_POINTERS *ep)
 {
     DWORD code = ep->ExceptionRecord->ExceptionCode;
+    __bpm_exception* exc;
 
     if (code == EXCEPTION_ACCESS_VIOLATION) {
-        void *addr = ep->ExceptionRecord->ExceptionAddress;
-        __bpm_exception* exc = __bpm_allocate_exception(3, 0, (__what_t)__sigsegv_wh_exception);
-        __bpm_throw(exc);
+        void *bad_addr = (void*)ep->ExceptionRecord->ExceptionInformation[1];
+        exc = __bpm_allocate_exception(
+            3,
+            (uintptr_t)bad_addr,
+            __sigsegv_wh_exception 
+        );
+    } else {
+        exc = __bpm_allocate_exception(
+            3,
+            (uintptr_t)code,
+            __wexcp_wh_exception 
+        );
     }
+
+    __bpm_throw(exc);
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
