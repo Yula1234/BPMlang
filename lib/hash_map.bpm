@@ -1,192 +1,261 @@
-struct hash_map<Key, Value> {
-	arr: ptr,
-	full_factor: int,
-	m_size: int
+include "std"
+include "exception"
+
+// ------------------------------------------------------------
+// Простая хеш-таблица с цепочечной адресацией:
+//   map<K, V>
+//   - map::new<K, V>() -> map<K, V>
+//   - self~put(key, value)
+//   - self~get(key) -> V      (бросает std::exception, если нет ключа)
+//   - self~has(key) -> int    (1 / 0)
+//   - self~remove(key)
+//   - self~size() -> int
+//   - self~empty() -> int
+//   - self~destroy()          (для delete self)
+// ------------------------------------------------------------
+
+const MAP_INITIAL_CAP = 16;
+const MAP_LOAD_FACTOR_PERCENT = 75; // 75%
+
+struct MapNode<K, V> {
+    key:   K,
+    value: V,
+    next:  ptr
+}
+
+struct map<K, V> {
+    m_buckets: ptr,
+    m_size:    int,
+    m_cap:     int
+}
+
+impl map<K, V> {
+
+    proc new() -> map<K, V> {
+        let raw_map = memalloc(sizeof(map<K, V>));
+        let mref    = cast(map<K, V>*, raw_map);
+
+        mref.m_cap  = MAP_INITIAL_CAP;
+        mref.m_size = 0;
+        mref.m_buckets = memalloc(MAP_INITIAL_CAP * 4);
+
+        let i = 0;
+        while(i < MAP_INITIAL_CAP) {
+            store32(mref.m_buckets + (i * 4), null());
+            i += 1;
+        }
+
+        return cast(map<K, V>, raw_map);
+    }
+
+
+    proc _bucket_idx(map<K, V> self, K key) -> int {
+        let h = std::hash(key);
+        if(h < 0) { h = 0 - h; }
+        return h % self.m_cap;
+    }
+
+    proc _rehash(map<K, V> self) {
+        let old_cap     = self.m_cap;
+        let old_buckets = self.m_buckets;
+
+        let new_cap     = old_cap * 2;
+        let new_buckets = memalloc(new_cap * 4);
+
+        let i = 0;
+        while(i < new_cap) {
+            store32(new_buckets + (i * 4), null());
+            i += 1;
+        }
+
+        self.m_buckets = new_buckets;
+        self.m_cap     = new_cap;
+
+        i = 0;
+        while(i < old_cap) {
+            let current = cast(ptr, rd32(old_buckets + (i * 4)));
+
+            while(current != null()) {
+                let node_ref = cast(MapNode<K, V>*, current);
+                let next     = node_ref.next;
+
+                let new_idx     = self~_bucket_idx(node_ref.key);
+                let bucket_addr = self.m_buckets + (new_idx * 4);
+
+                let head = cast(ptr, rd32(bucket_addr));
+                node_ref.next = head;
+                store32(bucket_addr, current);
+
+                current = next;
+            }
+
+            i += 1;
+        }
+
+        memfree(old_buckets);
+    }
+
+    proc put(map<K, V> self, K key, V value) {
+        if ((self.m_size * 100) / self.m_cap > (MAP_LOAD_FACTOR_PERCENT - 1)) {
+            self~_rehash();
+        }
+
+        let idx         = self~_bucket_idx(key);
+        let bucket_addr = self.m_buckets + (idx * 4);
+        let current     = cast(ptr, rd32(bucket_addr));
+
+        while(current != null()) {
+            let node_ref = cast(MapNode<K, V>*, current);
+
+            if(std::equal(node_ref.key, key)) {
+                #if(is_object_t(ct_type(V))) { delete node_ref.value; }
+                node_ref.value = value;
+                return;
+            }
+
+            current = node_ref.next;
+        }
+
+        let head = cast(ptr, rd32(bucket_addr));
+
+        let new_node = MapNode<K, V>(key, value, head);
+
+        store32(bucket_addr, new_node);
+        self.m_size += 1;
+    }
+
+    proc get(map<K, V> self, K key) -> V {
+        let idx         = self~_bucket_idx(key);
+        let bucket_addr = self.m_buckets + (idx * 4);
+        let current     = cast(ptr, rd32(bucket_addr));
+
+        while(current != null()) {
+            let node_ref = cast(MapNode<K, V>*, current);
+            if(std::equal(node_ref.key, key)) {
+                return node_ref.value;
+            }
+            current = node_ref.next;
+        }
+
+        raise std::exception("Key not found in map");
+    }
+
+    proc has(map<K, V> self, K key) -> int {
+        let idx         = self~_bucket_idx(key);
+        let bucket_addr = self.m_buckets + (idx * 4);
+        let current     = cast(ptr, rd32(bucket_addr));
+
+        while(current != null()) {
+            let node_ref = cast(MapNode<K, V>*, current);
+            if(std::equal(node_ref.key, key)) {
+                return 1;
+            }
+            current = node_ref.next;
+        }
+        return 0;
+    }
+
+    proc remove(map<K, V> self, K key) {
+        let idx         = self~_bucket_idx(key);
+        let bucket_addr = self.m_buckets + (idx * 4);
+        let current     = cast(ptr, rd32(bucket_addr));
+        let prev        = null();
+
+        while(current != null()) {
+            let node_ref = cast(MapNode<K, V>*, current);
+
+            if(std::equal(node_ref.key, key)) {
+                if(prev == null()) {
+                    store32(bucket_addr, node_ref.next);
+                } else {
+                    let prev_ref = cast(MapNode<K, V>*, prev);
+                    prev_ref.next = node_ref.next;
+                }
+
+                #if(is_object_t(ct_type(K))) { delete node_ref.key; }
+                #if(is_object_t(ct_type(V))) { delete node_ref.value; }
+
+                memfree(current);
+                self.m_size -= 1;
+                return;
+            }
+
+            prev    = current;
+            current = node_ref.next;
+        }
+    }
+
+    proc size(map<K, V> self) -> int {
+        return self.m_size;
+    }
+
+    proc empty(map<K, V> self) -> int {
+        return self.m_size == 0;
+    }
+
+    proc destroy(map<K, V> self) {
+        let i = 0;
+        while(i < self.m_cap) {
+            let current = cast(ptr, rd32(self.m_buckets + (i * 4)));
+
+            while(current != null()) {
+                let node_ref = cast(MapNode<K, V>*, current);
+                let next     = node_ref.next;
+
+                #if(is_object_t(ct_type(K))) { delete node_ref.key; }
+                #if(is_object_t(ct_type(V))) { delete node_ref.value; }
+
+                memfree(current);
+                current = next;
+            }
+
+            i += 1;
+        }
+
+        memfree(self.m_buckets);
+        self.m_buckets = null();
+        self.m_size    = 0;
+        self.m_cap     = 0;
+    }
 }
 
 namespace std {
-	proc hash(string str) -> int {
-		let hash: int = 5381;
-		let i = 0;
-    	while(str~at(i) != 0) {
-    	    hash = ((hash << 5) + hash) + str~at(i);
-    	    i += 1;
-    	}
-    	return fabs(hash);
-	}
-	proc hash(char* str) -> int {
-		let hash: int = 5381;
-		let i = 0;
-    	while(rd8(str + i) != 0) {
-    	    hash = ((hash << 5) + hash) + rd8(str + i);
-    	    i += 1;
-    	}
-    	return fabs(hash);
-	}
-}
 
-// TODO HashMapIterator needs to be rewrited
-struct HashMapIterator<Key, Value> {
-	_ptr: ptr
-}
+    proc fprint<K, V>(int fd, map<K, V> m) {
+        std::fprint(fd, "{");
 
-namespace HashMapIterator {
-	proc new<Key, Value>(ptr _ptr) -> HashMapIterator<Key, Value> {
-		return HashMapIterator<Key, Value>(_ptr);
-	}
-	proc m_deref<Key, Value>(HashMapIterator<Key, Value> self) -> pair<Key, Value> {
-		return cast(pair<Key, Value>, (rd32(self._ptr)));
-	}
-	proc m_equal<Key, Value>(HashMapIterator<Key, Value> self, HashMapIterator<Key, Value> other) -> int {
-		return self._ptr == other._ptr;
-	}
-	proc m_not_equal<Key, Value>(HashMapIterator<Key, Value> self, HashMapIterator<Key, Value> other) -> int {
-		return self._ptr != other._ptr;
-	}
-	proc deref_to<Key, Value>(HashMapIterator<Key, Value> self) -> Value {
-		return (self~m_deref()).second;
-	}
-	proc m_inc<Key, Value>(HashMapIterator<Key, Value> self, int count) {
-		let i: int = count * 4;
-		while(rd32(self._ptr + i) == neg(1)) {
-			i += 4;
-		}
-		self._ptr += i;
-	}
-}
+        let first = 1;
+        let i = 0;
 
-namespace hash_map {
-	proc new<Key, Value>() -> hash_map<Key, Value> {
-		const MAP_DEF_SIZE = 16;
-		const MAP_DEF_CAP = MAP_DEF_SIZE * 4;
-		let __mem = memalloc(MAP_DEF_CAP);
-		memset(__mem, neg(1), MAP_DEF_CAP);
-		return hash_map<Key, Value>(__mem, 0, MAP_DEF_SIZE);
-	}
-	proc begin<Key, Value>(hash_map<Key, Value> self) -> HashMapIterator<Key, Value> {
-		let i: int = 0;
-		while(self~arr_at<Key, Value, int>(i) == neg(1)) {
-			i += 1;
-		}
-		return HashMapIterator<Key, Value>(self~arr_at_ptr(i));
-	}
-	proc end<Key, Value>(hash_map<Key, Value> self) -> HashMapIterator<Key, Value> {
-		return HashMapIterator<Key, Value>(self~arr_at_ptr(self.m_size));
-	}
-	proc to_index<Key, Value>(hash_map<Key, Value> self, int hash) -> int {
-		return hash % (self.m_size);
-	}
-	proc arr_at<Key, Value, As>(hash_map<Key, Value> self, int pos) -> As {
-		return cast(As, rd32(self.arr + (pos * 4)));
-	}
-	proc arr_at_ptr<Key, Value>(hash_map<Key, Value> self, int pos) -> ptr {
-		return cast(ptr, self.arr + (pos * 4));
-	}
-	proc m_assign<Key, Value>(hash_map<Key, Value> self, hash_map<Key, Value>&& other) {
-		let _other = *cast(hash_map<Key, Value>&, other);
-		memcpy(cast(ptr, self), cast(ptr, _other), sizeof(hash_map));
-		memset(cast(ptr, _other), 0, sizeof(hash_map));
-	}
-	proc extend<Key, Value>(hash_map<Key, Value> self) {
-		let __nmap: hash_map<Key, Value> = hash_map<Key, Value>();
-		__nmap.arr = memalloc((self.m_size * 2) * 4);
-		memset(__nmap.arr, neg(1), (self.m_size * 2) * 4);
-		__nmap.full_factor = self.full_factor;
-		__nmap.m_size = self.m_size * 2;
-		let __it = self~begin();
-		while(__it != self~end()) {
-			__nmap~insert(*__it.first, *__it.second);
-			__it += 1;
-		}
-		self~destroy();
-		self = std::move(__nmap);
-	}
-	proc insert<Key, Value>(hash_map<Key, Value> self, Key key, Value value) {
-		if(self.full_factor > (self.m_size / 4)) {
-			self~extend();
-		}
-		let hash: int = std::hash(key);
-		let index: int = self~to_index(hash);
-		// TODO: rewrite for this language
-		//while (arr[idx] != -1) {
-    	//	if (arr[idx].first == key) { break; }
-    	//		idx = (idx + 1) % size;
-		//}
-		if(self~arr_at<Key, Value, int>(index) == neg(1)) {
-			self.full_factor += 1;
-		}
-		store32(self~arr_at_ptr(index), std::make_pair(key, value));
-	}
-	proc destroy<Key, Value>(hash_map<Key, Value> self) {
-		memfree(self.arr);
-	}
-	proc find<Key, Value>(hash_map<Key, Value> self, Key key) -> HashMapIterator<Key, Value> {
-		let hash: int = std::hash(key);
-		let index: int = self~to_index(hash);
-		// TODO: rewrite for this language
-		// while (arr[idx] != -1) {
-    	// 	if (arr[idx].first == key) {
-        // 		return Iterator(ptr);
-    	// 	}
-    	// 	idx = (idx + 1) % size;
-		// }
-		if(self~arr_at<Key, Value, int>(index) != neg(1)) {
-			return HashMapIterator<Key, Value>(self~arr_at_ptr(index));
-		}
-		return self~end();
-	}
-	proc m_assign<Key, Value>(hash_map<Key, Value> self, hash_map<Key, Value> other) {
-		if(self.arr != null()) memfree(self.arr);
-		self.arr = memalloc(other.m_size * 4);
-		memset(self.arr, neg(1), other.m_size * 4);
-		let __it = other~begin();
-		while(__it != other~end()) {
-			self~insert(*__it.first, *__it.second);
-			__it += 1;
-		}
-	}
-	proc erase<Key, Value>(hash_map<Key, Value> self, HashMapIterator<Key, Value> pos) {
-		store32(pos._ptr, neg(1));
-		self.full_factor -= 1;
-	}
-	proc contains<Key, Value>(hash_map<Key, Value> self, Key key) -> int {
-		return self~find(key) != self~end();
-	}
-	proc insert<Key, Value>(hash_map<Key, Value> self, HashMapIterator<Key, Value> begin, HashMapIterator<Key, Value> end) {
-		let __it = begin;
-		while(__it != end) {
-			self~insert(*__it.first, *__it.second);
-			__it += 1;
-		}
-	}
-	proc m_equal<Key, Value>(hash_map<Key, Value> self, hash_map<Key, Value> other) -> int {
-		if((self.full_factor) != (other.full_factor)) return false;
-		let __it1 = self~begin();
-		let __it2 = other~begin();
-		while(__it1 != self~end()) {
-			if((*__it1.first) != (*__it2.first)) return false;
-			if((*__it1.second) != (*__it2.second)) return false;
-			__it1 += 1;
-			__it2 += 1;
-		}
-		return true;
-	}
-	proc m_not_equal<Key, Value>(hash_map<Key, Value> self, hash_map<Key, Value> other) -> int {
-		return not(self == other);
-	}
-	proc clone<Key, Value>(hash_map<Key, Value> self) -> hash_map<Key, Value> {
-		let __np = hash_map::new<Key, Value>();
-		__np~insert(self~begin(), self~end());
-		return __np;
-	}
-	proc dump<Key, Value>(hash_map<Key, Value> self) {
-		let __it = self~begin();
-		while(__it != self~end()) {
-			std::print(*__it.first);
-			std::print(" -> ");
-			std::print(*__it.second);
-			putc('\n');
-			__it += 1;
-		}
-	}
+        while(i < m.m_cap) {
+            let current = cast(ptr, rd32(m.m_buckets + (i * 4)));
+
+            while(current != null()) {
+                let node_ref = cast(MapNode<K, V>*, current);
+
+                if(first == 0) {
+                    std::fprint(fd, ", ");
+                }
+                first = 0;
+
+                // key
+                std::fprint(fd, node_ref.key);
+                std::fprint(fd, ": ");
+
+                // value
+                std::fprint(fd, node_ref.value);
+
+                current = node_ref.next;
+            }
+
+            i += 1;
+        }
+
+        std::fprint(fd, "}");
+    }
+
+    proc print<K, V>(map<K, V> m) {
+        std::fprint(stdout, m);
+        std::print("\n");
+    }
 }

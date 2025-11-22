@@ -152,6 +152,18 @@ cextern "scanf";
 proc scanf(ptr format_str) -> void [nosizedargs];
 
 namespace std {
+	proc hash(char* str) -> int {
+		let hash: int = 5381;
+		let i = 0;
+    	while(rd8(str + i) != 0) {
+    	    hash = ((hash << 5) + hash) + rd8(str + i);
+    	    i += 1;
+    	}
+    	return fabs(hash);
+	}
+}
+
+namespace std {
 	proc fprintf(int fd, char* format_str) -> void
 	[nosizedargs] {
 		let frame = __frame_ebp() + 4;
@@ -210,8 +222,9 @@ namespace std {
 		store32(cast(ptr, __dst), __gsrc);
 	}
 
-	proc equal(int lhs, int rhs) -> int = return lhs == rhs; 
-	proc equal(char* lhs, char* rhs) -> int = return streq(lhs, rhs);
+	proc equal<T>(T lhs, T rhs) -> int {
+		return lhs == rhs;
+	}
 
 	proc add(int lhs, int rhs) -> int = return lhs + rhs;
 	proc sub(int lhs, int rhs) -> int = return lhs - rhs;
