@@ -611,6 +611,55 @@ public:
     	return res;
 	}
 
+	DataType canonical_type(const DataType& src) {
+	    DataType type = src; // копия
+	
+	    TreeNode<BaseDataType>* root = type.list.get_root();
+	    if (!root) return type;
+	
+	    // Примитивный тип
+	    if (!root->data.is_object) {
+	        // Специальный случай: ProcPtr хранит сигнатуру в правой цепочке — не трогаем
+	        if (!root->data.is_simple() ||
+	            root->data.getsimpletype() != SimpleDataType::proc_ptr) {
+	            root->right = nullptr;
+	        }
+	        return type;
+	    }
+	
+	    // Объектный тип: если структура не шаблонная — хвост нам не нужен, срезаем
+	    std::optional<Struct> st = struct_lookup(root->data.getobjectname());
+	    if (!st.has_value() || !st.value().temp) {
+	        root->right = nullptr;
+	        return type;
+	    }
+	
+	    // Шаблонный struct<T,...> — оставляем как есть (map<K,V>, vector<T> и т.п.)
+	    return type;
+	}
+
+	bool same_param_types(const std::vector<std::pair<std::string, DataType>>& a,
+                          const std::vector<std::pair<std::string, DataType>>& b) {
+        if (a.size() != b.size()) return false;
+        for (size_t i = 0; i < a.size(); ++i) {
+            if (a[i].second != b[i].second) return false; // сравниваем ТИПЫ, не имена
+        }
+        return true;
+    }
+
+    bool proc_same_signature(const NodeStmtProc* def, const Procedure& p) {
+        if (p.rettype != def->rettype) return false;
+        if (!same_param_types(p.params, def->params)) return false;
+
+        bool t1 = (p.templates != NULL);
+        bool t2 = (def->templates != NULL);
+        if (t1 != t2) return false;
+        if (t1 && t2) {
+            if (*p.templates != *def->templates) return false;
+        }
+        return true;
+    }
+
 	/*function returns type of field {}.{}*/
 	DataType type_of_dot(const NodeBinExprDot* dot, const Token& def) {
         DataType otype = type_of_expr(dot->lhs);
@@ -670,9 +719,10 @@ public:
     }
 
 	DataType type_of_expr(const NodeExpr* expr) {
-		DataType res = __type_of_expr(expr);
-		substitute_template(res);
-		return res;
+    	DataType res = __type_of_expr(expr);
+    	substitute_template(res);
+    	res = canonical_type(res);
+    	return res;
 	}
 
 	DataType __type_of_expr(const NodeExpr* expr) {
@@ -1645,12 +1695,15 @@ public:
 						gen.m_output << "    mov dword [tmp_stor+edx], eax\n";
 						Struct _st = st.value();
 						__map<std::string, DataType> temps;
-						if(_st.temp) {
-							size_t counter {0};
-							for(auto&& el : _st.temps) {
-								temps[el] = term_call->targs[counter++];
-							}
-						}
+    					if (_st.temp) {
+        					size_t counter {0};
+        					for (auto&& el : _st.temps) {
+        					    DataType targ = term_call->targs[counter++];
+        					    gen.substitute_template(targ);   // подставляем K->string, V->int и т.п.
+        					    targ = gen.canonical_type(targ); // убираем мусорный хвост
+        					    temps[el] = targ;
+        					}
+    					}
 						for(int i = 0;i < static_cast<int>(iargs.size());++i) {
 							DataType itype = gen.type_of_expr(iargs[i]);
 							Field f;
@@ -2398,42 +2451,42 @@ AFTER_GEN:
 	    }
 	
 	    for (int i = 0; i < static_cast<int>(proc.params.size()); ++i) {
-	        DataType argtype = type_of_expr(args[i]);
-	        const DataType& ex_type = proc.params[i].second;
+	        DataType arg_raw = type_of_expr(args[i]);
+	        const DataType& ex_raw = proc.params[i].second;
 	
-	        // 1) Сначала проверяем соответствие "корней" типов
-	        //    (учитывая ptr-уровень, &, &&, any, ptr и т.п.)
+	        DataType argtype = canonical_type(arg_raw);
+	        DataType ex_type = canonical_type(ex_raw);
+	
+	        bool ok = true;
+	
+	        // Сравниваем корни типов (учитывая ptr, &, &&, any и т.п.)
 	        if (!argtype.root().arg_eq(ex_type.root())) {
-	            GeneratorError(
-	                def,
-	                "procedure `" + proc.name + "`\nexcept type " +
-	                    proc.params[i].second.to_string() + " at " + std::to_string(i) +
-	                    " argument\nNOTE: but found type " + type_of_expr(args[i]).to_string());
+	            ok = false;
 	        }
-	
-	        // 2) Если оба типа объектные (struct/шаблонная struct), нужно сверить шаблонные аргументы
-	        if (argtype.is_object() && ex_type.is_object()) {
+	        // Если оба объектные — сверяем шаблонные аргументы (для map<K,V>, vector<T> и т.п.)
+	        else if (argtype.is_object() && ex_type.is_object()) {
 	            auto arg_targs = get_template_args(argtype);
 	            auto ex_targs  = get_template_args(ex_type);
 	
 	            if (arg_targs.size() != ex_targs.size()) {
-	                GeneratorError(
-	                    def,
-	                    "procedure `" + proc.name + "`\nexcept type " +
-	                        proc.params[i].second.to_string() + " at " + std::to_string(i) +
-	                        " argument\nNOTE: but found type " + type_of_expr(args[i]).to_string());
-	            }
-	
-	            for (size_t j = 0; j < arg_targs.size(); ++j) {
-	                if (arg_targs[j] != ex_targs[j]) {
-	                    GeneratorError(
-	                        def,
-	                        "procedure `" + proc.name + "`\nexcept type " +
-	                            proc.params[i].second.to_string() + " at " + std::to_string(i) +
-	                            " argument\nNOTE: but found type " +
-	                            type_of_expr(args[i]).to_string());
+	                ok = false;
+	            } else {
+	                for (size_t j = 0; j < arg_targs.size(); ++j) {
+	                    if (arg_targs[j] != ex_targs[j]) {
+	                        ok = false;
+	                        break;
+	                    }
 	                }
 	            }
+	        }
+	
+	        if (!ok) {
+	            DataType got = canonical_type(arg_raw);
+	            GeneratorError(
+	                def,
+	                "procedure `" + proc.name + "`\nexcept type " +
+	                    ex_type.to_string() + " at " + std::to_string(i) +
+	                    " argument\nNOTE: but found type " + got.to_string());
 	        }
 	    }
 	
@@ -2559,15 +2612,16 @@ AFTER_GEN:
 	    }
 	
 	    for (int i = 0; i < static_cast<int>(proc.params.size()); ++i) {
-	        DataType argtype = type_of_expr(args[i]);
-	        const DataType& ex_type = proc.params[i].second;
+	        DataType arg_raw = type_of_expr(args[i]);
+	        const DataType& ex_raw = proc.params[i].second;
 	
-	        // 1) Сравниваем корневые типы
+	        DataType argtype = canonical_type(arg_raw);
+	        DataType ex_type = canonical_type(ex_raw);
+	
 	        if (!argtype.root().arg_eq(ex_type.root())) {
 	            return false;
 	        }
 	
-	        // 2) Если оба объектные — сверяем шаблонные аргументы
 	        if (argtype.is_object() && ex_type.is_object()) {
 	            auto arg_targs = get_template_args(argtype);
 	            auto ex_targs  = get_template_args(ex_type);
@@ -2575,7 +2629,6 @@ AFTER_GEN:
 	            if (arg_targs.size() != ex_targs.size()) {
 	                return false;
 	            }
-	
 	            for (size_t j = 0; j < arg_targs.size(); ++j) {
 	                if (arg_targs[j] != ex_targs[j]) {
 	                    return false;
@@ -3080,34 +3133,47 @@ AFTER_GEN:
 			void operator()(const NodeStmtProc* stmt_proc)
 			{
 				std::optional<Procedure> proc = gen.proc_lookup(stmt_proc->name);
-				bool override = false;
-				Procedure* movs = NULL;
-				if(proc.has_value() && !proc.value().prototype && !gen.in_namespace()) {
-					if(stmt_proc->params != proc.value().params) {
-						Procedure* ovs = gen.m_allocator.emplace<Procedure>();
-						ovs->name = stmt_proc->name;
-						ovs->params = stmt_proc->params;
-						ovs->rettype = stmt_proc->rettype;
-						ovs->stack_allign = stmt_proc->params.size() + gen.collect_alligns(stmt_proc->scope);
-						ovs->attrs = stmt_proc->attrs;
-						ovs->def = stmt_proc->def;
-						ovs->prototype = stmt_proc->prototype;
-						ovs->override = true;
-						ovs->uniq_sign = std::nullopt;
-						ovs->scope = stmt_proc->scope;
-						ovs->from = stmt_proc;
-						ovs->templates = stmt_proc->templates;
-						ovs->overload_nth = proc.value().overrides.size() + 1;
-						movs = ovs;
-						gen.m_procs[stmt_proc->name].overrides.push_back(ovs);
-						override = true;
-					} else {
-						Token pdef = proc.value().def;
-						gen.DiagnosticMessage(stmt_proc->def, "error", "procedure `" + stmt_proc->name + "` redefenition.", 0);
-						gen.DiagnosticMessage(pdef, "note", "first defenition here.", 0);
-						exit(1);
-					}
-				}
+    			bool override = false;
+    			Procedure* movs = NULL;
+			
+    			// Глобальные (не в namespace) процедуры
+    			if (proc.has_value() && !gen.in_namespace()) {
+    			    if (proc.value().prototype) {
+    			        // есть прототип — реализация должна совпадать по сигнатуре
+    			        if (!gen.proc_same_signature(stmt_proc, proc.value())) {
+    			            gen.GeneratorError(stmt_proc->def,
+    			                "prototype of procedure and definition have different signature.");
+    			        }
+    			    } else {
+    			        // обычная процедура уже есть
+    			        if (gen.proc_same_signature(stmt_proc, proc.value())) {
+    			            Token pdef = proc.value().def;
+    			            gen.DiagnosticMessage(stmt_proc->def, "error",
+    			                                  "procedure `" + stmt_proc->name + "` redefenition.", 0);
+    			            gen.DiagnosticMessage(pdef, "note", "first definition here.", 0);
+    			            exit(1);
+    			        } else {
+    			            // создаём overload
+    			            Procedure* ovs = gen.m_allocator.emplace<Procedure>();
+    			            ovs->name = stmt_proc->name;
+    			            ovs->params = stmt_proc->params;
+    			            ovs->rettype = stmt_proc->rettype;
+    			            ovs->stack_allign = stmt_proc->params.size() + gen.collect_alligns(stmt_proc->scope);
+    			            ovs->attrs = stmt_proc->attrs;
+    			            ovs->def = stmt_proc->def;
+    			            ovs->prototype = stmt_proc->prototype;
+    			            ovs->override = true;
+    			            ovs->uniq_sign = std::nullopt;
+    			            ovs->scope = stmt_proc->scope;
+    			            ovs->from = stmt_proc;
+    			            ovs->templates = stmt_proc->templates;
+    			            ovs->overload_nth = gen.m_procs[stmt_proc->name].overrides.size() + 1;
+    			            movs = ovs;
+    			            gen.m_procs[stmt_proc->name].overrides.push_back(ovs);
+    			            override = true;
+    			        }
+    			    }
+    			}
 				else if(proc.has_value() && proc.value().prototype && !gen.in_namespace()) {
 					if(proc.value().params.size() != stmt_proc->params.size()) {
 						gen.GeneratorError(stmt_proc->def, "prototype of procedure and definition have different params sizes.\nNOTE: except `" + std::to_string(proc.value().params.size()) + "` but got `" + std::to_string(stmt_proc->params.size()) + "`.");
@@ -3123,32 +3189,60 @@ AFTER_GEN:
 				if(!override) {
 					if(gen.in_namespace()) {
 						const auto& search = gen.m_cur_namespace->procs.find(stmt_proc->name);
-						if(search != gen.m_cur_namespace->procs.end()) {
-							Procedure& npc = search->second;
-							if(stmt_proc->params.size() == npc.params.size() && npc.params == stmt_proc->params) {
-								Token pdef = npc.def;
-								gen.DiagnosticMessage(stmt_proc->def, "error", "procedure `" + stmt_proc->name + "` redefenition.", 0);
-								gen.DiagnosticMessage(pdef, "note", "first defenition here.", 0);
-								exit(1);
-							} else {
-								Procedure* ovs = gen.m_allocator.emplace<Procedure>();
-								ovs->name = stmt_proc->name;
-								ovs->params = stmt_proc->params;
-								ovs->rettype = stmt_proc->rettype;
-								ovs->stack_allign = stmt_proc->params.size() + gen.collect_alligns(stmt_proc->scope);
-								ovs->attrs = stmt_proc->attrs;
-								ovs->def = stmt_proc->def;
-								ovs->prototype = stmt_proc->prototype;
-								ovs->override = true;
-								ovs->uniq_sign = std::nullopt;
-								ovs->scope = stmt_proc->scope;
-								ovs->from = stmt_proc;
-								ovs->templates = stmt_proc->templates;
-								ovs->overload_nth = npc.overrides.size() + 1;
-								movs = ovs;
-								npc.overrides.push_back(ovs);
-								override = true;
-							}
+					    if (search != gen.m_cur_namespace->procs.end()) {
+					        Procedure& npc = search->second;
+					
+					        auto same_sig = [&](Procedure& p) -> bool {
+					            if (p.params.size() != stmt_proc->params.size()) return false;
+					            if (p.rettype != stmt_proc->rettype) return false;
+					            if (p.params != stmt_proc->params) return false;
+					
+					            if ((p.templates == NULL) != (stmt_proc->templates == NULL)) return false;
+					            if (p.templates && stmt_proc->templates) {
+					                if (*p.templates != *stmt_proc->templates) return false;
+					            }
+					            return true;
+					        };
+					
+					        // сначала базовый вариант
+					        if (same_sig(npc)) {
+					            Token pdef = npc.def;
+					            gen.DiagnosticMessage(stmt_proc->def, "error",
+					                                  "procedure `" + stmt_proc->name + "` redefenition.", 0);
+					            gen.DiagnosticMessage(pdef, "note", "first defenition here.", 0);
+					            exit(1);
+					        }
+					
+					        // затем все overrides
+					        for (int i = 0; i < static_cast<int>(npc.overrides.size()); ++i) {
+					            Procedure* cp = npc.overrides[i];
+					            if (same_sig(*cp)) {
+					                Token pdef = cp->def;
+					                gen.DiagnosticMessage(stmt_proc->def, "error",
+					                                      "procedure `" + stmt_proc->name + "` redefenition.", 0);
+					                gen.DiagnosticMessage(pdef, "note", "first defenition here.", 0);
+					                exit(1);
+					            }
+					        }
+					
+					        // если точного совпадения нет – создаём новый overload
+					        Procedure* ovs = gen.m_allocator.emplace<Procedure>();
+					        ovs->name = stmt_proc->name;
+					        ovs->params = stmt_proc->params;
+					        ovs->rettype = stmt_proc->rettype;
+					        ovs->stack_allign = stmt_proc->params.size() + gen.collect_alligns(stmt_proc->scope);
+					        ovs->attrs = stmt_proc->attrs;
+					        ovs->def = stmt_proc->def;
+					        ovs->prototype = stmt_proc->prototype;
+					        ovs->override = true;
+					        ovs->uniq_sign = std::nullopt;
+					        ovs->scope = stmt_proc->scope;
+					        ovs->from = stmt_proc;
+					        ovs->templates = stmt_proc->templates;
+					        ovs->overload_nth = npc.overrides.size() + 1;
+					        movs = ovs;
+					        npc.overrides.push_back(ovs);
+					        override = true;
 						} else {
 							gen.m_cur_namespace->procs[stmt_proc->name] = { .name = stmt_proc->name , .params = stmt_proc->params , .rettype = stmt_proc->rettype, .stack_allign = stmt_proc->params.size() + fsz, .attrs = stmt_proc->attrs , .def = stmt_proc->def, .prototype = stmt_proc->prototype, .overrides = {}, .override = false , .uniq_sign = std::nullopt, .templates = stmt_proc->templates , .scope = stmt_proc->scope , .from = stmt_proc , .instanceated = {} , .mbn = "", .overload_nth = 0 };
 						}
@@ -3161,18 +3255,36 @@ AFTER_GEN:
 				if(stmt_proc->templates != NULL) return;
 				if(stmt_proc->prototype) return;
 				if(override && movs->templates != NULL) return;
+				
 				std::vector<ProcAttr> attrs = stmt_proc->attrs; 
 				bool noprolog = std::find(attrs.begin(), attrs.end(), ProcAttr::noprolog) != attrs.end();
+				
+				// Сначала формируем лейбл в строку
+				std::string label;
 				if(stmt_proc->name != "main") {
-					if(gen.in_namespace()) gen.m_output << gen.m_cur_namespace->name << "@" << stmt_proc->name;
-					else gen.m_output << stmt_proc->name;
-					if(override) {
-						gen.m_output << movs->get_sign();
-					}
+				    if(gen.in_namespace()) {
+				        label += gen.m_cur_namespace->name;
+				        label += "@";
+				    }
+				    label += stmt_proc->name;
+				    if(override) {
+				        label += movs->get_sign();
+				    }
 				} else {
-					gen.m_output << "__main";
+				    label = "__main";
 				}
-				gen.m_output << ":\n";
+				
+				// Проверяем переопределение на уровне ASM-лейбла
+				if(gen.m_used_labels.find(label) != gen.m_used_labels.end()) {
+				    gen.DiagnosticMessage(stmt_proc->def, "error",
+				                          "procedure `" + stmt_proc->name + "` redefinition (ASM label `" +
+				                          label + "` already used).", 0);
+				    exit(1);
+				}
+				gen.m_used_labels.insert(label);
+				
+				// Печатаем лейбл
+				gen.m_output << label << ":\n";
 				if(!noprolog) {
 					gen.m_output << "    push ebp\n";
 					gen.m_output << "    mov ebp, esp\n";
@@ -4148,6 +4260,7 @@ private:
 	VectorSim<size_t>		m_scopes;
 	VectorSim<size_t>		m_scopes_vi;
 	VectorSim<size_t>		m_break_scopes;
+	__stdset<std::string> m_used_labels;
 	__stdvec<__map<std::string, Constant>> m_consts;
 	__stdvec<__map<std::string, DataType>> m_typedefs;
 	__stdvec<std::pair<size_t, std::string>> m_typeid_table {
