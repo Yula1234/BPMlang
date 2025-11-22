@@ -29,9 +29,9 @@ struct map<K, V> {
     m_cap:     int
 }
 
-impl map<K, V> {
+impl map<K, V> [new] {
 
-    proc new() -> map<K, V> {
+    proc new<K, V>() -> map<K, V> {
         let raw_map = memalloc(sizeof(map<K, V>));
         let mref    = cast(map<K, V>*, raw_map);
 
