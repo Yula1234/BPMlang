@@ -2430,64 +2430,17 @@ AFTER_GEN:
                       const Procedure& proc,
                       size_t* stack_allign)
 	{
-	    if (params.size() == 0) {
-	        GeneratorError(def, "procedure `" + proc.name + "` don't excepts any arguments");
-	    }
-	
 	    bool nosizedargs =
 	        std::find(proc.attrs.begin(), proc.attrs.end(), ProcAttr::nosizedargs) != proc.attrs.end();
-	
-	    if (args.size() != proc.params.size() && !nosizedargs) {
+	    int bad = -1;
+	    if (!match_call_signature(args, params, proc, nosizedargs, &bad)) {
+	        // здесь уже можно собрать понятное сообщение,
+	        // используя canonical_type(type_of_expr(args[bad])) и params[bad].second
 	        GeneratorError(def,
-	                       "procedure `" + proc.name + "` excepts " +
-	                           std::to_string(proc.params.size()) +
-	                           " arguments\nNOTE: but got " + std::to_string(args.size()));
-	    }
-	    if (args.size() < proc.params.size() && nosizedargs) {
-	        GeneratorError(def,
-	                       "procedure `" + proc.name + "` excepts minimum" +
-	                           std::to_string(proc.params.size()) +
-	                           " arguments\nNOTE: but got " + std::to_string(args.size()));
-	    }
-	
-	    for (int i = 0; i < static_cast<int>(proc.params.size()); ++i) {
-	        DataType arg_raw = type_of_expr(args[i]);
-	        const DataType& ex_raw = proc.params[i].second;
-	
-	        DataType argtype = canonical_type(arg_raw);
-	        DataType ex_type = canonical_type(ex_raw);
-	
-	        bool ok = true;
-	
-	        // Сравниваем корни типов (учитывая ptr, &, &&, any и т.п.)
-	        if (!argtype.root().arg_eq(ex_type.root())) {
-	            ok = false;
-	        }
-	        // Если оба объектные — сверяем шаблонные аргументы (для map<K,V>, vector<T> и т.п.)
-	        else if (argtype.is_object() && ex_type.is_object()) {
-	            auto arg_targs = get_template_args(argtype);
-	            auto ex_targs  = get_template_args(ex_type);
-	
-	            if (arg_targs.size() != ex_targs.size()) {
-	                ok = false;
-	            } else {
-	                for (size_t j = 0; j < arg_targs.size(); ++j) {
-	                    if (arg_targs[j] != ex_targs[j]) {
-	                        ok = false;
-	                        break;
-	                    }
-	                }
-	            }
-	        }
-	
-	        if (!ok) {
-	            DataType got = canonical_type(arg_raw);
-	            GeneratorError(
-	                def,
-	                "procedure `" + proc.name + "`\nexcept type " +
-	                    ex_type.to_string() + " at " + std::to_string(i) +
-	                    " argument\nNOTE: but found type " + got.to_string());
-	        }
+	            "procedure `" + proc.name + "`\nexcept type " +
+	            canonical_type(params[bad].second).to_string() + " at " + std::to_string(bad) +
+	            " argument\nNOTE: but found type " +
+	            canonical_type(type_of_expr(args[bad])).to_string());
 	    }
 	
 	    *stack_allign += args.size();
@@ -2601,43 +2554,9 @@ AFTER_GEN:
 	}
 
 	bool __try_typecheck_call(const std::vector<NodeExpr*>& args, const Procedure& proc) {
-	    bool nosizedargs =
-	        std::find(proc.attrs.begin(), proc.attrs.end(), ProcAttr::nosizedargs) != proc.attrs.end();
-	
-	    if (args.size() != proc.params.size() && !nosizedargs) {
-	        return false;
-	    }
-	    if (args.size() < proc.params.size() && nosizedargs) {
-	        return false;
-	    }
-	
-	    for (int i = 0; i < static_cast<int>(proc.params.size()); ++i) {
-	        DataType arg_raw = type_of_expr(args[i]);
-	        const DataType& ex_raw = proc.params[i].second;
-	
-	        DataType argtype = canonical_type(arg_raw);
-	        DataType ex_type = canonical_type(ex_raw);
-	
-	        if (!argtype.root().arg_eq(ex_type.root())) {
-	            return false;
-	        }
-	
-	        if (argtype.is_object() && ex_type.is_object()) {
-	            auto arg_targs = get_template_args(argtype);
-	            auto ex_targs  = get_template_args(ex_type);
-	
-	            if (arg_targs.size() != ex_targs.size()) {
-	                return false;
-	            }
-	            for (size_t j = 0; j < arg_targs.size(); ++j) {
-	                if (arg_targs[j] != ex_targs[j]) {
-	                    return false;
-	                }
-	            }
-	        }
-	    }
-	
-	    return true;
+    	bool nosizedargs =
+        std::find(proc.attrs.begin(), proc.attrs.end(), ProcAttr::nosizedargs) != proc.attrs.end();
+    	return match_call_signature(args, proc.params, proc, nosizedargs, nullptr);
 	}
 
 	std::vector<NodeExpr*> __getargs(NodeExpr* __expr) {
@@ -2782,168 +2701,76 @@ AFTER_GEN:
 		return m_cur_namespace != NULL;
 	}
 
-	__map<std::string, DataType> try_derive_templates(std::vector<DataType>& targs, const std::vector<std::pair<std::string, DataType>>& params, const Token& def, __stdvec<std::string>* templates, const std::vector<NodeExpr*> args, const Procedure& proc) {
-		if(params.empty()) GeneratorError(def, "can't substitute type " + *templates->begin() + ", params empty.");
-		if(params.size() != args.size()) GeneratorError(def, "procedure `" + proc.name = "` excepts " + std::to_string(params.size()) + " args, but got " + std::to_string(args.size()) + ".");
-		assert(templates != NULL);
-		assert(!templates->empty());
-		targs.reserve(templates->size());
-		for(int i = 0;i < static_cast<int>(templates->size());++i) {
-			targs.emplace_back(SimpleDataType::_void);
-		}
-		size_t redo_count {0};
-	REDO_DERIVE:
-		for(int i = 0;i < static_cast<int>(params.size());++i) {
-			int counter {-1};
-			int temp_s {-1};
-			bool is_temp_s = false;
-			for(int j = 0;j < static_cast<int>(templates->size());++j) {
-				if(!params[i].second.is_object()) continue;
-				if(templates->operator[](j) == params[i].second.getobjectname()) {
-					counter = j;
-					break;
-				}
-				TreeNode<BaseDataType>* current = params[i].second.list.get_root()->right;
-				temp_s = 0;
-				while(current != nullptr) {
-					if(current->data.is_object && templates->operator[](j) == current->data.getobjectname()) {
-						if(targs[j].is_simple() && targs[j].getsimpletype() == SimpleDataType::_void) {
-							counter = j;
-							is_temp_s = true;
-							break;
-						}
-					}
-					temp_s++;
-					current = current->right;
-				}
-				if(is_temp_s) break;
-				else temp_s = -1;
-			}
-			if (counter != -1) {
-    			if (targs[counter].is_simple() && targs[counter].getsimpletype() == SimpleDataType::_void) {
-    			    if (is_temp_s) {
-    			        DataType ct = type_of_expr(args[i]);
-    			        TreeNode<BaseDataType>* cur = ct.list.get_root()->right;
-    			        for (int k = 0; k < temp_s && cur; ++k) {
-    			            cur = cur->right;
-    			        }
-			
-    			        if (cur) {
-    			            targs[counter] = create_datatype_from_chain(cur);
-    			        }
-    			    }
-    			    else {
-    					DataType arg_tp = type_of_expr(args[i]);
-    					arg_tp.root().link = false;
-    					arg_tp.root().rvalue = false;
-    					targs[counter] = arg_tp;
-					}
-    			}
-    			counter = -1;
-    			is_temp_s = false;
-    			temp_s = -1;
-			}
-		}
-		size_t i {0};
-		__map<std::string, DataType> temps;
-		size_t counter {0};
-		for(auto&& el : *templates) {
-			if(targs[i].root().is_simple() && targs[i].root().getsimpletype() == SimpleDataType::_void) {
-				if(redo_count > 1)
-					GeneratorError(def, "failed to substitute template argument `" + templates->operator[](i) + "`.");
-				else {
-					redo_count++;
-					goto REDO_DERIVE;
-				}
-			}
-			i++;
-			temps[el] = targs[counter++];
-		}
-		return temps;
+	__map<std::string, DataType> try_derive_templates(std::vector<DataType>& targs,
+                                                 const std::vector<std::pair<std::string, DataType>>& params,
+                                                 const Token& def,
+                                                 __stdvec<std::string>* templates,
+                                                 const std::vector<NodeExpr*> args,
+                                                 const Procedure& proc)
+	{
+	    if (params.empty()) {
+	        GeneratorError(def, "can't substitute type " + *templates->begin() + ", params empty.");
+	    }
+	    if (params.size() != args.size()) {
+	        GeneratorError(def, "procedure `" + proc.name +
+	                             "` excepts " + std::to_string(params.size()) +
+	                             " args, but got " + std::to_string(args.size()) + ".");
+	    }
+	
+	    assert(templates != NULL);
+	    assert(!templates->empty());
+	
+	    __map<std::string, DataType> temps;
+	    bool ok = derive_templates_core(targs, params, templates, args, proc, temps);
+	    if (!ok) {
+	        // пытаемся найти, какой именно параметр не вывелся (_void)
+	        int bad = -1;
+	        for (int i = 0; i < static_cast<int>(templates->size()); ++i) {
+	            if (targs[i].root().is_simple() &&
+	                targs[i].root().getsimpletype() == SimpleDataType::_void) {
+	                bad = i;
+	                break;
+	            }
+	        }
+	        if (bad >= 0) {
+	            GeneratorError(def,
+	                "failed to substitute template argument `" +
+	                templates->operator[](bad) + "`.");
+	        } else {
+	            GeneratorError(def, "failed to substitute template arguments.");
+	        }
+	    }
+	    return temps;
 	}
 
-	std::pair<__map<std::string, DataType>, bool> try_derive_templates_no_err(std::vector<DataType> targs, const std::vector<std::pair<std::string, DataType>> params, const Token& def, __stdvec<std::string>* templates, const std::vector<NodeExpr*> args, const Procedure& proc) {
-		using __L_map = __map<std::string, DataType>;
-		if(params.empty()) return std::make_pair(__L_map{}, false);
-		if(params.size() != args.size()) GeneratorError(def, "procedure `" + proc.name = "` excepts " + std::to_string(params.size()) + " args, but got " + std::to_string(args.size()) + ".");
-		assert(templates != NULL);
-		assert(!templates->empty());
-		targs.reserve(templates->size());
-		for(int i = 0;i < static_cast<int>(templates->size());++i) {
-			targs.emplace_back(SimpleDataType::_void);
-		}
-		size_t redo_count {0};
-	REDO_DERIVE:
-		for(int i = 0;i < static_cast<int>(params.size());++i) {
-			int counter {-1};
-			int temp_s {-1};
-			bool is_temp_s = false;
-			for(int j = 0;j < static_cast<int>(templates->size());++j) {
-				if(!params[i].second.is_object()) continue;
-				if(templates->operator[](j) == params[i].second.getobjectname()) {
-					counter = j;
-					break;
-				}
-				TreeNode<BaseDataType>* current = params[i].second.list.get_root()->right;
-				temp_s = 0;
-				while(current != nullptr) {
-					if(current->data.is_object && templates->operator[](j) == current->data.getobjectname()) {
-						if(targs[j].is_simple() && targs[j].getsimpletype() == SimpleDataType::_void) {
-							counter = j;
-							is_temp_s = true;
-							break;
-						}
-					}
-					temp_s++;
-					current = current->right;
-				}
-				if(is_temp_s) break;
-				else temp_s = -1;
-			}
-			if (counter != -1) {
-			    if (targs[counter].is_simple() && targs[counter].getsimpletype() == SimpleDataType::_void) {
-			        if (is_temp_s) {
-			            DataType ct = type_of_expr(args[i]);
-			            TreeNode<BaseDataType>* cur = ct.list.get_root()->right;
-			
-			            for (int k = 0; k < temp_s && cur; ++k) {
-			                cur = cur->right;
-			            }
-			
-			            if (!cur) {
-			                return std::make_pair(__L_map{}, false);
-			            }
-			
-			            targs[counter] = create_datatype_from_chain(cur);
-			        }
-			        else {
-			            DataType arg_tp = type_of_expr(args[i]);
-    					arg_tp.root().link = false;
-    					arg_tp.root().rvalue = false;
-    					targs[counter] = arg_tp;
-			        }
-			    }
-			    counter = -1;
-			    is_temp_s = false;
-			    temp_s = -1;
-			}
-		}
-		size_t i {0};
-		__map<std::string, DataType> temps;
-		size_t counter {0};
-		for(auto&& el : *templates) {
-			if(targs[i].root().is_simple() && targs[i].root().getsimpletype() == SimpleDataType::_void) {
-				if(redo_count > 1)
-					return std::make_pair(__L_map{}, false);
-				else {
-					redo_count++;
-					goto REDO_DERIVE;
-				}
-			}
-			i++;
-			temps[el] = targs[counter++];
-		}
-		return std::make_pair(temps, true);
+	std::pair<__map<std::string, DataType>, bool> try_derive_templates_no_err(std::vector<DataType> targs,
+                            const std::vector<std::pair<std::string, DataType>> params,
+                            const Token& def,
+                            __stdvec<std::string>* templates,
+                            const std::vector<NodeExpr*> args,
+                            const Procedure& proc)
+		{
+	    using __L_map = __map<std::string, DataType>;
+	
+	    if (params.empty()) {
+	        return std::make_pair(__L_map{}, false);
+	    }
+	    if (params.size() != args.size()) {
+	        // как и раньше: это считается фатальной ошибкой
+	        GeneratorError(def, "procedure `" + proc.name +
+	                             "` excepts " + std::to_string(params.size()) +
+	                             " args, but got " + std::to_string(args.size()) + ".");
+	    }
+	
+	    assert(templates != NULL);
+	    assert(!templates->empty());
+	
+	    __L_map temps;
+	    bool ok = derive_templates_core(targs, params, templates, args, proc, temps);
+	    if (!ok) {
+	        return std::make_pair(__L_map{}, false);
+	    }
+	    return std::make_pair(temps, true);
 	}
 
 	void resolve_overrides(Procedure* proc, std::optional<NodeExpr*> args, const Token& def) {
@@ -2974,14 +2801,9 @@ AFTER_GEN:
 		if(!proc->overrides.empty()) {
 			if(!__try_typecheck_call(__getargs(args.value()), *proc)) {
 				std::vector<NodeExpr*> args_v = __getargs(args.value());
-				std::string args_s;
-				for(int i = 0;i < static_cast<int>(args_v.size());++i) {
-					std::string tmp(type_of_expr(args_v[i]).to_string());
-					args_s += tmp.substr(1, tmp.size() - 2);
-					if(i != static_cast<int>(args_v.size()) - 1) {
-						args_s += ", ";
-					}
-				}
+				std::vector<DataType> arg_types;
+				for (auto* e : args_v) arg_types.push_back(canonical_type(type_of_expr(e)));
+				std::string args_s = format_type_list(arg_types);
 				DiagnosticMessage(def, "error", "no match candidate for call procedure " + proc->name + "(" + args_s + ").", 0);
 				std::string args_s1;
 				for(int i = 0;i < static_cast<int>(proc->params.size());++i) {
@@ -3069,13 +2891,9 @@ AFTER_GEN:
 			}
 		}
 		std::vector<NodeExpr*> args_v = __getargs(args.value());
-		std::string args_s;
-		for(int i = 0;i < static_cast<int>(args_v.size());++i) {
-			args_s += type_of_expr(args_v[i]).to_string();
-			if(i != static_cast<int>(args_v.size()) - 1) {
-				args_s += ", ";
-			}
-		}
+		std::vector<DataType> arg_types;
+		for (auto* e : args_v) arg_types.push_back(canonical_type(type_of_expr(e)));
+		std::string args_s = format_type_list(arg_types);
 		DiagnosticMessage(def, "error", "no match candidate for call procedure " + proc->name + "(" + args_s + ").", 0);
 		std::string args_s1;
 		for(int i = 0;i < static_cast<int>(proc->params.size());++i) {
@@ -4148,6 +3966,155 @@ AFTER_GEN:
 	}
 
 private:
+	std::string format_type_list(const std::vector<DataType>& types) {
+	    std::string res;
+	    for (int i = 0; i < static_cast<int>(types.size()); ++i) {
+	        res += types[i].to_string();
+	        if (i + 1 < static_cast<int>(types.size())) res += ", ";
+	    }
+	    return res;
+	}
+	bool derive_templates_core(std::vector<DataType>& targs,
+                           const std::vector<std::pair<std::string, DataType>>& params,
+                           __stdvec<std::string>* templates,
+                           const std::vector<NodeExpr*>& args,
+                           UNUSED_ARG const Procedure& proc,
+                           __map<std::string, DataType>& temps_out)
+	{
+	    assert(templates != NULL);
+	    assert(!templates->empty());
+	
+	    targs.clear();
+	    targs.reserve(templates->size());
+	    for (int i = 0; i < static_cast<int>(templates->size()); ++i) {
+	        targs.emplace_back(SimpleDataType::_void);
+	    }
+	
+	    size_t redo_count = 0;
+	    __map<std::string, DataType> temps;
+	
+	    while (true) {
+	        // попытка заполнить targs по всем параметрам
+	        for (int i = 0; i < static_cast<int>(params.size()); ++i) {
+	            int  counter  = -1;
+	            int  temp_s   = -1;
+	            bool is_temp_s = false;
+	
+	            for (int j = 0; j < static_cast<int>(templates->size()); ++j) {
+	                if (!params[i].second.is_object()) continue;
+	
+	                if (templates->operator[](j) == params[i].second.getobjectname()) {
+	                    counter = j;
+	                    break;
+	                }
+	
+	                TreeNode<BaseDataType>* current = params[i].second.list.get_root()->right;
+	                temp_s = 0;
+	                while (current != nullptr) {
+	                    if (current->data.is_object &&
+	                        templates->operator[](j) == current->data.getobjectname()) {
+	                        if (targs[j].is_simple() &&
+	                            targs[j].getsimpletype() == SimpleDataType::_void) {
+	                            counter   = j;
+	                            is_temp_s = true;
+	                            break;
+	                        }
+	                    }
+	                    temp_s++;
+	                    current = current->right;
+	                }
+	                if (is_temp_s) break;
+	                else temp_s = -1;
+	            }
+	
+	            if (counter != -1) {
+	                if (targs[counter].is_simple() &&
+	                    targs[counter].getsimpletype() == SimpleDataType::_void) {
+	
+	                    if (is_temp_s) {
+	                        DataType ct = type_of_expr(args[i]);
+	                        TreeNode<BaseDataType>* cur = ct.list.get_root()->right;
+	
+	                        for (int k = 0; k < temp_s && cur; ++k) {
+	                            cur = cur->right;
+	                        }
+	
+	                        if (cur) {
+	                            targs[counter] = create_datatype_from_chain(cur);
+	                        }
+	                    } else {
+	                        DataType arg_tp = type_of_expr(args[i]);
+	                        arg_tp.root().link   = false;
+	                        arg_tp.root().rvalue = false;
+	                        targs[counter]       = arg_tp;
+	                    }
+	                }
+	            }
+	        }
+	
+	        // проверяем, все ли targs уже выведены
+	        bool all_set = true;
+	        for (int i = 0; i < static_cast<int>(templates->size()); ++i) {
+	            if (targs[i].root().is_simple() &&
+	                targs[i].root().getsimpletype() == SimpleDataType::_void) {
+	                all_set = false;
+	                break;
+	            }
+	        }
+	        if (all_set) break;
+	
+	        // второй заход уже был — значит, вывести не удалось
+	        if (redo_count > 0) {
+	            return false;
+	        }
+	        redo_count++;
+	        // пробуем ещё раз
+	    }
+	
+	    size_t counter = 0;
+	    for (auto&& el : *templates) {
+	        temps[el] = targs[counter++];
+	    }
+	    temps_out = std::move(temps);
+	    return true;
+	}
+	bool match_call_signature(const std::vector<NodeExpr*>& args,
+                          const std::vector<std::pair<std::string, DataType>>& params,
+                          __attribute__((unused)) const Procedure& proc,
+                          bool nosizedargs,
+                          int* bad_index /*может быть nullptr*/) {
+	    if(args.size() != params.size() && !nosizedargs) return false;
+	    if(args.size() < params.size() && nosizedargs)  return false;
+	
+	    for (int i = 0; i < static_cast<int>(params.size()); ++i) {
+	        DataType arg_raw = type_of_expr(args[i]);
+	        const DataType& ex_raw = params[i].second;
+	        DataType argtype = canonical_type(arg_raw);
+	        DataType ex_type = canonical_type(ex_raw);
+	
+	        if (!argtype.root().arg_eq(ex_type.root()))
+	        {
+	            if (bad_index) *bad_index = i;
+	            return false;
+	        }
+	
+	        if (argtype.is_object() && ex_type.is_object()) {
+	            auto arg_targs = get_template_args(argtype);
+	            auto ex_targs  = get_template_args(ex_type);
+	            if (arg_targs.size() != ex_targs.size()) {
+	                if (bad_index) *bad_index = i;
+	                return false;
+	            }
+	            for (size_t j = 0; j < arg_targs.size(); ++j) {
+	                if (arg_targs[j] != ex_targs[j]) {
+	                    if (bad_index) *bad_index = i;
+	                    return false;
+	                }
+	            }
+	        }
+	    }
+	    return true;
+	}
 	void m_init_typeid_table(std::stringstream& result) noexcept {
 		size_t counter {0};
 		result << "    mov ecx, dword [__type_id_table]\n";
