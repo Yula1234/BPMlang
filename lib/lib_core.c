@@ -1,3 +1,5 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 #include<stdio.h>
 #include<stdbool.h>
 #include<string.h>
@@ -364,4 +366,25 @@ void heap_collect()
     for (size_t i = 0; i < to_free_count; ++i) {
         memfree(to_free[i]);
     }
+}
+
+char* __sigsegv_wh_exception(uintptr_t __val) {
+    return "segmentation fault";
+}
+
+LONG WINAPI unhandled_exception_filter(struct _EXCEPTION_POINTERS *ep)
+{
+    DWORD code = ep->ExceptionRecord->ExceptionCode;
+
+    if (code == EXCEPTION_ACCESS_VIOLATION) {
+        void *addr = ep->ExceptionRecord->ExceptionAddress;
+        __bpm_exception* exc = __bpm_allocate_exception(3, 0, (__what_t)__sigsegv_wh_exception);
+        __bpm_throw(exc);
+    }
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+void __bpm_set_sigsegv_handler(void)
+{
+    SetUnhandledExceptionFilter(unhandled_exception_filter);
 }

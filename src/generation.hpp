@@ -780,7 +780,7 @@ public:
 			if(std::holds_alternative<NodeTermUnref*>(term->var)) {
 				NodeTermUnref* unref = std::get<NodeTermUnref*>(term->var);
 				DataType tp = type_of_expr(unref->expr);
-				if(!tp.root().link && tp.root().ptrlvl == 0 && !tp.is_object()) {
+				if(!tp.root().link && tp.root().ptrlvl == 0 && !tp.is_object() && tp.root() != SimpleDataType::ptr) {
 					GeneratorError(unref->def, "can't dereference not-reference or pointer type.");
 				}
 				if(tp.root().link) {
@@ -3907,6 +3907,7 @@ AFTER_GEN:
 		result << "\n";
 
 		result << "main:\n";
+		result << "    call __bpm_set_sigsegv_handler\n";
 		result << "    mov dword [stack_base], ebp\n";
 		result << "    push dword " << (*m_typeid_table_size) * 4ULL << '\n';
 		result << "    call malloc\n";
@@ -4263,7 +4264,8 @@ private:
 		"__exception_bufs_lvl",
 		"__bpm_get_current_exception",
 		"traceback_push",
-		"traceback_pop"
+		"traceback_pop",
+		"__bpm_set_sigsegv_handler"
 	};
 	__stdvec<NodeScope*> __oninits;
 	__stdvec<std::string> m_tsigns;
