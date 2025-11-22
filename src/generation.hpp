@@ -330,6 +330,7 @@ public:
 		m_structs = other.m_structs;
 		m_global_vars = other.m_global_vars;
 		m_interfaces = other.m_interfaces;
+		m_used_labels = other.m_used_labels;
 		m_namespaces = other.m_namespaces;
 		m_cur_namespace = NULL;
 		m_parser = other.m_parser;
