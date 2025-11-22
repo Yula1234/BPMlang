@@ -207,8 +207,10 @@ void *memalloc(size_t size_bytes)
     return NULL;
 }
 
-char* __double_free_exception(uintptr_t __val) {
-    return "double free of pointer";
+char* __double_free_exception(void* __val) {
+    static char buf[128];
+    snprintf(buf, sizeof(buf), "double free of pointer %p", __val);
+    return buf;
 }
 
 typedef char*(*__what_t)(void*);
@@ -319,7 +321,7 @@ void memfree(void *ptr)
     if (ptr != NULL) {
         const int index = chunk_list_find(&alloced_chunks, ptr);
         if(index < 0) {
-            __bpm_exception* exc = __bpm_allocate_exception(3, 0, (__what_t)__double_free_exception);
+            __bpm_exception* exc = __bpm_allocate_exception(3, (uintptr_t)ptr, (__what_t)__double_free_exception);
             __bpm_throw(exc);
             //printf("ERROR: double free of pointer %p\n", ptr);
             //*(int*)NULL = 0;
@@ -370,15 +372,12 @@ void heap_collect()
 
 char* __sigsegv_wh_exception(void* addr) {
     static char buf[128];
-    // addr – это уже адрес, можно печатать напрямую
     snprintf(buf, sizeof(buf), "segmentation fault at address %p", addr);
     return buf;
 }
 
 char* __wexcp_wh_exception(void* code_ptr) {
     static char buf[128];
-    // сюда мы будем передавать код исключения как число,
-    // восстановим его из uintptr_t
     DWORD code = (DWORD)(uintptr_t)code_ptr;
     snprintf(buf, sizeof(buf), "windows exception code 0x%08lx",
              (unsigned long)code);
