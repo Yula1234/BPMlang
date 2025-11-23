@@ -22,6 +22,37 @@ using __str_ref = const std::string&;
 
 void consume_un(...) {}
 
+namespace INTERNAL_CODE {
+	std::string IMPLEMENTATION = R"(struct exception { __message: char*, __bstub1: int, __bstub2: int }
+impl exception { proc what(exception self) -> char* { return self.__message; } }
+struct __DoubleFreeException { __addr: ptr, __bstub1: int, __bstub2: int }
+impl __DoubleFreeException { proc what(__DoubleFreeException self) -> char* {
+        __pushonstack(self.__addr);
+        asm "call __bpm_double_free_exception_what";
+        asm "add esp, 4";
+        asm "push eax";
+        let __fst = __popfromstack();
+        return cast(char*, __fst); } }
+__oninit { __pushonstack(typeid(__DoubleFreeException)); asm "pop edx"; asm "mov dword [__BpmDoubleExceptionTypeId], edx"; }
+struct __RecursionException { __bstub: int, __bstub1: int, __bstub2: int }
+impl __RecursionException { proc what(__RecursionException self) -> char* {
+        asm "call __bpm_recursion_exception_what";
+        asm "push eax";
+        let __fst = __popfromstack();
+        return cast(char*, __fst); } }
+__oninit { __pushonstack(typeid(__RecursionException)); asm "pop edx"; asm "mov dword [__BpmRecursionExceptionTypeId], edx"; }
+struct __SigSegvException { __addr: int, __bstub1: int, __bstub2: int }
+impl __SigSegvException { proc what(__SigSegvException self) -> char* {
+        __pushonstack(self.__addr);
+        asm "call __sigsegv_wh_exception";
+        asm "add esp, 4";
+        asm "push eax";
+        let __fst = __popfromstack();
+        return cast(char*, __fst); } }
+__oninit { __pushonstack(typeid(__SigSegvException)); asm "pop edx"; asm "mov dword [__BpmSigSegvExceptionTypeId], edx"; }
+namespace std { proc exception(char* mess_) -> exception = return exception(mess_, 0, 0); })";
+}
+
 template<typename T>
 class VectorSim {
 private:
@@ -199,6 +230,7 @@ public:
 		size_t m_typeid;
 		bool temp;
 		__stdvec<std::string> temps;
+		Token def;
 
 		size_t size_of() const noexcept {
 			return __fields.size();
@@ -3593,9 +3625,15 @@ AFTER_GEN:
 			}
 
 			void operator()(const NodeStmtStruct* stmt_struct) {
+				std::optional<Struct> alrh = gen.struct_lookup(stmt_struct->name);
+				if(alrh.has_value()) {
+					gen.DiagnosticMessage(stmt_struct->def, "error", "redefinition of structure `" + stmt_struct->name + "`", strlen("struct "));
+					gen.DiagnosticMessage(alrh.value().def, "note", "first defenition here", strlen("struct "));
+					exit(EXIT_FAILURE);
+				}
 				size_t current_type_id = (*gen.m_typeid_table_size)++;
 				gen.m_typeid_table.push_back(std::make_pair(current_type_id, stmt_struct->name));
-				gen.m_structs[stmt_struct->name] = { .name = stmt_struct->name, .fields = gen.compute_fields(stmt_struct->fields), .__allocator = stmt_struct->__allocator , .__fields = stmt_struct->fields, .m_typeid = gen.m_structs_count++ , .temp = stmt_struct->temp , .temps = stmt_struct->temps };
+				gen.m_structs[stmt_struct->name] = { .name = stmt_struct->name, .fields = gen.compute_fields(stmt_struct->fields), .__allocator = stmt_struct->__allocator , .__fields = stmt_struct->fields, .m_typeid = gen.m_structs_count++ , .temp = stmt_struct->temp , .temps = stmt_struct->temps, .def = stmt_struct->def };
 			}
 
 			void operator()(const NodeStmtInterface* stmt_inter) {
@@ -3838,6 +3876,8 @@ AFTER_GEN:
 			    const std::string catch_lab = gen.create_label();
 			    const std::string end_catch = gen.create_label();
 			    const std::string end_lab = gen.create_label();
+			    gen.m_output << "    mov eax, dword [traceback+4096]\n"; // Читаем traceback.count (смещение 4*1024 = 4096 байт от начала структуры)
+				gen.m_output << "    push eax\n"; // Сохраняем старый count на стеке
 			    gen.m_output << "    inc dword [__exception_bufs_lvl]\n";
 			    gen.m_output << "    mov eax, dword [__exception_bufs_lvl]\n";
 			    gen.m_output << "    imul eax, eax, 64\n";
@@ -3848,6 +3888,8 @@ AFTER_GEN:
 			    gen.m_output << "    cmp eax, 1\n";
 			    gen.m_output << "    jnz " << end_catch << '\n';
 			    gen.m_output << "    " << catch_lab << ":\n";
+			    gen.m_output << "    pop eax\n"; // Достаем сохраненный count
+				gen.m_output << "    mov dword [traceback+4096], eax\n"; // Восстанавливаем глобальную переменную
 			    size_t catch_scope_size = 1 + gen.collect_alligns(stmt_try->_catch);
 			    gen.begin_scope(catch_scope_size); // Генерирует sub esp, ...
 			    gen.create_var_va(stmt_try->name, stmt_try->type, stmt_try->def);
@@ -3888,7 +3930,11 @@ AFTER_GEN:
 		*m_label_count = 0ULL;
 		*m_string_index = 0ULL;
 		result << "section .text\n\n";
-		result << "global main\nglobal __BpmDoubleExceptionTypeId\n\n";
+		result << "global main\n\n";
+		result << "global __BpmDoubleExceptionTypeId\n";
+		result << "global __BpmRecursionExceptionTypeId\n";
+		result << "global __BpmSigSegvExceptionTypeId\n";
+		result << "\n";
 
 		for (const NodeStmt* stmt : m_prog->stmts) {
 			gen_stmt(stmt);
@@ -3904,6 +3950,8 @@ AFTER_GEN:
 		result << "    call __bpm_set_sigsegv_handler\n";
 		result << "    mov dword [stack_base], ebp\n";
 		result << "    mov dword [__BpmDoubleExceptionTypeId], 0\n";
+		result << "    mov dword [__BpmRecursionExceptionTypeId], 0\n";
+		result << "    mov dword [__BpmSigSegvExceptionTypeId], 0\n";
 		result << "    push dword " << (*m_typeid_table_size) * 4ULL << '\n';
 		result << "    call malloc\n";
 		result << "    add esp, 4\n";
@@ -3950,6 +3998,8 @@ AFTER_GEN:
 		m_output << "    tmp_stor: resd 1024\n";
 		m_output << "    tmp_p: resd 1\n";
 		m_output << "    __BpmDoubleExceptionTypeId: resd 1\n";
+		m_output << "    __BpmRecursionExceptionTypeId: resd 1\n";
+		m_output << "    __BpmSigSegvExceptionTypeId: resd 1\n";
 		for(auto&& pairs : m_global_vars) {
 			const GVar& ivar = pairs.second;
 			m_output << "    v_" << ivar.name << ": resd 1\n";
@@ -4262,7 +4312,10 @@ private:
 		"traceback_push",
 		"traceback_pop",
 		"__bpm_set_sigsegv_handler",
+		"__sigsegv_wh_exception",
 		"__bpm_double_free_exception_what",
+		"traceback",
+		"__bpm_recursion_exception_what",
 	};
 	__stdvec<NodeScope*> __oninits;
 	__stdvec<std::string> m_tsigns;

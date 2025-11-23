@@ -86,10 +86,27 @@ int main(int argc, char* argv[]) {
         contents = contents_stream.str();
     }
 
-    Tokenizer tokenizer(std::move(contents));
-    auto result = tokenizer.tokenize(argv[1]);
+    std::string user_code;
+    {
+        std::stringstream contents_stream;
+        std::fstream input(argv[1], std::ios::in);
+        contents_stream << input.rdbuf();
+        user_code = contents_stream.str();
+    }
 
-    Parser parser(std::move(*result.tokens), std::move(*result.lines));
+    Tokenizer internal_tokenizer(std::move(INTERNAL_CODE::IMPLEMENTATION));
+    auto internal_res = internal_tokenizer.tokenize("<built-in>");
+    
+    Tokenizer user_tokenizer(std::move(user_code));
+    auto user_res = user_tokenizer.tokenize(argv[1]);
+    
+    internal_res.tokens->insert(internal_res.tokens->end(), user_res.tokens->begin(), user_res.tokens->end());
+    
+    Parser parser(std::move(*internal_res.tokens), std::vector<std::string>()); 
+    
+    parser.m_lines["<built-in>"] = std::move(*internal_res.lines);
+    parser.m_lines[argv[1]]       = std::move(*user_res.lines);
+    
     std::optional<NodeProg*> prog = parser.parse_prog();
 
     if (!prog.has_value()) {
