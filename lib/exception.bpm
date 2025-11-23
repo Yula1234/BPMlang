@@ -8,6 +8,27 @@ impl exception {
 	}
 }
 
+struct __DoubleFreeException {
+	__addr: ptr,
+}
+
+impl __DoubleFreeException {
+	proc what(__DoubleFreeException self) -> char* {
+		__pushonstack(self.__addr);
+		asm "call __bpm_double_free_exception_what";
+		asm "add esp, 4";
+		asm "push eax";
+		let __fst = __popfromstack();
+		return cast(char*, __fst);
+	}
+}
+
+__oninit {
+	__pushonstack(typeid(__DoubleFreeException));
+	asm "pop edx";
+	asm "mov dword [__BpmDoubleExceptionTypeId], edx";
+}
+
 namespace std {
 	proc exception(char* mess_) -> exception =
 		return exception(mess_);

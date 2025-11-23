@@ -3835,45 +3835,39 @@ AFTER_GEN:
 			}
 
 			void operator()(const NodeStmtTry* stmt_try) const {
-				const std::string catch_lab = gen.create_label();
-				const std::string end_catch = gen.create_label();
-				const std::string end_lab = gen.create_label();
-				gen.m_output << "    mov edx, dword [tmp_p]\n";
-				gen.m_output << "    add edx, 4\n";
-				gen.m_output << "    mov dword [tmp_stor+edx], ebp\n";
-				gen.m_output << "    add edx, 4\n";
-				gen.m_output << "    mov dword [tmp_stor+edx], esp\n";
-				gen.m_output << "    mov dword [tmp_p], edx\n";
-				gen.m_output << "    inc dword [__exception_bufs_lvl]\n";
-				gen.m_output << "    mov eax, dword [__exception_bufs_lvl]\n";
-        		gen.m_output << "    imul eax, eax, 64\n";
-        		gen.m_output << "    add eax, __exception_bufs\n";
-        		gen.m_output << "    push eax\n";
-        		gen.m_output << "    call _setjmp\n";
-				gen.m_output << "    add esp, 4\n";
-				gen.m_output << "    cmp eax, 1\n";
-				gen.m_output << "    jnz " << end_catch << '\n';
-				gen.m_output << "    " << catch_lab << ":\n";
-				gen.m_output << "    mov edx, dword [tmp_p]\n";
-				gen.m_output << "    mov esp, dword [tmp_stor+edx]\n";
-				gen.m_output << "    sub edx, 4\n";
-				gen.m_output << "    mov ebp, dword [tmp_stor+edx]\n";
-				gen.m_output << "    sub edx, 4\n";
-				gen.m_output << "    mov dword [tmp_p], edx\n";
-				gen.create_var_va(stmt_try->name, stmt_try->type, stmt_try->def);
-				Var vr = gen.var_lookup_cs(stmt_try->name).value();
-				gen.m_output << "    call __bpm_get_current_exception\n";
-				gen.m_output << "    mov dword [ebp-" << vr.stack_loc << "], eax\n";
-				gen.gen_scope(stmt_try->_catch);
-				gen.last_scope().erase(gen.last_scope().find(stmt_try->name));
-				gen.m_output << "    jmp " << end_lab << "\n";
-				gen.m_output << "    " << end_catch << ":\n";
-				gen.m_output << "    push dword " << gen.typeid_of(stmt_try->type) << '\n';
-				gen.m_output << "    call __bpm_start_catch\n";
-				gen.m_output << "    add esp, 4\n";
-				gen.gen_scope(stmt_try->_try);
-				gen.m_output << "    call __bpm_end_catch\n";
-				gen.m_output << "    " << end_lab << ":\n";
+			    const std::string catch_lab = gen.create_label();
+			    const std::string end_catch = gen.create_label();
+			    const std::string end_lab = gen.create_label();
+			    gen.m_output << "    inc dword [__exception_bufs_lvl]\n";
+			    gen.m_output << "    mov eax, dword [__exception_bufs_lvl]\n";
+			    gen.m_output << "    imul eax, eax, 64\n";
+			    gen.m_output << "    add eax, __exception_bufs\n";
+			    gen.m_output << "    push eax\n";
+			    gen.m_output << "    call _setjmp\n";
+			    gen.m_output << "    add esp, 4\n";
+			    gen.m_output << "    cmp eax, 1\n";
+			    gen.m_output << "    jnz " << end_catch << '\n';
+			    gen.m_output << "    " << catch_lab << ":\n";
+			    size_t catch_scope_size = 1 + gen.collect_alligns(stmt_try->_catch);
+			    gen.begin_scope(catch_scope_size); // Генерирует sub esp, ...
+			    gen.create_var_va(stmt_try->name, stmt_try->type, stmt_try->def);
+			    Var vr = gen.var_lookup_cs(stmt_try->name).value();
+			    gen.m_output << "    call __bpm_get_current_exception\n";
+			    gen.m_output << "    mov dword [ebp-" << vr.stack_loc << "], eax\n";
+			    for (const NodeStmt* stmt : stmt_try->_catch->stmts) {
+			        gen.gen_stmt(stmt);
+			    }
+			    gen.last_scope().erase(gen.last_scope().find(stmt_try->name));
+			    gen.end_scope();
+			    gen.m_output << "    jmp " << end_lab << "\n";
+			    gen.m_output << "    " << end_catch << ":\n";
+			    gen.m_output << "    push dword " << gen.typeid_of(stmt_try->type) << '\n';
+			    gen.m_output << "    call __bpm_start_catch\n"; // ++handle_lvl
+			    gen.m_output << "    add esp, 4\n";
+			    gen.gen_scope(stmt_try->_try);
+			    gen.m_output << "    call __bpm_end_catch\n";   // --handle_lvl
+			    gen.m_output << "    dec dword [__exception_bufs_lvl]\n";
+			    gen.m_output << "    " << end_lab << ":\n";
 			}
 		};
 
@@ -3894,7 +3888,7 @@ AFTER_GEN:
 		*m_label_count = 0ULL;
 		*m_string_index = 0ULL;
 		result << "section .text\n\n";
-		result << "global main\n\n";
+		result << "global main\nglobal __BpmDoubleExceptionTypeId\n\n";
 
 		for (const NodeStmt* stmt : m_prog->stmts) {
 			gen_stmt(stmt);
@@ -3909,6 +3903,7 @@ AFTER_GEN:
 		result << "main:\n";
 		result << "    call __bpm_set_sigsegv_handler\n";
 		result << "    mov dword [stack_base], ebp\n";
+		result << "    mov dword [__BpmDoubleExceptionTypeId], 0\n";
 		result << "    push dword " << (*m_typeid_table_size) * 4ULL << '\n';
 		result << "    call malloc\n";
 		result << "    add esp, 4\n";
@@ -3954,6 +3949,7 @@ AFTER_GEN:
 		m_output << "\nsection .bss\n";
 		m_output << "    tmp_stor: resd 1024\n";
 		m_output << "    tmp_p: resd 1\n";
+		m_output << "    __BpmDoubleExceptionTypeId: resd 1\n";
 		for(auto&& pairs : m_global_vars) {
 			const GVar& ivar = pairs.second;
 			m_output << "    v_" << ivar.name << ": resd 1\n";
@@ -4265,7 +4261,8 @@ private:
 		"__bpm_get_current_exception",
 		"traceback_push",
 		"traceback_pop",
-		"__bpm_set_sigsegv_handler"
+		"__bpm_set_sigsegv_handler",
+		"__bpm_double_free_exception_what",
 	};
 	__stdvec<NodeScope*> __oninits;
 	__stdvec<std::string> m_tsigns;

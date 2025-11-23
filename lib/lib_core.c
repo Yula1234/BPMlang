@@ -207,7 +207,9 @@ void *memalloc(size_t size_bytes)
     return NULL;
 }
 
-char* __double_free_exception(void* __val) {
+extern int32_t __BpmDoubleExceptionTypeId;
+
+char* __bpm_double_free_exception_what(void* __val) {
     static char buf[128];
     snprintf(buf, sizeof(buf), "double free of pointer %p", __val);
     return buf;
@@ -220,6 +222,12 @@ typedef struct __bpm_exception_30 {
     uintptr_t __val;
     __what_t __what;
 } __bpm_exception;
+
+typedef struct __BPMDoubleFreeException {
+    int32_t __addr;
+    uintptr_t __bstub1;
+    __what_t __bstub2;
+} __DoubleFreeException;
 
 typedef struct bpm_func_t {
     char* name;
@@ -260,7 +268,7 @@ int32_t __exception_handle_lvl = 0;
 void** __type_id_table;
 
 __bpm_exception* __bpm_allocate_exception(int32_t __tid, uintptr_t __v, __what_t __wh) {
-    __bpm_exception* __exception = (__bpm_exception*)malloc(sizeof(__bpm_exception));
+    __bpm_exception* __exception = (__bpm_exception*)memalloc(sizeof(__bpm_exception));
     __exception->__type_id = __tid;
     __exception->__val = __v;
     __exception->__what = __wh;
@@ -292,16 +300,34 @@ void __bpm_end_catch() {
 }
 
 void __bpm_throw(__bpm_exception* __exception) {
-    if(__exception_handled[__exception_handle_lvl] != __exception->__type_id) {
-        __current_exception = __exception;
-        __bpm_terminate();
+    // ЗАЩИТА ОТ ПЕРЕЗАПИСИ (Double Fault)
+    // Если __current_exception не NULL, значит мы уже обрабатываем исключение,
+    // и в этот момент произошло еще одно. Мы не можем это обработать безопасно.
+    if (__current_exception != NULL) {
+        printf("FATAL ERROR: Exception thrown while handling another exception (Double Fault).\n");
+        printf("    Current exception address: %p\n", (void*)__current_exception->__val);
+        printf("    New exception address:     %p\n", (void*)__exception->__val);
+        abort();
     }
-    if(__current_exception != NULL) {
-        __bpm_terminate();
-    }
+
     __current_exception = __exception;
-    __bpm_end_catch();
-    longjmp(__exception_bufs[__exception_bufs_lvl--], 1);
+
+    // РАСКРУТКА СТЕКА (Stack Unwinding)
+    while (__exception_bufs_lvl > 0) {
+        int32_t expected_type = __exception_handled[__exception_handle_lvl];
+
+        if (expected_type == __exception->__type_id) {
+            __bpm_end_catch(); // Уменьшаем счетчик обработчиков
+            longjmp(__exception_bufs[__exception_bufs_lvl--], 1);
+        }
+
+        // Текущий блок не подходит, поднимаемся выше
+        __exception_handle_lvl--;
+        __exception_bufs_lvl--;
+    }
+
+    // Если дошли сюда — обработчик не найден
+    __bpm_terminate();
 }
 
 uintptr_t __bpm_get_current_exception() {
@@ -321,7 +347,14 @@ void memfree(void *ptr)
     if (ptr != NULL) {
         const int index = chunk_list_find(&alloced_chunks, ptr);
         if(index < 0) {
-            __bpm_exception* exc = __bpm_allocate_exception(3, (uintptr_t)ptr, (__what_t)__double_free_exception);
+            __bpm_exception* exc;
+            if (__BpmDoubleExceptionTypeId != 0) {
+                __DoubleFreeException* __bpm_struct_exc = (__DoubleFreeException*)memalloc(sizeof(__DoubleFreeException));
+                __bpm_struct_exc->__addr = (int32_t)ptr;
+                exc = __bpm_allocate_exception(__BpmDoubleExceptionTypeId, (int32_t)__bpm_struct_exc, (__what_t)__bpm_double_free_exception_what);
+            } else {
+                exc = __bpm_allocate_exception(3, (uintptr_t)ptr, (__what_t)__bpm_double_free_exception_what);
+            }
             __bpm_throw(exc);
             //printf("ERROR: double free of pointer %p\n", ptr);
             //*(int*)NULL = 0;
