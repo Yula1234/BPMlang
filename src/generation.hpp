@@ -2,6 +2,7 @@
 
 #include "parser.hpp"
 #include "ir.hpp"
+#include "ir_opt.hpp"
 
 #define VectorSimDataCap 4096
 
@@ -3889,7 +3890,9 @@ AFTER_GEN:
     	for (auto&& p : m_global_vars) {
     	    final_ir.globals.push_back({ p.second.name });
     	}
-	
+	    if (m_optimize) {
+            iropt::optimize_ir(final_ir);
+        }
     	std::stringstream result_ss;
     	AsmEmitter emitter(result_ss);
     	emitter.emit_program(final_ir);
@@ -3900,6 +3903,8 @@ AFTER_GEN:
         m_parser = parser;
         m_lines  = &(parser->m_lines);
     }
+
+    bool m_optimize = false;
 
 private:
     std::string format_type_list(const std::vector<DataType>& types) {

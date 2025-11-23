@@ -116,6 +116,9 @@ int main(int argc, char* argv[]) {
 
     {
         Generator generator(prog.value());
+        if(auto _f_time = argparser.find_flag(FlagType::optimize)) {
+            generator.m_optimize = true;
+        }
         generator.get_props_from_parser(&parser);
         const std::string& generated_asm = generator.gen_prog();
         std::fstream file("output.asm", std::ios::out);

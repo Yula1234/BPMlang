@@ -6,6 +6,7 @@ enum class FlagType {
     time,
     sasm,
     dump,
+    optimize
 };
 
 struct Flag {
@@ -52,6 +53,9 @@ public:
             }
             else if(strcmp(m_argv[i], "-t") == 0) {
                 m_flags.push_back({ .type = FlagType::time , .operand = std::nullopt });
+            }
+            else if(strcmp(m_argv[i], "-O") == 0) {
+                m_flags.push_back({ .type = FlagType::optimize , .operand = std::nullopt });
             }
             else if(strcmp(m_argv[i], "-s") == 0) {
                 m_flags.push_back({ .type = FlagType::sasm , .operand = std::nullopt });
