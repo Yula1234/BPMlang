@@ -388,7 +388,7 @@ void __bpm_throw(__bpm_exception* __exception) {
     while (__exception_bufs_lvl > 0) {
         int32_t expected_type = __exception_handled[__exception_handle_lvl];
 
-        if (expected_type == __exception->__type_id) {
+        if (expected_type == __exception->__type_id || expected_type == 3) {
             __bpm_end_catch(); 
             longjmp(__exception_bufs[__exception_bufs_lvl--], 1);
         }
