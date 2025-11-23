@@ -217,7 +217,7 @@ namespace std {
 	}
 
 	proc __container_move<T>(T&& __src, T&& __dst) -> void {
-		let __gsrc = std::__grab_object(__src);
+		let __gsrc = std::__grab_object<T>(__src);
 		delete *cast(T&, __dst);
 		store32(cast(ptr, __dst), __gsrc);
 	}
