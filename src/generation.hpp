@@ -67,7 +67,6 @@ public:
 
 class Generator {
 public:
-    // ---- Обёртки для IR ----
     inline Operand reg(Reg r) const              { return Operand::regOp(r); }
     inline Operand imm(int32_t v) const          { return Operand::immOp(v); }
     inline Operand label(const std::string& s) const { return Operand::labelOp(s); }
@@ -244,7 +243,6 @@ public:
                 gen.GeneratorWarning(def, "deleting object with custom allocator function.");
             std::optional<Procedure> __dtor = gen.proc_lookup(__DTOR_PREFIX + name);
             if (!__dtor.has_value()) return;
-            // offset — строка адреса; оставить через inline asm (редкий кейс)
             gen.m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("push " + offset)));
             __dtor.value().call(gen, 4ULL);
         }
@@ -364,10 +362,9 @@ public:
 	    m_label_count    = other.m_label_count;
 	    m_typeid_table_size = other.m_typeid_table_size;
 	
-	    // ВАЖНО: разделяем один и тот же IRProgram
 	    m_main_ir  = other.m_main_ir;
 	    m_templ_ir = other.m_templ_ir;
-	    m_builder  = IRBuilder(m_main_ir);   // по умолчанию смотрим в основной IR
+	    m_builder  = IRBuilder(m_main_ir); 
 	    m_pending_templates = other.m_pending_templates;
 	}
 
@@ -1506,11 +1503,9 @@ public:
                             gen.GeneratorError(term_call->def, "except " + std::to_string(st.value().fields.size()) + " args\nNOTE: but got " + std::to_string(iargs.size()) + "\nNOTE: if you don't want initialize all fields dont provide any arguments");
                         }
                         eax_break = true;
-                        // tmp_p: index into tmp_stor (byte offset)
                         gen.m_builder.mov(gen.reg(Reg::EDX), gen.mem(MemRef::sym("tmp_p")));
                         gen.m_builder.add(gen.reg(Reg::EDX), gen.imm(4));
                         gen.m_builder.mov(gen.mem(MemRef::sym("tmp_p")), gen.reg(Reg::EDX));
-                        // tmp_stor[edx] = eax
                         gen.m_builder.mov(
                             gen.mem(MemRef::baseSym(Reg::EDX, "tmp_stor")),
                             gen.reg(Reg::EAX)
@@ -2101,12 +2096,10 @@ public:
             for (int i = 0; i < static_cast<int>(proc->params.size()); ++i) {
                 create_var_va(__proc.params[i].first, __proc.params[i].second, proc->def);
 
-                // mov edx, [ebp + i*4 + 8]
                 m_builder.mov(
                     reg(Reg::EDX),
                     mem(MemRef::baseDisp(Reg::EBP, i * 4 + 8))
                 );
-                // mov [ebp - (i*4 + 4)], edx
                 m_builder.mov(
                     mem(MemRef::baseDisp(Reg::EBP, -(i * 4 + 4))),
                     reg(Reg::EDX)
@@ -3772,7 +3765,6 @@ AFTER_GEN:
 
                 gen.m_builder.call(gen.sym("__bpm_end_catch"));
 
-                // dec dword [__exception_bufs_lvl]  -> emulate via mov-sub-mov
                 gen.m_builder.mov(
                     gen.reg(Reg::EAX),
                     gen.mem(MemRef::sym("__exception_bufs_lvl"))
@@ -3804,31 +3796,26 @@ AFTER_GEN:
 	    *m_label_count       = 0ULL;
 	    *m_string_index      = 0ULL;
 	
-	    // ДВА реальных IRProgram на стеке
 	    IRProgram main_ir;
 	    IRProgram templ_ir;
 	
-	    // Все Generator-ы (this и все dop_gen) будут ссылаться на них
 	    m_main_ir  = &main_ir;
 	    m_templ_ir = &templ_ir;
-	    m_builder  = IRBuilder(m_main_ir);  // основной код по умолчанию
+	    m_builder  = IRBuilder(m_main_ir);
 
 	    std::vector<PendingTemplateInstance> pending;
     	m_pending_templates = &pending;
 	
-	    // --- globals для typeid-ов
 	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("global __BpmDoubleExceptionTypeId")));
 	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("global __BpmRecursionExceptionTypeId")));
 	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("global __BpmSigSegvExceptionTypeId")));
 	
-	    // --- генерируем обычный код (всё через m_builder => main_ir)
 	    for (const NodeStmt* stmt : m_prog->stmts) {
 	        gen_stmt(stmt);
 	    }
 
 	    gen_all_template_instances();
 
-	    // 6. Точка входа main
 	    m_builder.label("main");
 
 	    m_builder.call(sym("__bpm_set_sigsegv_handler"));
@@ -3850,7 +3837,6 @@ AFTER_GEN:
 	    m_builder.push(imm(0));
 	    m_builder.call(sym("ExitProcess@4"));
 
-	    // 7. _BPM_init_
 	    bool has_oninits = !__oninits.empty();
 
 	    m_builder.label("_BPM_init_");
@@ -3883,7 +3869,6 @@ AFTER_GEN:
 	    }
 	    m_builder.ret();
 
-	    // 8. Собираем финальный IR
 	    IRProgram final_ir;
 
     	final_ir.instrs.insert(final_ir.instrs.end(),
@@ -4069,51 +4054,41 @@ private:
     }
 
 	std::string instantiate_if_needed(
-	    Procedure& proc,                    // локальная копия сигнатуры под конкретный вызов
-	    std::vector<DataType>& local_targs, // явные <...> из вызова (может быть пустой)
+	    Procedure& proc,
+	    std::vector<DataType>& local_targs,
 	    const std::vector<NodeExpr*>& call_args,
 	    const Token& def,
 	    const std::string& name,
-	    const std::string& nname = ""       // имя namespace ("" для глобальных)
+	    const std::string& nname /* = "" */
 	) {
-	    // ---------------------------------------------
-	    // 0. Определяем, является ли это методом
-	    //    шаблонной структуры: impl map<K,V> { proc put(map<K,V> self, ...) }
-	    // ---------------------------------------------
-	    bool is_method_of_struct = false;
+	    bool   is_method_of_struct  = false;
 	    Struct ownerStruct;
-	    size_t structTemplateCount = 0;
+	    size_t structTemplateCount  = 0;
 
 	    if (!nname.empty()) {
 	        std::optional<Struct> stOpt = struct_lookup(nname);
-	        if (stOpt.has_value() && stOpt->temp && proc.params.size() > 0) {
-	            // Первый параметр процедуры должен быть объектом этой структуры
+	        if (stOpt.has_value() && stOpt->temp && !proc.params.empty()) {
 	            DataType selfParamType = canonical_type(proc.params[0].second);
 	            if (selfParamType.is_object() &&
 	                selfParamType.getobjectname() == nname &&
 	                proc.templates != nullptr &&
 	                proc.templates->size() >= stOpt->temps.size())
 	            {
-	                is_method_of_struct = true;
-	                ownerStruct         = stOpt.value();
-	                structTemplateCount = ownerStruct.temps.size();
+	                is_method_of_struct  = true;
+	                ownerStruct          = stOpt.value();
+	                structTemplateCount  = ownerStruct.temps.size();
 	            }
 	        }
 	    }
 
 	    __map<std::string, DataType> temps;
-	    std::string tsign;
+	    std::string                  tsign;
 
-	    // =========================================================
-	    // ВЕТКА 1: МЕТОД ШАБЛОННОЙ СТРУКТУРЫ (map<K,V>, vector<T>, ...)
-	    // =========================================================
 	    if (is_method_of_struct) {
-	        // 1. self должен быть первым фактическим аргументом вызова
 	        if (call_args.empty()) {
 	            GeneratorError(def, "internal compiler error: method call without self argument");
 	        }
 
-	        // Тип self из вызова, с учётом уже текущих подстановок шаблонов
 	        DataType selfType = type_of_expr(call_args[0]);
 	        substitute_template(selfType);
 	        selfType = canonical_type(selfType);
@@ -4129,66 +4104,44 @@ private:
 	                                 nname + "`, got `" + oname + "`");
 	        }
 
-	        // Аргументы шаблонного типа из self: map<char*,int> -> [char*, int]
 	        std::vector<DataType> structArgs = get_template_args(selfType);
 	        if (structArgs.size() != structTemplateCount) {
 	            GeneratorError(def, "internal compiler error: mismatch struct template args count for `" +
 	                                 nname + "`");
 	        }
 
-	        // 2. Связываем параметры структуры (например, K,V) с фактическими типами из self
-	        //    ownerStruct.temps = ["K","V"], structArgs = [char*, int]
 	        for (size_t i = 0; i < structTemplateCount; ++i) {
 	            temps[ownerStruct.temps[i]] = structArgs[i];
 	        }
 
-	        // 3. (Опционально) дополнительные шаблонные параметры МЕТОДА (T и т.п.)
-	        // Сейчас их не выводим по аргументам (это можно добавить позже),
-	        // а считаем, что методов с доп. шаблонами пока нет / не используем.
-
-	        // 4. Подставляем все уже известные шаблонные параметры в сигнатуру proc:
-	        //    map<K,V> self, K key, V value -> map<char*,int> self, char* key, int value
 	        substitute_template_params(temps, proc.params);
 	        substitute_template_wct(proc.rettype, temps);
 
-	        // 5. Суффикс tsign для имени инстанса строим из structArgs (K,V)
-	        //    Например: map<char*,int> -> "Pc_i_" (зависит от реализации DataType::sign).
 	        for (auto& t : structArgs) {
 	            DataType tt = t;
 	            substitute_template(tt);
 	            tsign += tt.sign();
 	        }
-
-	        // Если кто-то попытается явно передать шаблонные аргументы для метода (m~put<int>())
-	        // — сейчас мы их игнорируем. При желании можно сюда добавить проверку и ошибку.
-
-	    // =========================================================
-	    // ВЕТКА 2: СВОБОДНАЯ ШАБЛОННАЯ ФУНКЦИЯ / НЕ-МЕТОД
-	    // =========================================================
 	    } else {
-	        // 1. Автовывод типов, если <...> пустые
 	        if (proc.templates != NULL && local_targs.empty()) {
 	            if (!call_args.empty() || proc.params.empty()) {
 	                try_derive_templates(local_targs, proc.params, def, proc.templates, call_args, proc);
 	            }
 	        }
 
-	        // Если процедура шаблонная, но типы так и не вывели — ошибка
 	        if (proc.templates != NULL && local_targs.empty()) {
 	            GeneratorError(def,
 	                "procedure `" + proc.name +
 	                "` expects template arguments in <...> or successful type deduction.");
 	        }
 
-	        // Не шаблон — нечего инстанциировать
 	        if (local_targs.empty())
-	            return "";
+	            return ""; 
 
 	        if (proc.templates != NULL && local_targs.size() != proc.templates->size()) {
 	            GeneratorError(def, "template args mismatch");
 	        }
 
-	        // 2. tparams: имя шаблонного параметра -> фактический тип
 	        size_t counter = 0;
 	        for (auto&& el : *proc.templates) {
 	            DataType arg_dt = local_targs[counter++];
@@ -4196,21 +4149,15 @@ private:
 	            temps[el] = arg_dt;
 	        }
 
-	        // 3. Подставляем типы в proc (для __typecheck_call)
 	        substitute_template_params(temps, proc.params);
 	        substitute_template_wct(proc.rettype, temps);
 
-	        // 4. Суффикс tsign строим из local_targs
 	        for (int i = 0; i < static_cast<int>(local_targs.size()); ++i) {
 	            DataType t = local_targs[i];
 	            substitute_template(t);
 	            tsign += t.sign();
 	        }
 	    }
-
-	    // =========================================================
-	    // ОБЩИЙ ХВОСТ: кэш inst_p->instanceated и регистрация в очереди
-	    // =========================================================
 
 	    Procedure* inst_p = nullptr;
 	    if (nname.empty()) {
@@ -4225,15 +4172,18 @@ private:
 	            inst_p = &m_namespaces[nname]->procs[name];
 	    }
 
-	    // Ленивая генерация тела: добавляем в очередь, если ещё не было такого инстанса
 	    if (!inst_p->instanceated[tsign]) {
 	        inst_p->instanceated[tsign] = true;
 
 	        PendingTemplateInstance pt;
-	        pt.proc  = proc;    // уже СПЕЦИАЛИЗИРОВАННАЯ копия (params/rettype с подставленными типами)
+	        pt.proc  = proc; 
 	        pt.tsign = tsign;
 	        pt.nname = nname;
 	        pt.temps = temps;
+
+	        if (!m_pending_templates) {
+	            GeneratorError(def, "internal error: m_pending_templates is null");
+	        }
 
 	        m_pending_templates->push_back(std::move(pt));
 	    }
@@ -4242,10 +4192,10 @@ private:
 	}
 
 	struct PendingTemplateInstance {
-    	Procedure                    proc;   // специализированная копия процедуры
-    	std::string                  tsign;  // суффикс, напр. "i_" или "i_i_6vector_i_"
-    	std::string                  nname;  // имя namespace ("" для глобальных)
-    	__map<std::string, DataType> temps;  // отображение T -> конкретный тип
+    	Procedure                    proc;  
+    	std::string                  tsign; 
+    	std::string                  nname; 
+    	__map<std::string, DataType> temps; 
 	};
 
 	std::vector<PendingTemplateInstance>* m_pending_templates = nullptr;
@@ -4293,8 +4243,6 @@ private:
 	}
 
 	void gen_all_template_instances() {
-	    // Идём по вектору как по очереди: генерация тела
-	    // может добавить новые элементы в конец через instantiate_if_needed
 	    for (size_t i = 0; i < m_pending_templates->size(); ++i) {
 	        gen_template_instance((*m_pending_templates)[i]);
 	    }
@@ -4399,10 +4347,9 @@ private:
 
     const NodeProg* m_prog = nullptr;
 
-	IRProgram* m_main_ir  = nullptr;  // основной код (__main, обычные функции, _BPM_init_)
-	IRProgram* m_templ_ir = nullptr;  // все шаблонные инстансы
+	IRProgram* m_main_ir  = nullptr;
+	IRProgram* m_templ_ir = nullptr;
 	
-	// Один билдер, всегда указывает на "активный" IR
 	IRBuilder m_builder{ nullptr };
 
     __map<std::string, __stdvec<std::string>>* m_lines = nullptr;

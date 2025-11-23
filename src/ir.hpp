@@ -5,16 +5,12 @@
 #include <ostream>
 #include <cstdint>
 
-// --------- Регистры ---------
-
 enum class Reg {
     EAX, EBX, ECX, EDX,
     ESI, EDI,
     EBP, ESP,
     CL,
 };
-
-// --------- Опкоды IR ---------
 
 enum class IROp {
     Add,
@@ -26,8 +22,8 @@ enum class IROp {
     Mov,
     Store8,
     Store16,
-    Load8,      // новое
-    Load16,     // новое
+    Load8,    
+    Load16,   
     Shl,
     Shr,
     Cmp,
@@ -48,17 +44,15 @@ enum class IROp {
     Ret,
     Label,
     Comment,
-    InlineAsm   // новое: "сырые" строки asm
+    InlineAsm 
 };
-// --------- Адресация памяти ---------
-// [base + disp] или [symbol + disp] или [base + symbol + disp]
 
 struct MemRef {
     bool        hasBase   = false;
     Reg         base;
     bool        hasSymbol = false;
-    std::string symbol;   // имя глобальной переменной / метки
-    int32_t     disp      = 0; // смещение в байтах
+    std::string symbol;
+    int32_t     disp      = 0;
 
     static MemRef baseDisp(Reg b, int32_t d = 0) {
         MemRef m;
@@ -87,25 +81,22 @@ struct MemRef {
     }
 };
 
-// --------- Операнды ---------
-
 enum class OperandKind {
     None,
     Reg,
     Imm,
     Mem,
-    Label,   // имя метки (для Jmp/Jz/... и для IROp::Label)
-    Symbol   // имя функции / глобала (для call, mov eax, symbol и т.п.)
+    Label,  
+    Symbol  
 };
 
 struct Operand {
     OperandKind kind = OperandKind::None;
 
-    // варианты
     Reg         reg;
     int32_t     imm = 0;
     MemRef      mem;
-    std::string name; // label / symbol
+    std::string name;
 
     static Operand none() {
         return Operand{};
@@ -147,15 +138,12 @@ struct Operand {
     }
 };
 
-// --------- Инструкция IR ---------
-
 struct IRInstr {
     IROp     op;
-    Operand  a;   // dst / единственный
-    Operand  b;   // src1 / второй
-    Operand  c;   // src2 / третий (редко нужен)
+    Operand  a; 
+    Operand  b; 
+    Operand  c; 
 
-    // простые конструкторы
     IRInstr(IROp _op) : op(_op) {}
     IRInstr(IROp _op, const Operand& _a)
         : op(_op), a(_a) {}
@@ -167,22 +155,21 @@ struct IRInstr {
 
 
 struct IRStringLiteral {
-    std::string label; // "s_0", "s_1", ...
-    std::string value; // текст строки
+    std::string label; 
+    std::string value; 
 };
 
 struct IRGlobalVar {
-    std::string name;  // логическое имя без префикса "v_"
+    std::string name;
 };
 
 struct IRProgram {
     std::vector<IRInstr>    instrs;
-    std::vector<std::string>   externs;  // имена для "extern ..."
-    std::vector<IRStringLiteral> strings; // строки для section .data
-    std::vector<IRGlobalVar>   globals;  // v_<name> в .bss
+    std::vector<std::string>   externs;  
+    std::vector<IRStringLiteral> strings;
+    std::vector<IRGlobalVar>   globals;  
 };
 
-// --------- Builder для генератора ---------
 
 class IRBuilder {
 public:
@@ -193,8 +180,6 @@ public:
     void emit(const IRInstr& ins) {
         cur->instrs.push_back(ins);
     }
-
-    // Удобные обёртки (примеры, расширяй по мере переписывания генератора):
 
     void label(const std::string& name) {
         emit(IRInstr(IROp::Label, Operand::labelOp(name)));
@@ -251,11 +236,7 @@ public:
     void ret() {
         emit(IRInstr(IROp::Ret));
     }
-
-    // и т.д. под остальные опкоды...
 };
-
-// --------- Эмиттер: IR -> текстовый asm ---------
 
 inline const char* reg_name(Reg r) {
     switch (r) {
@@ -313,28 +294,23 @@ public:
     explicit AsmEmitter(std::ostream& o) : out(o) {}
 
     void emit_program(const IRProgram& p) {
-        // --- text section ---
         out << "section .text\n\n";
         out << "global main\n\n";
     
         for (const auto& ins : p.instrs) {
             emit_instr(ins);
         }
-    
-        // --- extern ---
         for (const auto& name : p.externs) {
             out << "extern " << name << "\n";
         }
         out << "\n";
     
-        // --- data ---
         out << "section .data\n";
-        // встроенные форматные строки (как раньше)
+
         out << "    numfmt:   db \"%d\", 0x0\n";
         out << "    numfmtnl: db \"%d\", 0xa, 0x0\n";
         out << "    strfmt:   db \"%s\", 0x0\n";
     
-        // строковые литералы
         for (const auto& s : p.strings) {
             out << "    " << s.label << ": db ";
             std::stringstream hex;
@@ -343,8 +319,7 @@ public:
             }
             out << hex.str() << "0x0\n";
         }
-    
-        // --- bss ---
+
         out << "\nsection .bss\n";
         out << "    tmp_stor: resd 1024\n";
         out << "    tmp_p:    resd 1\n";
@@ -373,7 +348,6 @@ private:
             return;
     
         case IROp::Store8: {
-            // mov byte [mem], <8-битный рег>
             auto mem = ins.a;
             auto reg = ins.b;
             out << "    mov byte [";
@@ -415,7 +389,6 @@ private:
         }
     
         case IROp::Store16: {
-            // mov word [mem], <16-битный рег>
             auto mem = ins.a;
             auto reg = ins.b;
             out << "    mov word [";
@@ -457,7 +430,6 @@ private:
         }
     
         case IROp::Load8: {
-            // xor dest, dest; mov <dest8>, byte [mem]
             auto dst = ins.a;
             auto mem = ins.b;
     
@@ -494,7 +466,6 @@ private:
         }
     
         case IROp::Load16: {
-            // xor dest, dest; mov <dest16>, word [mem]
             auto dst = ins.a;
             auto mem = ins.b;
     
@@ -569,8 +540,6 @@ private:
         case IROp::Xor:    return "xor";
         case IROp::Mov:    return "mov";
     
-        // эти опкоды обрабатываются вручную в emit_instr,
-        // поэтому здесь просто возвращаем пустую строку
         case IROp::Store8:   return "";
         case IROp::Store16:  return "";
         case IROp::Load8:    return "";
@@ -599,8 +568,6 @@ private:
         case IROp::Comment:   return "";
         case IROp::InlineAsm: return "";
         }
-    
-        // на всякий случай, чтобы подавить предупреждения, если enum расширится
         return "";
     }   
 };

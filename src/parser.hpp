@@ -1647,11 +1647,9 @@ public:
     		sizeof_term->def = _sizeof.value();
     		try_consume_err(TokenType_t::open_paren);
 		
-    		// Если следующий токен похож на тип – парсим полный тип (включая шаблонные аргументы)
     		if (peek().has_value() && is_type_token(peek().value().type)) {
     		    sizeof_term->type = parse_type();
     		} else {
-    		    // Иначе считаем, что это выражение
     		    if (auto _expr = parse_expr()) {
     		        sizeof_term->expr = _expr;
     		    } else {
