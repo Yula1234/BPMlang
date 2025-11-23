@@ -1,5 +1,4 @@
 include "std"
-include "exception"
 
 struct vector<T> {
 	m_data: ptr,

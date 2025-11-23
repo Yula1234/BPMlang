@@ -1,5 +1,4 @@
 include "std"
-include "exception"
 
 struct deque<T> {
 	m_data: ptr,

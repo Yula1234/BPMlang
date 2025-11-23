@@ -1,5 +1,4 @@
 include "std"
-include "exception"
 
 struct forward_list<T> {
     m_head: ptr,  // указатель на первый узел (или null)
