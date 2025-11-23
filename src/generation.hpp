@@ -1501,98 +1501,28 @@ public:
 				if(!proc.overrides.empty()) {
 					gen.resolve_overrides_tp(&proc, term_call->args, term_call->def, term_call->targs);
 				}
-				
-				__map<std::string, DataType> temps;
-				bool substituted = false;
-				std::vector<DataType> local_targs = term_call->targs;
 
-				if(proc.templates != NULL && local_targs.empty()) {
-					if(term_call->args.has_value()) {
-						temps = gen.try_derive_templates(local_targs, proc.params, term_call->def, proc.templates, gen.__getargs(term_call->args.value()), proc);
-						substituted = true;
-					}
-				}
-				if(proc.templates != NULL && local_targs.empty()) {
-					gen.GeneratorError(term_call->def, "procedure `" + term_call->name + "` excepts template arguments in <...>.");
-				}
-				
-				std::string tsign;
-				if (!local_targs.empty()) {
-					if (!substituted) {
-						if (proc.templates != NULL && local_targs.size() != proc.templates->size()) {
-							gen.GeneratorError(term_call->def, "template args mismatch");
-						}
-						size_t counter = 0;
-						for (auto&& el : *proc.templates) {
-							DataType arg_dt = local_targs[counter++];
-							gen.substitute_template(arg_dt);
-							temps[el] = arg_dt;
-						}
-						substituted = true;
-					}
+				std::vector<NodeExpr*> raw_args;
+				if (term_call->args.has_value()) raw_args = gen.__getargs(term_call->args.value());
 
-					gen.substitute_template_params(temps, proc.params);
-					gen.substitute_template_wct(proc.rettype, temps);
-
-					for (int i = 0; i < static_cast<int>(local_targs.size()); ++i) {
-						DataType t = local_targs[i];
-						gen.substitute_template(t);
-						tsign += t.sign();
-					}
-
-					Procedure* inst_p = proc.override
-						? gen.m_namespaces[nname]->procs[pname].overrides[proc.overload_nth - 1]
-						: &gen.m_namespaces[nname]->procs[pname];
-
-					if (!inst_p->instanceated[tsign]) {
-						Generator dop_gen(gen);
-						dop_gen.m_temps.push_back(temps);
-						
-						inst_p->instanceated[tsign] = true;
-
-						dop_gen.m_output << nname << "@" << proc.name << tsign;
-						if (proc.override) dop_gen.m_output << proc.get_sign();
-						dop_gen.m_output << ":\n";
-
-						dop_gen.m_output << "    push ebp\n";
-						dop_gen.m_output << "    mov ebp, esp\n";
-						dop_gen.gen_traceback_push_nm(proc, nname);
-						dop_gen.m_tsigns.push_back(tsign);
-						proc.mbn = nname;
-						
-						dop_gen.m_cur_proc = proc;
-						dop_gen.gen_scope_sp(proc.scope, proc.from, proc);
-						
-						gen.m_strings = std::move(dop_gen.m_strings);
-						dop_gen.m_temps.pop_back();
-						dop_gen.m_tsigns.pop_back();
-						
-						dop_gen.m_output << "    push eax\n";
-						dop_gen.m_output << "    call traceback_pop\n";
-						dop_gen.m_output << "    pop eax\n";
-						dop_gen.m_output << "    pop ebp\n";
-						dop_gen.m_output << "    ret\n\n";
-						(*gen.m_result) << (dop_gen.m_output.str());
-					}
-				}
+				std::string tsign = gen.instantiate_if_needed(proc, term_call->targs, raw_args, term_call->def, pname, nname);
 
 				if(proc.rettype.root() == BaseDataTypeVoid) gen.GeneratorError(term_call->def, "can't use void " + nname + "::" + pname + "(...) as value");
+				
 				size_t stack_allign = 0;
-				if(term_call->args.has_value()) {
-					gen.__typecheck_call(gen.__getargs(term_call->args.value()), proc.params, term_call->def, proc, &stack_allign);
-				} else if(proc.params.size() != 0ULL) {
-					gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` excepts " + std::to_string(proc.params.size()) + " arguments\nNOTE: but got 0");
+				if(!raw_args.empty() || proc.params.empty()) {
+					if (!raw_args.empty()) gen.__typecheck_call(raw_args, proc.params, term_call->def, proc, &stack_allign);
+				} else {
+					gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` expects " + std::to_string(proc.params.size()) + " args, but got 0");
 				}
-				if(term_call->args.has_value()) {
-					gen.gen_args(gen.__getargs(term_call->args.value()), proc.params);
-				}
-				gen.m_output << "    call " << nname << "@" << pname;
-				if (!local_targs.empty()) gen.m_output << tsign;
+
+				gen.gen_args(raw_args, proc.params);
+				
+				gen.m_output << "    call " << nname << "@" << pname << tsign;
 				if (proc.override) gen.m_output << proc.get_sign();
 				gen.m_output << "\n";
-				if(stack_allign != 0) {
-					gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
-				}
+				
+				if(stack_allign != 0) gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
 				gen.m_output << "    push eax\n";
 			}
 
@@ -1605,11 +1535,7 @@ public:
 					if(proc.rettype == BaseDataTypeConst) {
 						int res {0};
 						Executor executor(gen, term_call->def);
-						try {
-							executor.execute(proc);
-						} catch(Executor::ReturnException& ret) {
-							res = ret.get_value();
-						}
+						try { executor.execute(proc); } catch(Executor::ReturnException& ret) { res = ret.get_value(); }
 						gen.m_output << "    push dword " << res << std::endl;
 						return;
 					}
@@ -1618,84 +1544,29 @@ public:
 					}
 					if(proc.rettype.root() == BaseDataTypeVoid) gen.GeneratorError(term_call->def, "can't use void " + term_call->name + "(...) as value");
 					
-					__map<std::string, DataType> temps;
-					bool substituted = false;
-					std::vector<DataType> local_targs = term_call->targs;
+					std::vector<NodeExpr*> raw_args;
+					if (term_call->args.has_value()) raw_args = gen.__getargs(term_call->args.value());
 
-					if(proc.templates != NULL && local_targs.empty()) {
-						if(term_call->args.has_value()) {
-							temps = gen.try_derive_templates(local_targs, proc.params, term_call->def, proc.templates, gen.__getargs(term_call->args.value()), proc);
-							substituted = true;
-						}
-					}
-					if(proc.templates != NULL && local_targs.empty()) {
-						gen.GeneratorError(term_call->def, "procedure `" + term_call->name + "` excepts template arguments in <...>.");
-					}
-					
-					std::string tsign;
-					if(!local_targs.empty()) {
-						if(!substituted) {
-							size_t counter = 0;
-							for(auto&& el : *proc.templates) {
-								DataType arg_dt = local_targs[counter++];
-								gen.substitute_template(arg_dt);
-								temps[el] = arg_dt;
-							}
-							substituted = true;
-						}
-
-						gen.substitute_template_params(temps, proc.params);
-						gen.substitute_template_wct(proc.rettype, temps);
-
-						for(int i = 0; i < static_cast<int>(local_targs.size()); ++i) {
-							DataType t = local_targs[i];
-							gen.substitute_template(t);
-							tsign += t.sign();
-						}
-
-						if(!proc.instanceated[tsign]) {
-							Generator dop_gen(gen);
-							gen.m_procs[term_call->name].instanceated[tsign] = true;
-							
-							dop_gen.m_output << proc.name << tsign;
-							dop_gen.m_output << ":\n";
-							dop_gen.m_output << "    push ebp\n";
-							dop_gen.m_output << "    mov ebp, esp\n";
-							dop_gen.gen_traceback_push(proc);
-							dop_gen.m_tsigns.push_back(tsign);
-							
-							dop_gen.m_temps.push_back(temps);
-							
-							dop_gen.m_cur_proc = proc;
-							dop_gen.gen_scope_sp(proc.scope, proc.from, proc);
-							
-							gen.m_strings = std::move(dop_gen.m_strings);
-							dop_gen.m_temps.pop_back();
-							dop_gen.m_tsigns.pop_back();
-							
-							dop_gen.m_output << "    push eax\n";
-							dop_gen.m_output << "    call traceback_pop\n";
-							dop_gen.m_output << "    pop eax\n";
-							dop_gen.m_output << "    pop ebp\n";
-							dop_gen.m_output << "    ret\n\n";
-							(*gen.m_result) << (dop_gen.m_output.str());
-						}
-					}
+					std::string tsign = gen.instantiate_if_needed(proc, term_call->targs, raw_args, term_call->def, name, "");
 
 					size_t stack_allign = 0;
-					if(term_call->args.has_value()) gen.__typecheck_call(gen.__getargs(term_call->args.value()), proc.params, term_call->def, proc, &stack_allign);
-					else if(proc.params.size() != 0ULL) gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` excepts " + std::to_string(proc.params.size()) + " arguments\nNOTE: but got 0");
-					if(term_call->args.has_value()) gen.gen_args(gen.__getargs(term_call->args.value()), proc.params);
+					if(!raw_args.empty() || proc.params.empty()) {
+						if (!raw_args.empty()) gen.__typecheck_call(raw_args, proc.params, term_call->def, proc, &stack_allign);
+					} else {
+						gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` expects " + std::to_string(proc.params.size()) + " args, but got 0");
+					}
+
+					gen.gen_args(raw_args, proc.params);
 					
-					gen.m_output << "    call " << name;
+					gen.m_output << "    call " << name << tsign;
 					if(proc.override) gen.m_output << proc.get_sign();
-					if(!local_targs.empty()) gen.m_output << tsign;
 					gen.m_output << "\n";
+					
 					if(stack_allign != 0) gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
 					gen.m_output << "    push eax\n";
 					return;
 				}
-				// ... (код для структур остался без изменений) ...
+				
 				std::optional<Struct> st = gen.struct_lookup(term_call->name);
 				if(st.has_value()) {
 					if(st.value().temp && term_call->targs.size() != st.value().temps.size()) gen.GeneratorError(term_call->def, "struct `" + st.value().name + "` except " + std::to_string(st.value().temps.size()) + " template arguments in <...>, bug got " + std::to_string(term_call->targs.size()) + ".");
@@ -3443,87 +3314,25 @@ AFTER_GEN:
 				Procedure proc = gen.__proc_get(stmt_call->name, stmt_call->def);
 				if(!proc.overrides.empty()) gen.resolve_overrides_tp(&proc, stmt_call->args, stmt_call->def, stmt_call->targs);
 				
-				__map<std::string, DataType> temps;
-				bool substituted = false;
-				std::vector<DataType> local_targs = stmt_call->targs;
+				std::vector<NodeExpr*> raw_args;
+				if (stmt_call->args.has_value()) raw_args = gen.__getargs(stmt_call->args.value());
 
-				if(proc.templates != NULL && local_targs.empty()) {
-					if(stmt_call->args.has_value()) {
-						temps = gen.try_derive_templates(local_targs, proc.params, stmt_call->def, proc.templates, gen.__getargs(stmt_call->args.value()), proc);
-						substituted = true;
-					}
-				}
-				if(proc.templates != NULL && local_targs.empty()) {
-					gen.GeneratorError(stmt_call->def, "procedure `" + stmt_call->name + "` excepts template arguments in <...>.");
-				}
-				
-				std::string tsign;
-				if(!local_targs.empty()) {
-					if(!substituted) {
-						size_t counter = 0;
-						for(auto&& el : *proc.templates) {
-							DataType arg_dt = local_targs[counter++];
-							gen.substitute_template(arg_dt);
-							temps[el] = arg_dt;
-						}
-						substituted = true;
-					}
-
-					gen.substitute_template_params(temps, proc.params);
-					gen.substitute_template_wct(proc.rettype, temps);
-
-					for(int i = 0; i < static_cast<int>(local_targs.size()); ++i) {
-						DataType t = local_targs[i];
-						gen.substitute_template(t);
-						tsign += t.sign();
-					}
-
-					if(!proc.instanceated[tsign]) {
-						Generator dop_gen(gen);
-						gen.m_procs[stmt_call->name].instanceated[tsign] = true;
-						
-						dop_gen.m_output << proc.name << tsign;
-						dop_gen.m_output << ":\n";
-						dop_gen.m_output << "    push ebp\n";
-						dop_gen.m_output << "    mov ebp, esp\n";
-						dop_gen.gen_traceback_push(proc);
-						dop_gen.m_tsigns.push_back(tsign);
-						
-						dop_gen.m_temps.push_back(temps);
-						
-						dop_gen.m_cur_proc = proc;
-						dop_gen.gen_scope_sp(proc.scope, proc.from, proc);
-						
-						gen.m_strings = std::move(dop_gen.m_strings);
-						dop_gen.m_temps.pop_back();
-						dop_gen.m_tsigns.pop_back();
-						
-						dop_gen.m_output << "    call traceback_pop\n";
-						dop_gen.m_output << "    pop ebp\n";
-						dop_gen.m_output << "    ret\n\n";
-						(*gen.m_result) << (dop_gen.m_output.str());
-					}
-				}
+				std::string tsign = gen.instantiate_if_needed(proc, stmt_call->targs, raw_args, stmt_call->def, name, "");
 
 				size_t stack_allign = 0;
-				if(stmt_call->args.has_value()) {
-					gen.__typecheck_call(gen.__getargs(stmt_call->args.value()), proc.params, stmt_call->def, proc, &stack_allign);
-				} else if(proc.params.size() != 0ULL) {
-					gen.GeneratorError(stmt_call->def, "procedure `" + proc.name + "` excepts " + std::to_string(proc.params.size()) + " arguments\nNOTE: but got 0");
-				}
-				if(stmt_call->args.has_value()) {
-					gen.gen_args(gen.__getargs(stmt_call->args.value()), proc.params);
-				}
-				gen.m_output << "    call " << name;
-				if(!local_targs.empty()) {
-					gen.m_output << tsign;
+				if(!raw_args.empty() || proc.params.empty()) {
+					if (!raw_args.empty()) gen.__typecheck_call(raw_args, proc.params, stmt_call->def, proc, &stack_allign);
 				} else {
-					if(proc.override) gen.m_output << proc.get_sign();
+					gen.GeneratorError(stmt_call->def, "procedure `" + proc.name + "` expects " + std::to_string(proc.params.size()) + " args, but got 0");
 				}
+
+				gen.gen_args(raw_args, proc.params);
+				
+				gen.m_output << "    call " << name << tsign;
+				if(proc.override) gen.m_output << proc.get_sign();
 				gen.m_output << "\n";
-				if(stack_allign != 0) {
-					gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
-				}
+				
+				if(stack_allign != 0) gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
 			}
 
 			void operator()(const NodeScope* scope) const
@@ -3793,91 +3602,25 @@ AFTER_GEN:
 					gen.resolve_overrides_tp(&proc, stmt_call->args, stmt_call->def, stmt_call->targs);
 				}
 				
-				__map<std::string, DataType> temps;
-				bool substituted = false;
-				std::vector<DataType> local_targs = stmt_call->targs;
+				std::vector<NodeExpr*> raw_args;
+				if (stmt_call->args.has_value()) raw_args = gen.__getargs(stmt_call->args.value());
 
-				if(proc.templates != NULL && local_targs.empty()) {
-					if(stmt_call->args.has_value()) {
-						temps = gen.try_derive_templates(local_targs, proc.params, stmt_call->def, proc.templates, gen.__getargs(stmt_call->args.value()), proc);
-						substituted = true;
-					}
-				}
-				if(proc.templates != NULL && local_targs.empty()) {
-					gen.GeneratorError(stmt_call->def, "procedure `" + stmt_call->name + "` excepts template arguments in <...>.");
-				}
-				
-				std::string tsign;
-				if(!local_targs.empty()) {
-					if(!substituted) {
-						size_t counter = 0;
-						for(auto&& el : *proc.templates) {
-							DataType arg_dt = local_targs[counter++];
-							gen.substitute_template(arg_dt);
-							temps[el] = arg_dt;
-						}
-						substituted = true;
-					}
-
-					gen.substitute_template_params(temps, proc.params);
-					gen.substitute_template_wct(proc.rettype, temps);
-
-					for(int i = 0; i < static_cast<int>(local_targs.size()); ++i) {
-						DataType t = local_targs[i];
-						gen.substitute_template(t);
-						tsign += t.sign();
-					}
-
-					Procedure* _inst_p = proc.override 
-						? gen.m_namespaces[nname]->procs[pname].overrides[proc.overload_nth - 1] 
-						: &gen.m_namespaces[nname]->procs[pname];
-
-					if(!_inst_p->instanceated[tsign]) {
-						Generator dop_gen(gen);
-						dop_gen.m_temps.push_back(temps);
-						
-						_inst_p->instanceated[tsign] = true;
-						
-						dop_gen.m_output << nname << "@" << proc.name << tsign;
-						if(proc.override) dop_gen.m_output << proc.get_sign();
-						dop_gen.m_output << ":\n";
-						
-						dop_gen.m_output << "    push ebp\n";
-						dop_gen.m_output << "    mov ebp, esp\n";
-						dop_gen.gen_traceback_push_nm(proc, nname);
-						dop_gen.m_tsigns.push_back(tsign);
-						proc.mbn = nname;
-						
-						dop_gen.m_cur_proc = proc;
-						dop_gen.gen_scope_sp(proc.scope, proc.from, proc);
-						
-						gen.m_strings = std::move(dop_gen.m_strings);
-						dop_gen.m_temps.pop_back();
-						dop_gen.m_tsigns.pop_back();
-						
-						dop_gen.m_output << "    call traceback_pop\n";
-						dop_gen.m_output << "    pop ebp\n";
-						dop_gen.m_output << "    ret\n\n";
-						(*gen.m_result) << (dop_gen.m_output.str());
-					}
-				}
+				std::string tsign = gen.instantiate_if_needed(proc, stmt_call->targs, raw_args, stmt_call->def, pname, nname);
 
 				size_t stack_allign = 0;
-				if(stmt_call->args.has_value()) {
-					gen.__typecheck_call(gen.__getargs(stmt_call->args.value()), proc.params, stmt_call->def, proc, &stack_allign);
-				} else if(proc.params.size() != 0ULL) {
-					gen.GeneratorError(stmt_call->def, "procedure `" + proc.name + "` excepts " + std::to_string(proc.params.size()) + " arguments\nNOTE: but got 0");
+				if(!raw_args.empty() || proc.params.empty()) {
+					if (!raw_args.empty()) gen.__typecheck_call(raw_args, proc.params, stmt_call->def, proc, &stack_allign);
+				} else {
+					gen.GeneratorError(stmt_call->def, "procedure `" + proc.name + "` expects " + std::to_string(proc.params.size()) + " args, but got 0");
 				}
-				if(stmt_call->args.has_value()) {
-					gen.gen_args(gen.__getargs(stmt_call->args.value()), proc.params);
-				}
-				gen.m_output << "    call " << nname << "@" << pname;
-				if(!local_targs.empty()) gen.m_output << tsign;
+
+				gen.gen_args(raw_args, proc.params);
+				
+				gen.m_output << "    call " << nname << "@" << pname << tsign;
 				if(proc.override) gen.m_output << proc.get_sign();
 				gen.m_output << "\n";
-				if(stack_allign != 0) {
-					gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
-				}
+				
+				if(stack_allign != 0) gen.m_output << "    add esp, " << stack_allign * 4 << "\n";
 			}
 
 			void operator()(const NodeStmtMtCall* stmt_call) const {
@@ -4192,6 +3935,113 @@ private:
 	        }
 	    }
 	    return true;
+	}
+	// В секцию private класса Generator:
+
+	// Возвращает tsign (суффикс сигнатуры шаблона, например "3int")
+	// Модифицирует proc (подставляет конкретные типы в параметры и возвращаемое значение)
+	std::string instantiate_if_needed(
+	    Procedure& proc, 
+	    std::vector<DataType>& local_targs, // targs из вызова (например, <int>)
+	    const std::vector<NodeExpr*>& call_args, // аргументы вызова (для авто-вывода)
+	    const Token& def, 
+	    const std::string& name, 
+	    const std::string& nname = "" // Имя namespace (пустое, если глобальная)
+	) {
+	    // 1. Автоматический вывод типов (если <...> пустые)
+	    if (proc.templates != NULL && local_targs.empty()) {
+	        if (!call_args.empty() || proc.params.empty()) { 
+	             // Используем try_derive_templates, который заполнит local_targs
+	             try_derive_templates(local_targs, proc.params, def, proc.templates, call_args, proc);
+	        }
+	    }
+	
+	    // 2. Проверки
+	    if (proc.templates != NULL && local_targs.empty()) {
+	        GeneratorError(def, "procedure `" + proc.name + "` expects template arguments in <...> or successful type deduction.");
+	    }
+	    
+	    if (local_targs.empty()) return ""; // Не шаблон
+	
+	    if (proc.templates != NULL && local_targs.size() != proc.templates->size()) {
+	        GeneratorError(def, "template args mismatch");
+	    }
+	
+	    // 3. Подготовка карты типов (temps)
+	    __map<std::string, DataType> temps;
+	    size_t counter = 0;
+	    for (auto&& el : *proc.templates) {
+	        DataType arg_dt = local_targs[counter++];
+	        // ВАЖНО: Рекурсивная подстановка (T -> string, если T пришел извне)
+	        substitute_template(arg_dt); 
+	        temps[el] = arg_dt;
+	    }
+	
+	    // 4. Подстановка типов в ЛОКАЛЬНУЮ копию процедуры (для проверки типов вызывающим кодом)
+	    substitute_template_params(temps, proc.params);
+	    substitute_template_wct(proc.rettype, temps);
+	
+	    // 5. Генерация сигнатуры (tsign)
+	    std::string tsign;
+	    for (int i = 0; i < static_cast<int>(local_targs.size()); ++i) {
+	        DataType t = local_targs[i];
+	        substitute_template(t); // На всякий случай, хотя уже подставлено в temps
+	        tsign += t.sign();
+	    }
+	
+	    // 6. Поиск оригинальной процедуры для проверки кэша (instanceated)
+	    Procedure* inst_p = nullptr;
+	    if (nname.empty()) {
+	        // Глобальная
+	        if (proc.override) inst_p = m_procs[name].overrides[proc.overload_nth - 1];
+	        else inst_p = &m_procs[name];
+	    } else {
+	        // В namespace
+	        if (proc.override) inst_p = m_namespaces[nname]->procs[name].overrides[proc.overload_nth - 1];
+	        else inst_p = &m_namespaces[nname]->procs[name];
+	    }
+	
+	    // 7. Генерация тела функции, если еще не было
+	    if (!inst_p->instanceated[tsign]) {
+	        inst_p->instanceated[tsign] = true;
+	
+	        Generator dop_gen(*this);
+	        dop_gen.m_temps.push_back(temps); // Передаем контекст шаблонов
+	
+	        // Генерация заголовка
+	        if (nname.empty()) dop_gen.m_output << proc.name << tsign;
+	        else dop_gen.m_output << nname << "@" << proc.name << tsign;
+	        
+	        if (proc.override) dop_gen.m_output << proc.get_sign();
+	        dop_gen.m_output << ":\n";
+	
+	        dop_gen.m_output << "    push ebp\n";
+	        dop_gen.m_output << "    mov ebp, esp\n";
+	        
+	        if (nname.empty()) dop_gen.gen_traceback_push(proc);
+	        else dop_gen.gen_traceback_push_nm(proc, nname);
+	        
+	        dop_gen.m_tsigns.push_back(tsign);
+	        if (!nname.empty()) proc.mbn = nname;
+	
+	        dop_gen.m_cur_proc = proc; // proc уже имеет подставленные типы!
+	        dop_gen.gen_scope_sp(proc.scope, proc.from, proc);
+	
+	        // Очистка ресурсов dop_gen (важно для строк)
+	        m_strings = std::move(dop_gen.m_strings);
+	        dop_gen.m_temps.pop_back();
+	        dop_gen.m_tsigns.pop_back();
+	
+	        dop_gen.m_output << "    push eax\n";
+	        dop_gen.m_output << "    call traceback_pop\n";
+	        dop_gen.m_output << "    pop eax\n";
+	        dop_gen.m_output << "    pop ebp\n";
+	        dop_gen.m_output << "    ret\n\n";
+	
+	        (*m_result) << (dop_gen.m_output.str());
+	    }
+	
+	    return tsign;
 	}
 	void m_init_typeid_table(std::stringstream& result) noexcept {
 		size_t counter {0};
