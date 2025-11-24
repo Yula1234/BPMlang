@@ -120,7 +120,7 @@ public:
             }
             std::optional<Interface> inter = inter_lookup(name);
             if (inter.has_value()) {
-                return inter.value().fields.size() * 4ULL;
+                return 0ULL;
             }
             return 0ULL;
         } else {
@@ -258,14 +258,16 @@ public:
         }
     };
 
+    struct InterfaceMethodInfo {
+        std::string name;
+        std::vector<std::pair<std::string, DataType>> params;
+        DataType rettype;
+    };
+
     struct Interface {
         std::string name;
-        __map<std::string, Field> fields;
-        std::vector<std::pair<std::string, DataType>> __fields;
+        __map<std::string, InterfaceMethodInfo> methods;
         size_t m_typeid;
-        inline static bool match_to(const Interface& in, const Struct& st) {
-            return in.fields == st.fields;
-        }
     };
 
     struct Namespace {
@@ -472,14 +474,6 @@ public:
         return std::nullopt;
     }
 
-    std::optional<Field> field_lookup(const Interface& st, __str_ref field) const noexcept {
-        const auto& search = st.fields.find(field);
-        if (search != st.fields.end()) {
-            return search->second;
-        }
-        return std::nullopt;
-    }
-
     std::optional<String> string_lookup(__str_ref svalue) noexcept {
         const auto& search = m_strings.find(svalue);
         if (search != m_strings.end()) {
@@ -679,8 +673,8 @@ public:
             }
             std::optional<Interface> inter = inter_lookup(struct_name);
             if (inter.has_value()) {
-                std::optional<Field> field = field_lookup(inter.value(), field_name);
-                return field.value().type;
+                GeneratorError(def, "interfaces have no fields; cannot access `" +
+                                     field_name + "` on interface `" + struct_name + "`");
             }
             return BaseDataTypeVoid;
         } else {
@@ -1978,31 +1972,42 @@ public:
                     NodeTermIdent* tid = std::get<NodeTermIdent*>(id->var);
                     Token ident = tid->ident;
                     std::string field_name = ident.value.value();
+
                     if (!otype.root().is_object) {
-                        gen.GeneratorError(base->def, "bellow `.` except expression of type any object\nNOTE: but got " + otype.to_string());
+                        gen.GeneratorError(
+                            base->def,
+                            "bellow `.` except expression of type any object\nNOTE: but got " +
+                            otype.to_string()
+                        );
                     }
+
                     std::string struct_name = otype.root().getobjectname();
                     std::optional<Struct> st = gen.struct_lookup(struct_name);
                     size_t field_offset = 0;
+
                     if (st.has_value()) {
                         std::optional<Field> field = gen.field_lookup(st.value(), field_name);
                         if (!field.has_value()) {
-                            gen.GeneratorError(base->def, "object of type `" + otype.to_string() + "` doesn`t have field `" + field_name + "`");
+                            gen.GeneratorError(
+                                base->def,
+                                "object of type `" + otype.to_string() +
+                                "` doesn`t have field `" + field_name + "`"
+                            );
                         }
                         field_offset = field.value().nth;
-                    }
-                    if (!st.has_value()) {
+                    } else {
                         std::optional<Interface> inter = gen.inter_lookup(struct_name);
                         if (inter.has_value()) {
-                            std::optional<Field> field = gen.field_lookup(inter.value(), field_name);
-                            if (!field.has_value()) {
-                                gen.GeneratorError(base->def, "object of type `" + otype.to_string() + "` doesn`t have field `" + field_name + "`");
-                            }
-                            field_offset = field.value().nth;
+                            gen.GeneratorError(
+                                base->def,
+                                "interfaces have no fields; cannot access `" +
+                                field_name + "` on interface `" + struct_name + "`"
+                            );
                         } else {
                             assert(false && "unreacheable");
                         }
                     }
+
                     gen.gen_expr(dot->lhs);
                     gen.pop_reg(Reg::ECX);
                     int32_t disp = static_cast<int32_t>(field_offset * 4U);
@@ -3485,12 +3490,19 @@ AFTER_GEN:
 
             void operator()(const NodeStmtInterface* stmt_inter) const
             {
-                gen.m_interfaces[stmt_inter->name] = {
-                    .name    = stmt_inter->name,
-                    .fields  = gen.compute_fields(stmt_inter->fields),
-                    .__fields = stmt_inter->fields,
-                    .m_typeid = gen.m_structs_count++
-                };
+                Interface iface;
+                iface.name    = stmt_inter->name;
+                iface.m_typeid = gen.m_structs_count++;
+
+                for (const auto& m : stmt_inter->methods) {
+                    InterfaceMethodInfo info;
+                    info.name    = m.name;
+                    info.params  = m.params;
+                    info.rettype = m.rettype;
+                    iface.methods[m.name] = std::move(info);
+                }
+
+                gen.m_interfaces[stmt_inter->name] = std::move(iface);
             }
 
             void operator()(const NodeStmtOninit* stmt_oninit) const
@@ -3708,41 +3720,29 @@ AFTER_GEN:
                 const std::string end_catch  = gen.create_label();
                 const std::string end_lab    = gen.create_label();
 
-                // ++__exception_bufs_lvl
                 gen.m_builder.emit(
                     IRInstr(IROp::Inc, gen.mem(MemRef::sym("__exception_bufs_lvl")))
                 );
 
-                // EAX = (N)
                 gen.m_builder.mov(
                     gen.reg(Reg::EAX),
                     gen.mem(MemRef::sym("__exception_bufs_lvl"))
                 );
-
-                // traceback.count -> __traceback_saved[N]
-
-                // EDX = traceback.count
                 gen.m_builder.mov(
                     gen.reg(Reg::EDX),
                     gen.mem(MemRef::sym("traceback", 4096))
                 );
 
-                // ECX = N
                 gen.m_builder.mov(gen.reg(Reg::ECX), gen.reg(Reg::EAX));
-                // ECX = N * 4
                 gen.m_builder.emit(
                     IRInstr(IROp::IMul, gen.reg(Reg::ECX), gen.reg(Reg::ECX), gen.imm(4))
                 );
-                // ECX = &__traceback_saved[N]
                 gen.m_builder.add(gen.reg(Reg::ECX), gen.sym("__traceback_saved"));
 
-                // [__traceback_saved[N]] = traceback.count
                 gen.m_builder.mov(
                     gen.mem(MemRef::baseDisp(Reg::ECX, 0)),
                     gen.reg(Reg::EDX)
                 );
-
-                // 3) prepare jmp_buf for setjmp: __exception_bufs[N]
 
                 gen.m_builder.mov(
                     gen.reg(Reg::EAX),
@@ -3756,35 +3756,30 @@ AFTER_GEN:
                 gen.m_builder.call(gen.sym("_setjmp"));
                 gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(4));
 
-                // _setjmp: 0 first, 1 after longjmp
                 gen.m_builder.emit(
                     IRInstr(IROp::Cmp, gen.reg(Reg::EAX), gen.imm(1))
                 );
-                gen.m_builder.jnz(gen.label(end_catch)); // 0 -> нормальный путь (try)
+                gen.m_builder.jnz(gen.label(end_catch));
                 gen.m_builder.label(catch_lab);
 
-                //   longjmp(__exception_bufs[__exception_bufs_lvl--], 1);
 
                 gen.m_builder.mov(
                     gen.reg(Reg::EAX),
                     gen.mem(MemRef::sym("__exception_bufs_lvl"))
                 );
-                gen.m_builder.add(gen.reg(Reg::EAX), gen.imm(1)); // EAX = N
+                gen.m_builder.add(gen.reg(Reg::EAX), gen.imm(1));
 
-                // ECX = &__traceback_saved[N]
                 gen.m_builder.mov(gen.reg(Reg::ECX), gen.reg(Reg::EAX));
                 gen.m_builder.emit(
                     IRInstr(IROp::IMul, gen.reg(Reg::ECX), gen.reg(Reg::ECX), gen.imm(4))
                 );
                 gen.m_builder.add(gen.reg(Reg::ECX), gen.sym("__traceback_saved"));
 
-                // EDX = traceback.count
                 gen.m_builder.mov(
                     gen.reg(Reg::EDX),
                     gen.mem(MemRef::baseDisp(Reg::ECX, 0))
                 );
 
-                // restore traceback.count
                 gen.m_builder.mov(
                     gen.mem(MemRef::sym("traceback", 4096)),
                     gen.reg(Reg::EDX)
@@ -3795,14 +3790,12 @@ AFTER_GEN:
                 gen.create_var_va(stmt_try->name, stmt_try->type, stmt_try->def);
                 Var vr = gen.var_lookup_cs(stmt_try->name).value();
 
-                // __bpm_get_current_exception()
                 gen.m_builder.call(gen.sym("__bpm_get_current_exception"));
                 gen.m_builder.mov(
                     gen.mem(gen.local_mem(vr.stack_loc)),
                     gen.reg(Reg::EAX)
                 );
 
-                // catch
                 for (const NodeStmt* st : stmt_try->_catch->stmts) {
                     gen.gen_stmt(st);
                 }
@@ -3817,12 +3810,10 @@ AFTER_GEN:
                 gen.m_builder.call(gen.sym("__bpm_start_catch"));
                 gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(4));
 
-                // try
                 gen.gen_scope(stmt_try->_try);
 
                 gen.m_builder.call(gen.sym("__bpm_end_catch"));
 
-                // --__exception_bufs_lvl
                 gen.m_builder.mov(
                     gen.reg(Reg::EAX),
                     gen.mem(MemRef::sym("__exception_bufs_lvl"))
@@ -4115,6 +4106,95 @@ private:
         return true;
     }
 
+    bool method_matches_interface(const Procedure& impl,
+                              const InterfaceMethodInfo& iface,
+                              const DataType& selfType)
+    {
+        DataType selfCanon = canonical_type(selfType);
+
+        if (impl.params.size() != iface.params.size())
+            return false;
+
+        for (size_t i = 0; i < iface.params.size(); ++i) {
+            DataType exp = canonical_type(iface.params[i].second);
+            DataType act = canonical_type(impl.params[i].second);
+
+            if (exp.is_object() && exp.getobjectname() == "self") {
+                if (act != selfCanon) return false;
+            } else {
+                if (exp != act) return false;
+            }
+        }
+
+        DataType expRet = canonical_type(iface.rettype);
+        DataType actRet = canonical_type(impl.rettype);
+
+        if (expRet.is_object() && expRet.getobjectname() == "self") {
+            if (actRet != selfCanon) return false;
+        } else {
+            if (expRet != actRet) return false;
+        }
+
+        return true;
+    }
+
+    void ensure_implements_interface(const DataType& ty,
+                                 const std::string& iface_name,
+                                 const Token& where)
+    {
+        if (!ty.is_object()) {
+            GeneratorError(where,
+                "type " + ty.to_string() +
+                " is not an object type and cannot implement interface `" +
+                iface_name + "`");
+        }
+
+        std::string tname = ty.getobjectname();
+
+        std::optional<Interface> ifcOpt = inter_lookup(iface_name);
+        if (!ifcOpt.has_value()) {
+            GeneratorError(where, "unkown interface `" + iface_name + "`");
+        }
+        const Interface& ifc = ifcOpt.value();
+
+        std::optional<Namespace*> nmsOpt = namespace_lookup(tname);
+        if (!nmsOpt.has_value()) {
+            GeneratorError(where,
+                "type `" + tname + "` does not implement interface `" +
+                iface_name + "`: no `impl " + tname + " { ... }` with required methods");
+        }
+        Namespace* ns = nmsOpt.value();
+
+        for (const auto& km : ifc.methods) {
+            const std::string& mname = km.first;
+            const InterfaceMethodInfo& im = km.second;
+
+            const auto it = ns->procs.find(mname);
+            if (it == ns->procs.end()) {
+                GeneratorError(where,
+                    "type `" + tname + "` does not implement interface `" +
+                    iface_name + "`: missing method `" + mname + "`");
+            }
+            const Procedure& baseProc = it->second;
+
+            bool ok = method_matches_interface(baseProc, im, ty);
+            if (!ok) {
+                for (Procedure* ov : baseProc.overrides) {
+                    if (method_matches_interface(*ov, im, ty)) {
+                        ok = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!ok) {
+                GeneratorError(where,
+                    "type `" + tname + "` does not correctly implement interface `" +
+                    iface_name + "`: method `" + mname + "` has incompatible signature");
+            }
+        }
+    }
+
 	std::string instantiate_if_needed(
 	    Procedure& proc,
 	    std::vector<DataType>& local_targs,
@@ -4220,6 +4300,17 @@ private:
 	            tsign += t.sign();
 	        }
 	    }
+
+        if (proc.from != nullptr && !proc.from->constraints.empty()) {
+            for (const auto& c : proc.from->constraints) {
+                auto it = temps.find(c.type_param);
+                if (it == temps.end()) {
+                    continue;
+                }
+                DataType actual = it->second;
+                ensure_implements_interface(actual, c.iface_name, def);
+            }
+        }
 
 	    Procedure* inst_p = nullptr;
 	    if (nname.empty()) {

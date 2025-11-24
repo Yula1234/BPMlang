@@ -395,6 +395,13 @@ enum class ProcAttr {
 	nosizedargs
 };
 
+struct InterfaceMethod {
+    Token def; // позиция имени метода
+    std::string name;
+    std::vector<std::pair<std::string, DataType>> params;
+    DataType rettype;
+};
+
 std::optional<ProcAttr> string_to_PA(const std::string& str) {
 	if(str == "nostdargs") {
 		return ProcAttr::nostdargs;
@@ -677,6 +684,11 @@ struct NodeStmtWhile {
 	NodeExpr* expr {};
 };
 
+struct TypeConstraint {
+    std::string type_param;
+    std::string iface_name;
+};
+
 struct NodeStmtProc {
 	std::string name;
 	Token def;
@@ -686,6 +698,7 @@ struct NodeStmtProc {
 	NodeScope* scope {};
 	bool prototype = false;
 	__stdvec<std::string>* templates;
+	__stdvec<TypeConstraint> constraints;
 };
 
 struct NodeStmtCall {
@@ -747,9 +760,9 @@ struct NodeStmtStruct {
 };
 
 struct NodeStmtInterface {
-	Token def;
-	std::string name;
-	std::vector<std::pair<std::string, DataType>> fields;
+    Token def;
+    std::string name;
+    std::vector<InterfaceMethod> methods;
 };
 
 struct NodeStmtDelete {
@@ -2058,23 +2071,36 @@ public:
 			return stmt;
 		}
 		if(peek().has_value() && peek().value().type == TokenType_t::proc) {
-			consume();
-			auto stmt_proc = m_allocator.emplace<NodeStmtProc>();
-			Token identif = try_consume_err(TokenType_t::ident);
-			stmt_proc->templates = NULL;
-			if(peek().has_value() && peek().value().type == TokenType_t::less) {
-				consume();
-				stmt_proc->templates = m_allocator.emplace<__stdvec<std::string>>();
-				while(peek().has_value() && peek().value().type != TokenType_t::above) {
-					Token nm = try_consume_err(TokenType_t::ident);
-					stmt_proc->templates->push_back(nm.value.value());
-					if(peek().has_value() && peek().value().type != TokenType_t::above) {
-						try_consume_err(TokenType_t::comma);
-					}
-				}
-				consume();
-			}
-			try_consume_err(TokenType_t::open_paren);
+		    consume();
+		    auto stmt_proc = m_allocator.emplace<NodeStmtProc>();
+		    Token identif = try_consume_err(TokenType_t::ident);
+		    stmt_proc->templates = NULL;
+
+		    if (peek().has_value() && peek().value().type == TokenType_t::less) {
+		        consume();
+		        stmt_proc->templates = m_allocator.emplace<__stdvec<std::string>>();
+		        while (peek().has_value() && peek().value().type != TokenType_t::above) {
+		            Token nm = try_consume_err(TokenType_t::ident);
+		            std::string tname = nm.value.value();
+		            stmt_proc->templates->push_back(tname);
+
+		            if (peek().has_value() && peek().value().type == TokenType_t::double_dot) {
+		                consume();
+		                Token ifaceTok = try_consume_err(TokenType_t::ident);
+		                TypeConstraint c;
+		                c.type_param = tname;
+		                c.iface_name = ifaceTok.value.value();
+		                stmt_proc->constraints.push_back(c);
+		            }
+
+		            if (peek().has_value() && peek().value().type != TokenType_t::above) {
+		                try_consume_err(TokenType_t::comma);
+		            }
+		        }
+		        try_consume_err(TokenType_t::above);
+		    }
+
+		    try_consume_err(TokenType_t::open_paren);
 			std::vector<std::pair<std::string, DataType>> pparams;
 			if(peek().has_value() && peek().value().type != TokenType_t::close_paren) {
 				for(int i = 0;peek().has_value() && peek().value().type != TokenType_t::close_paren;++i) {
@@ -2443,33 +2469,70 @@ public:
 			return stmt;
 		}
 
-		if(auto _interface = try_consume(TokenType_t::_interface)) {
-			Token def = _interface.value();
-			auto stmt_interface = m_allocator.emplace<NodeStmtInterface>();
-			stmt_interface->name = try_consume_err(TokenType_t::ident).value.value();
-			stmt_interface->def = def;
-			try_consume_err(TokenType_t::open_curly);
-			while(peek().has_value() && peek().value().type != TokenType_t::close_curly) {
-				Token ident = try_consume_err(TokenType_t::ident);
-				try_consume_err(TokenType_t::double_dot);
-				if(!peek().has_value()) {
-					error_expected("field type");
+		if (auto _interface = try_consume(TokenType_t::_interface)) {
+		    Token def = _interface.value();
+		    auto stmt_interface = m_allocator.emplace<NodeStmtInterface>();
+		    stmt_interface->name = try_consume_err(TokenType_t::ident).value.value();
+		    stmt_interface->def  = def;
+
+		    try_consume_err(TokenType_t::open_curly);
+		    while (peek().has_value() && peek().value().type != TokenType_t::close_curly) {
+
+		        try_consume_err(TokenType_t::proc);
+		        Token mnameTok = try_consume_err(TokenType_t::ident);
+
+		        InterfaceMethod m;
+		        m.def  = mnameTok;
+		        m.name = mnameTok.value.value();
+
+				try_consume_err(TokenType_t::open_paren);
+				std::vector<std::pair<std::string, DataType>> params;
+				if (peek().has_value() && peek().value().type != TokenType_t::close_paren) {
+				    while (true) {
+				        if (peek().has_value() &&
+				            peek().value().type == TokenType_t::ident &&
+				            peek().value().value.has_value() &&
+				            peek().value().value.value() == "self" &&
+				            peek(1).has_value() &&
+				            (peek(1).value().type == TokenType_t::comma ||
+				             peek(1).value().type == TokenType_t::close_paren))
+				        {
+				            Token selfTok = consume();
+				            BaseDataType bt;
+				            bt = std::string("self");
+				            DataType dt(bt);
+				            params.emplace_back(selfTok.value.value(), dt);
+				        } else {
+				            DataType ptype = parse_type();
+				            Token pid      = try_consume_err(TokenType_t::ident);
+				            params.emplace_back(pid.value.value(), ptype);
+				        }
+
+				        if (!peek().has_value() || peek().value().type == TokenType_t::close_paren)
+				            break;
+				        try_consume_err(TokenType_t::comma);
+				    }
 				}
-				DataType dtype;
-				if(!is_type_token(peek().value().type)) {
-					error_expected("field type");
-				}
-				Token type = consume();
-				dtype = uni_token_to_dt(type);
-				stmt_interface->fields.push_back(std::make_pair(ident.value.value(), dtype));
-				if(peek().has_value() && peek().value().type != TokenType_t::close_curly) {
-					try_consume_err(TokenType_t::comma);
-				}
-			}
-			try_consume_err(TokenType_t::close_curly);
-			auto stmt = m_allocator.emplace<NodeStmt>();
-			stmt->var = stmt_interface;
-			return stmt;
+				try_consume_err(TokenType_t::close_paren);
+
+		        DataType rettype = BaseDataTypeVoid;
+		        if (peek().has_value() && peek().value().type == TokenType_t::arrow) {
+		            consume();
+		            rettype = parse_type();
+		        }
+
+		        m.params  = std::move(params);
+		        m.rettype = rettype;
+
+		        try_consume_err(TokenType_t::semi);
+
+		        stmt_interface->methods.push_back(m);
+		    }
+		    try_consume_err(TokenType_t::close_curly);
+
+		    auto stmt = m_allocator.emplace<NodeStmt>();
+		    stmt->var = stmt_interface;
+		    return stmt;
 		}
 
 		if(auto _st_assert = try_consume(TokenType_t::_static_assert)) {
