@@ -2941,6 +2941,8 @@ AFTER_GEN:
                     gen.m_builder.mov(gen.reg(Reg::EBP), gen.reg(Reg::ESP));
                 }
 
+                gen.m_builder.call(gen.sym("__bpm_proc_enter"));
+
                 if (!override) {
                     if (gen.in_namespace())
                         gen.m_cur_proc = gen.m_cur_namespace->procs[stmt_proc->name];
@@ -2967,9 +2969,11 @@ AFTER_GEN:
                 gen.m_cur_proc = std::nullopt;
 
                 if (stmt_proc->rettype.root() == BaseDataTypeVoid) {
+                    gen.m_builder.call(gen.sym("__bpm_proc_leave"));
                     gen.m_builder.call(gen.sym("traceback_pop"));
                 } else {
                     gen.push_reg(Reg::EAX);
+                    gen.m_builder.call(gen.sym("__bpm_proc_leave"));
                     gen.m_builder.call(gen.sym("traceback_pop"));
                     gen.pop_reg(Reg::EAX);
                 }
@@ -3700,19 +3704,46 @@ AFTER_GEN:
 
             void operator()(const NodeStmtTry* stmt_try) const
             {
-                const std::string catch_lab = gen.create_label();
-                const std::string end_catch = gen.create_label();
-                const std::string end_lab   = gen.create_label();
+                const std::string catch_lab  = gen.create_label();
+                const std::string end_catch  = gen.create_label();
+                const std::string end_lab    = gen.create_label();
 
-                gen.m_builder.mov(
-                    gen.reg(Reg::EAX),
-                    gen.mem(MemRef::sym("traceback", 4096))
-                );
-                gen.push_reg(Reg::EAX);
-
+                // ++__exception_bufs_lvl
                 gen.m_builder.emit(
                     IRInstr(IROp::Inc, gen.mem(MemRef::sym("__exception_bufs_lvl")))
                 );
+
+                // EAX = (N)
+                gen.m_builder.mov(
+                    gen.reg(Reg::EAX),
+                    gen.mem(MemRef::sym("__exception_bufs_lvl"))
+                );
+
+                // traceback.count -> __traceback_saved[N]
+
+                // EDX = traceback.count
+                gen.m_builder.mov(
+                    gen.reg(Reg::EDX),
+                    gen.mem(MemRef::sym("traceback", 4096))
+                );
+
+                // ECX = N
+                gen.m_builder.mov(gen.reg(Reg::ECX), gen.reg(Reg::EAX));
+                // ECX = N * 4
+                gen.m_builder.emit(
+                    IRInstr(IROp::IMul, gen.reg(Reg::ECX), gen.reg(Reg::ECX), gen.imm(4))
+                );
+                // ECX = &__traceback_saved[N]
+                gen.m_builder.add(gen.reg(Reg::ECX), gen.sym("__traceback_saved"));
+
+                // [__traceback_saved[N]] = traceback.count
+                gen.m_builder.mov(
+                    gen.mem(MemRef::baseDisp(Reg::ECX, 0)),
+                    gen.reg(Reg::EDX)
+                );
+
+                // 3) prepare jmp_buf for setjmp: __exception_bufs[N]
+
                 gen.m_builder.mov(
                     gen.reg(Reg::EAX),
                     gen.mem(MemRef::sym("__exception_bufs_lvl"))
@@ -3722,20 +3753,41 @@ AFTER_GEN:
                 );
                 gen.m_builder.add(gen.reg(Reg::EAX), gen.sym("__exception_bufs"));
                 gen.push_reg(Reg::EAX);
-
                 gen.m_builder.call(gen.sym("_setjmp"));
                 gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(4));
 
+                // _setjmp: 0 first, 1 after longjmp
                 gen.m_builder.emit(
                     IRInstr(IROp::Cmp, gen.reg(Reg::EAX), gen.imm(1))
                 );
-                gen.m_builder.jnz(gen.label(end_catch));
-
+                gen.m_builder.jnz(gen.label(end_catch)); // 0 -> нормальный путь (try)
                 gen.m_builder.label(catch_lab);
-                gen.pop_reg(Reg::EAX);
+
+                //   longjmp(__exception_bufs[__exception_bufs_lvl--], 1);
+
+                gen.m_builder.mov(
+                    gen.reg(Reg::EAX),
+                    gen.mem(MemRef::sym("__exception_bufs_lvl"))
+                );
+                gen.m_builder.add(gen.reg(Reg::EAX), gen.imm(1)); // EAX = N
+
+                // ECX = &__traceback_saved[N]
+                gen.m_builder.mov(gen.reg(Reg::ECX), gen.reg(Reg::EAX));
+                gen.m_builder.emit(
+                    IRInstr(IROp::IMul, gen.reg(Reg::ECX), gen.reg(Reg::ECX), gen.imm(4))
+                );
+                gen.m_builder.add(gen.reg(Reg::ECX), gen.sym("__traceback_saved"));
+
+                // EDX = traceback.count
+                gen.m_builder.mov(
+                    gen.reg(Reg::EDX),
+                    gen.mem(MemRef::baseDisp(Reg::ECX, 0))
+                );
+
+                // restore traceback.count
                 gen.m_builder.mov(
                     gen.mem(MemRef::sym("traceback", 4096)),
-                    gen.reg(Reg::EAX)
+                    gen.reg(Reg::EDX)
                 );
 
                 size_t catch_scope_size = 1 + gen.collect_alligns(stmt_try->_catch);
@@ -3743,12 +3795,14 @@ AFTER_GEN:
                 gen.create_var_va(stmt_try->name, stmt_try->type, stmt_try->def);
                 Var vr = gen.var_lookup_cs(stmt_try->name).value();
 
+                // __bpm_get_current_exception()
                 gen.m_builder.call(gen.sym("__bpm_get_current_exception"));
                 gen.m_builder.mov(
                     gen.mem(gen.local_mem(vr.stack_loc)),
                     gen.reg(Reg::EAX)
                 );
 
+                // catch
                 for (const NodeStmt* st : stmt_try->_catch->stmts) {
                     gen.gen_stmt(st);
                 }
@@ -3758,14 +3812,17 @@ AFTER_GEN:
                 gen.m_builder.jmp(gen.label(end_lab));
 
                 gen.m_builder.label(end_catch);
+
                 gen.push_imm(static_cast<int32_t>(gen.typeid_of(stmt_try->type)));
                 gen.m_builder.call(gen.sym("__bpm_start_catch"));
                 gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(4));
 
+                // try
                 gen.gen_scope(stmt_try->_try);
 
                 gen.m_builder.call(gen.sym("__bpm_end_catch"));
 
+                // --__exception_bufs_lvl
                 gen.m_builder.mov(
                     gen.reg(Reg::EAX),
                     gen.mem(MemRef::sym("__exception_bufs_lvl"))
@@ -4228,6 +4285,7 @@ private:
 	        gen_traceback_push(proc);
 	    else
 	        gen_traceback_push_nm(proc, nname);
+        m_builder.call(sym("__bpm_proc_enter"));
 
 	    m_tsigns.push_back(tsign);
 	    if (!nname.empty()) proc.mbn = nname;
@@ -4236,6 +4294,7 @@ private:
 	    gen_scope_sp(proc.scope, proc.from, proc);
 
 	    push_reg(Reg::EAX);
+        m_builder.call(sym("__bpm_proc_leave"));
 	    m_builder.call(sym("traceback_pop"));
 	    pop_reg(Reg::EAX);
 	    m_builder.pop(reg(Reg::EBP));
@@ -4423,6 +4482,9 @@ private:
         "__bpm_double_free_exception_what",
         "traceback",
         "__bpm_recursion_exception_what",
+        "__traceback_saved",
+        "__bpm_proc_enter",
+        "__bpm_proc_leave",
     };
 
     __stdvec<NodeScope*>                __oninits;

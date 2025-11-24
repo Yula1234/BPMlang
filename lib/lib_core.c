@@ -83,6 +83,8 @@ extern int32_t __BpmDoubleExceptionTypeId;
 extern int32_t __BpmRecursionExceptionTypeId;
 extern int32_t __BpmSigSegvExceptionTypeId;
 
+int32_t __traceback_saved[1024];
+
 // ==========================================
 // 3. MEMORY MANAGEMENT IMPLEMENTATION
 // ==========================================
@@ -453,4 +455,23 @@ LONG WINAPI unhandled_exception_filter(struct _EXCEPTION_POINTERS *ep)
 void __bpm_set_sigsegv_handler(void)
 {
     SetUnhandledExceptionFilter(unhandled_exception_filter);
+}
+
+int32_t __eh_proc_lvl_stack[1024];
+int32_t __eh_proc_lvl_top = -1;
+
+void __bpm_proc_enter(void) {
+    assert(__eh_proc_lvl_top + 1 < 1024);
+    __eh_proc_lvl_stack[++__eh_proc_lvl_top] = __exception_bufs_lvl;
+}
+
+void __bpm_proc_leave(void) {
+    assert(__eh_proc_lvl_top >= 0);
+    int32_t base = __eh_proc_lvl_stack[__eh_proc_lvl_top--];
+
+    // Снимаем все EH-кадры, созданные в этой процедуре
+    while (__exception_bufs_lvl > base) {
+        __bpm_end_catch();          // уменьшает __exception_handle_lvl
+        __exception_bufs_lvl--;     // уменьшаем уровень jmp_buf’ов
+    }
 }
