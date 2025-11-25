@@ -1,259 +1,231 @@
-#define UNIMPLEMENTED \
-    do { \
-        fprintf(stderr, "%s:%d: %s is not implemented yet\n", \
-                __FILE__, __LINE__, __func__); \
-        abort(); \
-    } while(0)
+#pragma once
 
-#define HEAP_CAP_BYTES 256000
-#define HEAP_CAP_WORDS (HEAP_CAP_BYTES / sizeof(uintptr_t))
+// ========================================================
+//  Простая консервативная mark-sweep GC c API:
+//      void* memalloc(size_t size);
+//      void  memfree(void* ptr);
+//  + явный gc_collect(), инициализация корней через gc_set_stack_base().
+//
+//  ИДЕЯ:
+//   - Каждый объект: [ GcHeader | user-bytes... ] из malloc().
+//   - Глобальный список всех объектов.
+//   - GC: помечает reachable через сканирование стека; потом sweep.
+//   - memfree: явное освобождение по желанию (не обязательно).
+//
+//  ПЛЮСЫ:
+//   - Просто интегрируется: подставляешь memalloc/memfree.
+//   - Нет ограничений на число объектов (нет CHUNK_LIST_CAP).
+//   - Нет ручного менеджмента heap[].
+//
+//  МИНУСЫ:
+//   - Каждый объект — отдельный malloc() (как у Boehm по умолчанию).
+//   - Для огромного числа мелких объектов может быть дороговато,
+//     но обычно сильно быстрее твоего прошлого варианта с кучей линейных проходов.
+// ========================================================
 
-size_t HEAP_SIZE = HEAP_CAP_WORDS;
-uintptr_t heap[HEAP_CAP_WORDS] = {0};
-const uintptr_t *stack_base = 0;
+typedef struct GcHeader {
+    struct GcHeader* next;  // связный список всех объектов
+    size_t           size;  // размер пользовательской области (байт)
+    unsigned char    mark;  // 0/1 — бит "живой"
+} GcHeader;
 
-static uintptr_t* heap_top   = heap;
-static uintptr_t* heap_limit = heap + HEAP_CAP_WORDS;
+static GcHeader* gc_objects = NULL;
 
-#define CHUNK_LIST_CAP 2048
-#define MAX_ALLOCED_NC 64U
+// База стека — адрес "ниже" всех будущих кадров.
+// В твоём lib_core.c у тебя уже есть глобальная const uintptr_t* stack_base.
+// Здесь сделаем свой указатель, который ты проинициализируешь.
+static const uintptr_t* gc_stack_base = NULL;
 
-void *memalloc(size_t size_bytes);
-void memfree(void *ptr);
-void heap_collect();
+// Порог для запуска GC по байтам / количеству объектов
+static size_t gc_allocated_bytes     = 0;
+static size_t gc_object_count        = 0;
+static size_t gc_bytes_before_collect = 4 * 1024 * 1024;  // 4 МБ для примера
+static size_t gc_max_objects_before_collect = 100000;     // 100k объектов
 
-// ==========================================
-// 3. MEMORY MANAGEMENT IMPLEMENTATION
-// ==========================================
-
-typedef struct {
-    uintptr_t *start;
-    size_t size;
-} Chunk;
-
-typedef struct {
-    size_t count;
-    Chunk chunks[CHUNK_LIST_CAP];
-} Chunk_List;
-
-Chunk_List alloced_chunks = {0};
-Chunk_List freed_chunks = {
-    .count = 1,
-    .chunks = { [0] = {.start = heap, .size = HEAP_CAP_WORDS } },
-};
-Chunk_List tmp_chunks = {0};
-
-bool reachable_chunks[CHUNK_LIST_CAP] = {0};
-void *to_free[CHUNK_LIST_CAP] = {0};
-size_t to_free_count = 0;
-uint32_t __all_heap_collects = 0U;
-
-// Helper functions for chunks
-uint32_t chunk_list_sizes(const Chunk_List *list) {
-    uint32_t res = 0U;
-    for (int i = 0;i < list->count;++i) {
-        res += list->chunks[i].size;
-    }
-    return res;
+// Внешний интерфейс:
+//   - вызвать один раз в старте программы, чтобы GC знал верх стека.
+//     В твоём коде можно сделать: gc_set_stack_base(stack_base);
+//     (где stack_base — тот же, что и использовался раньше).
+void gc_set_stack_base(const void* base) {
+    gc_stack_base = (const uintptr_t*)base;
 }
 
-// Найти индекс чанка, содержащего указатель p (или -1)
-int chunk_list_find_containing(const Chunk_List* list, const uintptr_t* p) {
-    size_t lo = 0;
-    size_t hi = list->count;
-    while (lo < hi) {
-        size_t mid = lo + (hi - lo) / 2;
-        uintptr_t* start = list->chunks[mid].start;
-        uintptr_t* end   = start + list->chunks[mid].size;
-        if (p < start) {
-            hi = mid;
-        } else if (p >= end) {
-            lo = mid + 1;
+// Пометить/снять метку на всех объектах
+static void gc_clear_marks(void) {
+    for (GcHeader* h = gc_objects; h != NULL; h = h->next) {
+        h->mark = 0;
+    }
+}
+
+// Проверка: p лежит внутри [h+1, h+1 + size)
+static int gc_ptr_in_object(GcHeader* h, const void* p) {
+    const uintptr_t addr   = (uintptr_t)p;
+    const uintptr_t start  = (uintptr_t)(h + 1);
+    const uintptr_t end    = start + h->size;
+    return (addr >= start && addr < end);
+}
+
+// Вперёд объявляем, чтобы можно было вызывать из gc_mark_object
+static void gc_mark_region(const uintptr_t* start, const uintptr_t* end);
+
+// Пометить объект живым и просканировать его содержимое на наличие указателей
+static void gc_mark_object(GcHeader* h) {
+    if (h->mark) return;
+    h->mark = 1;
+
+    // Сканируем всю пользовательскую область как массив uintptr_t
+    uintptr_t* ob_start = (uintptr_t*)(h + 1);
+    uintptr_t* ob_end   = (uintptr_t*)((uint8_t*)(h + 1) + h->size);
+    gc_mark_region(ob_start, ob_end);
+}
+
+// Сканируем регион памяти [start, end), интерпретируя каждое слово как возможный указатель
+static void gc_mark_region(const uintptr_t* start, const uintptr_t* end) {
+    for (const uintptr_t* slot = start; slot < end; ++slot) {
+        void* cand = (void*)(*slot);
+        if (!cand) continue;
+
+        for (GcHeader* h = gc_objects; h != NULL; h = h->next) {
+            if (!h->mark && gc_ptr_in_object(h, cand)) {
+                gc_mark_object(h);
+                // после gc_mark_object(h) объект помечен и его внутренняя память уже просканирована
+                break;
+            }
+        }
+    }
+}
+
+// Публичная точка входа для явного сбора мусора
+void gc_collect(void) {
+    if (!gc_stack_base) {
+        // Без знания базы стека мы не можем корректно сканировать,
+        // поэтому в дебаге лучше упасть. В релизе можно просто return.
+        // assert(!"gc_stack_base is not set. Call gc_set_stack_base()");
+        return;
+    }
+
+    gc_clear_marks();
+
+    // Сканируем стек: от текущего кадра до gc_stack_base.
+    // В x86 (cdecl) стек растёт вниз, поэтому:
+    //   stack_top = адрес локальной переменной (ниже по памяти),
+    //   gc_stack_base — выше по памяти.
+    //
+    // Но чтобы не ломать мозг, сделаем просто "min/max":
+    uintptr_t dummy = 0;
+    const uintptr_t* top = (const uintptr_t*)&dummy;
+    const uintptr_t* lo  = (top < gc_stack_base) ? top : gc_stack_base;
+    const uintptr_t* hi  = (top < gc_stack_base) ? gc_stack_base : top;
+
+    gc_mark_region(lo, hi + 1);
+
+    // TODO: по уму нужно сканировать и глобалы/статические данные,
+    // но для начала ограничимся стеком.
+
+    // Сбор: удаляем все объекты с mark == 0
+    GcHeader** link = &gc_objects;
+    while (*link) {
+        GcHeader* h = *link;
+        if (!h->mark) {
+            *link = h->next;
+            gc_allocated_bytes -= h->size;
+            gc_object_count--;
+            free(h);
         } else {
-            return (int)mid;
-        }
-    }
-    return -1;
-}
-
-bool need_heap_collect(const Chunk_List* list) {
-    if(list->count > MAX_ALLOCED_NC) return true;
-    if(chunk_list_sizes(list) > 1024U) return true;
-    return false;
-}
-
-void chunk_list_insert(Chunk_List *list, void *start, size_t size) {
-    assert(list->count < CHUNK_LIST_CAP);
-    list->chunks[list->count].start = start;
-    list->chunks[list->count].size  = size;
-
-    for (size_t i = list->count;
-            i > 0 && list->chunks[i].start < list->chunks[i - 1].start;
-            --i) {
-        const Chunk t = list->chunks[i];
-        list->chunks[i] = list->chunks[i - 1];
-        list->chunks[i - 1] = t;
-    }
-    list->count += 1;
-}
-
-void chunk_list_merge(Chunk_List *dst, const Chunk_List *src) {
-    dst->count = 0;
-    for (size_t i = 0; i < src->count; ++i) {
-        const Chunk chunk = src->chunks[i];
-        if (dst->count > 0) {
-            Chunk *top_chunk = &dst->chunks[dst->count - 1];
-            if (top_chunk->start + top_chunk->size == chunk.start) {
-                top_chunk->size += chunk.size;
-            } else {
-                chunk_list_insert(dst, chunk.start, chunk.size);
-            }
-        } else {
-            chunk_list_insert(dst, chunk.start, chunk.size);
-        }
-    }
-}
-
-void chunk_list_dump(const Chunk_List *list, const char *name) {
-    printf("%s Chunks (%zu):\n", name, list->count);
-    for (size_t i = 0; i < list->count; ++i) {
-        printf("  start: %p, size: %zu\n", (void*) list->chunks[i].start, list->chunks[i].size);
-    }
-}
-
-int chunk_list_find(const Chunk_List *list, uintptr_t *ptr) {
-    for (size_t i = 0; i < list->count; ++i) {
-        if (list->chunks[i].start == ptr) return (int) i;
-    }
-    return -1;
-}
-
-void chunk_list_remove(Chunk_List *list, size_t index) {
-    assert(index < list->count);
-    for (size_t i = index; i < list->count - 1; ++i) {
-        list->chunks[i] = list->chunks[i + 1];
-    }
-    list->count -= 1;
-}
-
-void dump_all_chunks() {
-    puts("---------------------------------");
-    chunk_list_dump(&alloced_chunks, "allocated");
-    puts("");
-    chunk_list_dump(&freed_chunks, "freed");
-    puts("---------------------------------");
-}
-
-// Memalloc implementation
-void *memalloc(size_t size_bytes) {
-    // Размер в словах (uintptr_t), выровненный вверх
-    size_t size_words = (size_bytes + sizeof(uintptr_t) - 1) / sizeof(uintptr_t);
-    if (size_words == 0) size_words = 1;
-
-    // 1) Попытка быстрого bump-alloc в статическом heap[]
-    if (size_words <= (size_t)(heap_limit - heap_top)) {
-        uintptr_t* ptr = heap_top;
-        heap_top += size_words;
-        chunk_list_insert(&alloced_chunks, ptr, size_words);
-        return ptr;
-    }
-
-    // 2) Падаем в GC + попытка взять из freed_chunks (heap-память после GC)
-    if (size_words < HEAP_CAP_WORDS) {
-        // Один раз собираем мусор при нехватке
-        static int in_gc = 0;
-        if (!in_gc) {
-            in_gc = 1;
-            heap_collect();
-            in_gc = 0;
-        }
-
-        // Сольём и отсортируем свободные чанки
-        chunk_list_merge(&tmp_chunks, &freed_chunks);
-        freed_chunks = tmp_chunks;
-
-        // Ищем подходящий свободный чанк
-        for (size_t i = 0; i < freed_chunks.count; ++i) {
-            Chunk chunk = freed_chunks.chunks[i];
-            if (chunk.size >= size_words) {
-                chunk_list_remove(&freed_chunks, i);
-
-                size_t tail = chunk.size - size_words;
-                chunk_list_insert(&alloced_chunks, chunk.start, size_words);
-
-                if (tail > 0) {
-                    chunk_list_insert(&freed_chunks,
-                                      chunk.start + size_words,
-                                      tail);
-                }
-                return chunk.start;
-            }
+            link = &h->next;
         }
     }
 
-    // 3) Fallback: большие или безнадёжные аллокации идут через malloc
-    void* mptr = malloc(size_bytes);
-    if (!mptr) return NULL;
-
-    chunk_list_insert(&alloced_chunks, (uintptr_t*)mptr, size_words);
-    HEAP_SIZE += size_words;
-    return mptr;
+    // Сдвигаем пороги (простая эвристика)
+    gc_bytes_before_collect = gc_allocated_bytes + 4 * 1024 * 1024;
+    gc_max_objects_before_collect = gc_object_count + 100000;
 }
 
-// Memfree implementation
-void memfree(void *ptr) {
-    if (ptr != NULL) {
-        const int index = chunk_list_find(&alloced_chunks, ptr);
-        if(index < 0) {
-            __bpm_exception* exc;
-            if (__BpmDoubleExceptionTypeId != 0) {
-                __DoubleFreeException* __bpm_struct_exc = (__DoubleFreeException*)memalloc(sizeof(__DoubleFreeException));
-                __bpm_struct_exc->__addr = (int32_t)ptr;
-                exc = __bpm_allocate_exception(__BpmDoubleExceptionTypeId, (int32_t)__bpm_struct_exc, (__what_t)__bpm_double_free_exception_what);
-            } else {
-                exc = __bpm_allocate_exception(3, (uintptr_t)ptr, (__what_t)__bpm_double_free_exception_what);
-            }
-            __bpm_throw(exc);
+// memalloc: обёртка над malloc + учёт в GC
+void* memalloc(size_t size) {
+    if (size == 0) {
+        size = 1; // нулевая аллокация — всегда 1 байт
+    }
+
+    // Пороговый запуск GC
+    if ((gc_allocated_bytes + size > gc_bytes_before_collect) ||
+        (gc_object_count + 1 > gc_max_objects_before_collect))
+    {
+        gc_collect();
+    }
+
+    GcHeader* h = (GcHeader*)malloc(sizeof(GcHeader) + size);
+    if (!h) {
+        // Попробуем один раз собрать мусор и повторить
+        gc_collect();
+        h = (GcHeader*)malloc(sizeof(GcHeader) + size);
+        if (!h) {
+            // Реальный OOM
+            return NULL;
+        }
+    }
+
+    h->size = size;
+    h->mark = 0;
+    h->next = gc_objects;
+    gc_objects = h;
+
+    gc_allocated_bytes += size;
+    gc_object_count++;
+
+    return (void*)(h + 1);
+}
+
+// memfree: явное освобождение (опциональное в GC-системе)
+// Можно использовать для "delete" в твоём языке.
+void memfree(void* ptr) {
+    if (!ptr) return;
+
+    GcHeader* target = (GcHeader*)ptr - 1;
+
+    // Ищем в списке и удаляем
+    GcHeader** link = &gc_objects;
+    while (*link) {
+        if (*link == target) {
+            *link = target->next;
+            gc_allocated_bytes -= target->size;
+            gc_object_count--;
+            free(target);
             return;
         }
-        assert(ptr == alloced_chunks.chunks[index].start);
-        chunk_list_insert(&freed_chunks,
-                          alloced_chunks.chunks[index].start,
-                          alloced_chunks.chunks[index].size);
-        chunk_list_remove(&alloced_chunks, (size_t) index);
+        link = &((*link)->next);
     }
+
+    // Если дошли сюда — ptr не из GC-кучи.
+    // Можно либо:
+    //  - assert(0);
+    //  - либо просто free(ptr).
+    //
+    // Чтобы быть дружелюбными к уже имеющемуся коду, сделаем free().
+    // (Например, если кто-то вызвал memfree() от обычного malloc.)
+    free(ptr);
 }
 
-// Garbage Collector
-static void mark_region(const uintptr_t *start, const uintptr_t *end) {
-    for (; start < end; start += 1) {
-        const uintptr_t *p = (const uintptr_t *) *start;
-        if (!p) continue;
+// Дамп текущего состояния GC: список объектов и базовые счётчики.
+// Если out == NULL, пишем в stderr.
+void __bpm_gc_dump_state() {
+    printf("===== GC state dump =====\n");
+    printf("  objects:           %zu\n", gc_object_count);
+    printf("  allocated bytes:   %zu\n", gc_allocated_bytes);
+    printf("  next GC at bytes:  %zu\n", gc_bytes_before_collect);
+    printf("  next GC at objs:   %zu\n", gc_max_objects_before_collect);
+    printf("  stack_base:        %p\n", (const void*)gc_stack_base);
+    printf("  objects list:\n");
 
-        int idx = chunk_list_find_containing(&alloced_chunks, p);
-        if (idx >= 0) {
-            if (!reachable_chunks[idx]) {
-                reachable_chunks[idx] = true;
-                Chunk chunk = alloced_chunks.chunks[idx];
-                mark_region(chunk.start, chunk.start + chunk.size);
-            }
-        }
+    size_t idx = 0;
+    for (GcHeader* h = gc_objects; h != NULL; h = h->next, ++idx) {
+        void* user_ptr = (void*)(h + 1);
+        printf("    [%zu] ptr=%p size=%zu mark=%u\n",
+                idx,
+                user_ptr,
+                h->size,
+                (unsigned)h->mark);
     }
-}
 
-void heap_collect() {
-    __all_heap_collects += 1;
-    const uintptr_t *stack_start = (const uintptr_t*)__builtin_frame_address(0);
-    memset(reachable_chunks, 0, sizeof(reachable_chunks));
-    mark_region(stack_start, stack_base + 1);
-    to_free_count = 0;
-    for (size_t i = 0; i < alloced_chunks.count; ++i) {
-        if (!reachable_chunks[i]) {
-            assert(to_free_count < CHUNK_LIST_CAP);
-            to_free[to_free_count++] = alloced_chunks.chunks[i].start;
-        }
-    }
-    for (size_t i = 0; i < to_free_count; ++i) {
-        memfree(to_free[i]);
-    }
+    printf("===== end of GC state =====\n");
 }

@@ -44,6 +44,9 @@ impl vector<T> [new] {
 	proc end(vector<T> self) -> VectorIterator<T> {
 		return VectorIterator::new<T>(self.m_data + ((self.m_size) * 4));
 	}
+	proc size(vector<T> self) -> int {
+		return self.m_size;
+	}
 	proc extend(vector<T> self) {
 		let tmp = memalloc((self.m_cap * 4) * 2);
 		memcpy(tmp, self.m_data, self.m_size * 4);

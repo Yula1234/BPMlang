@@ -3961,7 +3961,9 @@ AFTER_GEN:
 	    m_builder.label("main");
 
 	    m_builder.call(sym("__bpm_set_sigsegv_handler"));
-	    m_builder.mov(mem(MemRef::sym("stack_base")), reg(Reg::EBP));
+	    m_builder.push(reg(Reg::EBP));
+        m_builder.call(sym("gc_set_stack_base"));
+        m_builder.add(reg(Reg::ESP), imm(4));
 
 	    m_builder.mov(mem(MemRef::sym("__BpmDoubleExceptionTypeId")),   imm(0));
 	    m_builder.mov(mem(MemRef::sym("__BpmRecursionExceptionTypeId")), imm(0));
@@ -4664,7 +4666,7 @@ private:
         "memalloc",
         "memfree",
         "heap_collect",
-        "stack_base",
+        "gc_set_stack_base",
         "dump_all_chunks",
         "__current_exception",
         "__bpm_exception_throwed",
@@ -4690,6 +4692,7 @@ private:
         "__traceback_saved",
         "__bpm_proc_enter",
         "__bpm_proc_leave",
+        "__bpm_gc_dump_state",
     };
 
     __stdvec<NodeScope*>                __oninits;
