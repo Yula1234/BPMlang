@@ -115,6 +115,25 @@ impl forward_list<T> [new] {
         return ForwardListIterator::new<T>(null());
     }
 
+    proc m_fprint(forward_list<T> self, int fd) {
+        let sz: int = self.m_size;
+        if(sz == 0) {
+            std::fprint(fd, "forward_list[]\n");
+            return;
+        }
+        std::fprint(fd, "forward_list[");
+        let it = self~begin();
+        let ed = self~end();
+        while(it != ed) {
+            std::fprint(fd, *it);
+            it += 1;
+            if(it != ed) {
+                std::fprint(fd, ", ");
+            }
+        }
+        std::fprint(fd, "]\n");
+    }
+
     proc m_assign(forward_list<T>& self, forward_list<T>&& other) -> void {
         std::__container_move(other, cast(forward_list<T>&&, self));
     }
@@ -143,30 +162,5 @@ impl forward_list<T> [new] {
             it += 1;
         }
         return res;
-    }
-}
-
-namespace std {
-    proc fprint<T>(int fd, forward_list<T> fl) {
-        let sz: int = fl.m_size;
-        if(sz == 0) {
-            std::fprint(fd, "forward_list[]\n");
-            return;
-        }
-        std::fprint(fd, "forward_list[");
-        let it = fl~begin();
-        let ed = fl~end();
-        while(it != ed) {
-            std::fprint(fd, *it);
-            it += 1;
-            if(it != ed) {
-                std::fprint(fd, ", ");
-            }
-        }
-        std::fprint(fd, "]\n");
-    }
-
-    proc print<T>(forward_list<T> fl) {
-        std::fprint(stdout, fl);
     }
 }

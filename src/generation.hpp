@@ -4112,12 +4112,33 @@ private:
     {
         DataType selfCanon = canonical_type(selfType);
 
-        if (impl.params.size() != iface.params.size())
+        Procedure inst = impl;
+        if (selfType.is_object()) {
+            std::string oname = selfType.getobjectname();
+            std::optional<Struct> stOpt = struct_lookup(oname);
+            if (stOpt.has_value() && stOpt.value().temp) {
+                std::vector<DataType> targs = get_template_args(selfType);
+                const Struct& st = stOpt.value();
+
+                if (targs.size() == st.temps.size()) {
+                    __map<std::string, DataType> temps;
+                    for (size_t i = 0; i < st.temps.size(); ++i) {
+                        temps[st.temps[i]] = targs[i];
+                    }
+                    for (auto& p : inst.params) {
+                        substitute_template_wct(p.second, temps);
+                    }
+                    substitute_template_wct(inst.rettype, temps);
+                }
+            }
+        }
+
+        if (inst.params.size() != iface.params.size())
             return false;
 
         for (size_t i = 0; i < iface.params.size(); ++i) {
             DataType exp = canonical_type(iface.params[i].second);
-            DataType act = canonical_type(impl.params[i].second);
+            DataType act = canonical_type(inst.params[i].second);
 
             if (exp.is_object() && exp.getobjectname() == "self") {
                 if (act != selfCanon) return false;
@@ -4127,7 +4148,7 @@ private:
         }
 
         DataType expRet = canonical_type(iface.rettype);
-        DataType actRet = canonical_type(impl.rettype);
+        DataType actRet = canonical_type(inst.rettype);
 
         if (expRet.is_object() && expRet.getobjectname() == "self") {
             if (actRet != selfCanon) return false;

@@ -192,42 +192,14 @@ impl map<K, V> [new] {
         return self.m_size == 0;
     }
 
-    proc destroy(map<K, V> self) {
-        let i = 0;
-        while(i < self.m_cap) {
-            let current = cast(ptr, rd32(self.m_buckets + (i * 4)));
-
-            while(current != null()) {
-                let node_ref = cast(MapNode<K, V>*, current);
-                let next     = node_ref.next;
-
-                #if(is_object_t(ct_type(K))) { delete node_ref.key; }
-                #if(is_object_t(ct_type(V))) { delete node_ref.value; }
-
-                memfree(current);
-                current = next;
-            }
-
-            i += 1;
-        }
-
-        memfree(self.m_buckets);
-        self.m_buckets = null();
-        self.m_size    = 0;
-        self.m_cap     = 0;
-    }
-}
-
-namespace std {
-
-    proc fprint<K, V>(int fd, map<K, V> m) {
+    proc m_fprint(map<K, V> self, int fd) {
         std::fprint(fd, "{");
 
         let first = 1;
         let i = 0;
 
-        while(i < m.m_cap) {
-            let current = cast(ptr, rd32(m.m_buckets + (i * 4)));
+        while(i < self.m_cap) {
+            let current = cast(ptr, rd32(self.m_buckets + (i * 4)));
 
             while(current != null()) {
                 let node_ref = cast(MapNode<K, V>*, current);
@@ -253,8 +225,28 @@ namespace std {
         std::fprint(fd, "}");
     }
 
-    proc print<K, V>(map<K, V> m) {
-        std::fprint(stdout, m);
-        std::print("\n");
+    proc destroy(map<K, V> self) {
+        let i = 0;
+        while(i < self.m_cap) {
+            let current = cast(ptr, rd32(self.m_buckets + (i * 4)));
+
+            while(current != null()) {
+                let node_ref = cast(MapNode<K, V>*, current);
+                let next     = node_ref.next;
+
+                #if(is_object_t(ct_type(K))) { delete node_ref.key; }
+                #if(is_object_t(ct_type(V))) { delete node_ref.value; }
+
+                memfree(current);
+                current = next;
+            }
+
+            i += 1;
+        }
+
+        memfree(self.m_buckets);
+        self.m_buckets = null();
+        self.m_size    = 0;
+        self.m_cap     = 0;
     }
 }

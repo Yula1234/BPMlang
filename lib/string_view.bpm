@@ -5,13 +5,6 @@ struct string_view {
 	data:char*
 }
 
-namespace std {
-	proc fprint(int fd, string_view value) {
-		printf("%.*s", value.count, value.data);
-	}
-	proc print(string_view value) { std::fprint(stdout, value); }
-}
-
 const NOT_FINDED = 4294967295;
 
 namespace string_view {
@@ -67,6 +60,9 @@ namespace string_view {
 	}
 	proc m_assign(string_view& self, string_view&& other) -> void {
 		std::__container_move(other, cast(string_view&&, self));
+	}
+	proc m_fprint(string_view self, int fd) {
+		printf("%.*s", self.count, self.data);
 	}
 }
 

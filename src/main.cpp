@@ -17,6 +17,7 @@
 #include <set>
 #include <chrono>
 #include <ctime>
+#include <stdexcept>
 
 /*
     To start using compiller

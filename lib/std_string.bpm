@@ -115,6 +115,9 @@ namespace string {
         self += other.m_data;
         return self;
     }
+    proc m_fprint(string self, int fd) {
+		std::fprint(fd, self.m_data);
+	}
 	proc destroy(string self) {
 		memfree(self.m_data);
 	}
@@ -123,12 +126,6 @@ namespace string {
 namespace std {
 	proc string<T>(T __ctor_v) -> string {
 		return string::new(__ctor_v);
-	}
-	proc fprint(int fd, string s) {
-		std::fprint(fd, s.m_data);
-	}
-	proc print(string s) {
-		std::fprint(stdout, s);
 	}
 	proc hash(string str) -> int {
 		return std::hash(str.m_data);
