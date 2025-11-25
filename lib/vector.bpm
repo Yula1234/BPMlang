@@ -30,13 +30,13 @@ impl VectorIterator<T> [new] {
 		return cast(T, rd32(self._ptr));
 	}
 	proc deref_to(VectorIterator<T> self) -> T {
-		return self~m_deref();
+		return self.m_deref();
 	}
 }
 
 impl vector<T> [new] {
 	proc new<T>() -> vector<T> {
-		return vector<T>(memalloc(sizeof(T)), 0, sizeof(T) / 4);
+		return vector<T>(memalloc(sizeof(T)), 0, (sizeof(T) / 4));
 	}
 	proc begin(vector<T> self) -> VectorIterator<T> {
 		return VectorIterator::new<T>(self.m_data);
@@ -54,24 +54,24 @@ impl vector<T> [new] {
 	proc reserve(vector<T> self, int ncap) {
 		if((ncap < self.m_cap) || (ncap == self.m_cap)) return;
 		while(self.m_cap < ncap) {
-			self~extend();
+			self.extend();
 		}
 	}
 	proc setsize(vector<T> self, int newsz) {
 		self.m_size = newsz;
 	}
 	proc reserve_setsize(vector<T> self, int ncap) {
-		self~reserve(ncap);
-		self~setsize(ncap);
+		self.reserve(ncap);
+		self.setsize(ncap);
 	}
 	proc set(vector<T> self, int index, T value) {
 		store32(self.m_data + (index * 4), value);
 	}
 	proc push(vector<T> self, T value) {
 		if(self.m_size == (self.m_cap)) {
-			self~extend();
+			self.extend();
 		}
-		self~set(self.m_size, value);
+		self.set(self.m_size, value);
 		self.m_size += 1;
 	}
 	proc empty(vector<T> self) -> int {
@@ -82,11 +82,11 @@ impl vector<T> [new] {
 			raise std::exception("index out of bounds");
 		}
 		if(self.m_size == 0) {
-			self~push(value);
+			self.push(value);
 			return;
 		}
 		if(self.m_size == self.m_cap) {
-			self~extend();
+			self.extend();
 		}
 		memmove(self.m_data + ((index + 1) * 4), 
 		        self.m_data + (index * 4), 
@@ -100,11 +100,11 @@ impl vector<T> [new] {
 	}
 	proc at(vector<T> self, int index) -> T {
 		if(self.m_size < (index + 1)) raise std::exception("index > m_size");
-		return self~get(index);
+		return self.get(index);
 	}
 	proc pop(vector<T> self) -> T {
 		self.m_size -= 1;
-		return self~get(self.m_size);
+		return self.get(self.m_size);
 	}
 	proc m_assign(vector<T>& self, vector<T>&& other) -> void {
 		std::__container_move(other, cast(vector<T>&&, self));
@@ -118,7 +118,7 @@ impl vector<T> [new] {
 		let i = 0;
 		std::fprint(fd, "vector[");
 		while(i < __sz) {
-			std::fprint(fd, self~get(i));
+			std::fprint(fd, self.get(i));
 			if(i != (__sz - 1)) {
 				std::fprint(fd, ", ");
 			}
@@ -131,7 +131,7 @@ impl vector<T> [new] {
 			let i: int = 0;
 			try {
 				while(i < self.m_size) {
-					delete self~get(i);
+					delete self.get(i);
 					i += 1;
 				}
 			} catch (err: exception) {

@@ -2782,156 +2782,148 @@ public:
 			return stmt;
 		}
 
-		if(auto lvalue = parse_expr(0, true)) {
-			if(!peek().has_value()) {
-				error_expected("statement");
-			}
-			Token curtok = peek().value();		
-			if(!lvalue.has_value()) {
-				error_expected("lvalue");
-			}
-			if(curtok.type == TokenType_t::eq) {
-				const auto stmt_assign = m_allocator.emplace<NodeStmtAssign>();
-				stmt_assign->lvalue = lvalue.value();
-				stmt_assign->def = consume();
-				if (const auto expr = parse_expr()) {
-					stmt_assign->expr = expr.value();
-				}
-				else {
-					error_expected("expression");
-				}
-				try_consume_err(TokenType_t::semi);
-				auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
-				return stmt;
-			}
-			else if (curtok.type == TokenType_t::tilda) {
-    			NodeExpr* obj = lvalue.value();
-			
-    			NodeStmtMtCall* final_stmt = nullptr;
-			
-    			while (true) {
-    			    consume();
-    			    Token identif = try_consume_err(TokenType_t::ident);
-			
-    			    __stdvec<DataType> targs;
-		
-    			    if (peek().has_value() && peek().value().type == TokenType_t::less) {
-    			        consume();
-    			        while (peek().has_value() && peek().value().type != TokenType_t::above) {
-    			            DataType dt = parse_type();
-    			            targs.push_back(dt);
-    			            if (peek().has_value() && peek().value().type != TokenType_t::above) {
-    			                try_consume_err(TokenType_t::comma);
-    			            }
-    			        }
-    			        try_consume_err(TokenType_t::above);
-    			    }
-			
-    			    try_consume_err(TokenType_t::open_paren);
-    			    NodeExpr* args_expr = nullptr;
-    			    if (peek().has_value() && peek().value().type == TokenType_t::close_paren) {
-    			        NodeBinExprArgs* _args = m_allocator.emplace<NodeBinExprArgs>();
-    			        _args->args.push_back(obj);
-    			        NodeBinExpr* ab = m_allocator.emplace<NodeBinExpr>();
-    			        ab->var = _args;
-    			        args_expr = m_allocator.emplace<NodeExpr>();
-    			        args_expr->var = ab;
-    			    } else {
-    			        std::pair<NodeExpr*, size_t> pargs = parse_args(obj);
-    			        args_expr = pargs.first;
-    			    }
-    			    try_consume_err(TokenType_t::close_paren);
-			
-    			    if (peek().has_value() && peek().value().type == TokenType_t::tilda) {
-    			        auto term_call = m_allocator.emplace<NodeTermMtCall>();
-    			        term_call->def  = identif;
-    			        term_call->mt   = obj;
-    			        term_call->name = identif.value.value();
-    			        term_call->args = args_expr;
-    			        term_call->targs = targs;
-			
-    			        NodeTerm* term_node = m_allocator.emplace<NodeTerm>(term_call);
-    			        obj = m_allocator.emplace<NodeExpr>();
-    			        obj->var = term_node;
-    			        continue;
-    			    } else {
-    			        auto stmt_call = m_allocator.emplace<NodeStmtMtCall>();
-    			        stmt_call->def  = identif;
-    			        stmt_call->mt   = obj;
-    			        stmt_call->name = identif.value.value();
-    			        stmt_call->args = args_expr;
-    			        stmt_call->targs = targs;
-    			        final_stmt = stmt_call;
-    			        break;
-    			    }
-    			}
-			
-    			try_consume_err(TokenType_t::semi);
-    			auto stmt = m_allocator.emplace<NodeStmt>(final_stmt);
-    			return stmt;
-			}
-			else if(curtok.type == TokenType_t::plus_eq) {
-				const auto stmt_assign = m_allocator.emplace<NodeStmtIncBy>();
-				stmt_assign->lvalue = lvalue.value();
-				stmt_assign->def = consume();
-				if (const auto expr = parse_expr()) {
-					stmt_assign->expr = expr.value();
-				}
-				else {
-					error_expected("expression");
-				}
-				try_consume_err(TokenType_t::semi);
-				auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
-				return stmt;
-			}
-			else if(curtok.type == TokenType_t::minus_eq) {
-				const auto stmt_assign = m_allocator.emplace<NodeStmtDecBy>();
-				stmt_assign->lvalue = lvalue.value();
-				stmt_assign->def = consume();
-				if (const auto expr = parse_expr()) {
-					stmt_assign->expr = expr.value();
-				}
-				else {
-					error_expected("expression");
-				}
-				try_consume_err(TokenType_t::semi);
-				auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
-				return stmt;
-			}
-			else if(curtok.type == TokenType_t::star_eq) {
-				const auto stmt_assign = m_allocator.emplace<NodeStmtMulBy>();
-				stmt_assign->lvalue = lvalue.value();
-				stmt_assign->def = consume();
-				if (const auto expr = parse_expr()) {
-					stmt_assign->expr = expr.value();
-				}
-				else {
-					error_expected("expression");
-				}
-				try_consume_err(TokenType_t::semi);
-				auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
-				return stmt;
-			}
-			else if(curtok.type == TokenType_t::fslash_eq) {
-				const auto stmt_assign = m_allocator.emplace<NodeStmtDivBy>();
-				stmt_assign->lvalue = lvalue.value();
-				stmt_assign->def = consume();
-				if (const auto expr = parse_expr()) {
-					stmt_assign->expr = expr.value();
-				}
-				else {
-					error_expected("expression");
-				}
-				try_consume_err(TokenType_t::semi);
-				auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
-				return stmt;
-			}
-			else {
-				error_expected("statement");
-			}
-		}
+		if (auto lvalue = parse_expr(0, true)) {
+            if (!peek().has_value()) {
+                error_expected("statement");
+            }
+            Token curtok = peek().value();
+            if (!lvalue.has_value()) {
+                error_expected("lvalue");
+            }
 
-		return {};
+            if (curtok.type == TokenType_t::eq) {
+                const auto stmt_assign = m_allocator.emplace<NodeStmtAssign>();
+                stmt_assign->lvalue = lvalue.value();
+                stmt_assign->def = consume();
+                if (const auto expr = parse_expr()) {
+                    stmt_assign->expr = expr.value();
+                } else {
+                    error_expected("expression");
+                }
+                try_consume_err(TokenType_t::semi);
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
+                return stmt;
+            }
+            else if (curtok.type == TokenType_t::plus_eq) {
+                const auto stmt_assign = m_allocator.emplace<NodeStmtIncBy>();
+                stmt_assign->lvalue = lvalue.value();
+                stmt_assign->def = consume();
+                if (const auto expr = parse_expr()) {
+                    stmt_assign->expr = expr.value();
+                } else {
+                    error_expected("expression");
+                }
+                try_consume_err(TokenType_t::semi);
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
+                return stmt;
+            }
+            else if (curtok.type == TokenType_t::minus_eq) {
+                const auto stmt_assign = m_allocator.emplace<NodeStmtDecBy>();
+                stmt_assign->lvalue = lvalue.value();
+                stmt_assign->def = consume();
+                if (const auto expr = parse_expr()) {
+                    stmt_assign->expr = expr.value();
+                } else {
+                    error_expected("expression");
+                }
+                try_consume_err(TokenType_t::semi);
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
+                return stmt;
+            }
+            else if (curtok.type == TokenType_t::star_eq) {
+                const auto stmt_assign = m_allocator.emplace<NodeStmtMulBy>();
+                stmt_assign->lvalue = lvalue.value();
+                stmt_assign->def = consume();
+                if (const auto expr = parse_expr()) {
+                    stmt_assign->expr = expr.value();
+                } else {
+                    error_expected("expression");
+                }
+                try_consume_err(TokenType_t::semi);
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
+                return stmt;
+            }
+            else if (curtok.type == TokenType_t::fslash_eq) {
+                const auto stmt_assign = m_allocator.emplace<NodeStmtDivBy>();
+                stmt_assign->lvalue = lvalue.value();
+                stmt_assign->def = consume();
+                if (const auto expr = parse_expr()) {
+                    stmt_assign->expr = expr.value();
+                } else {
+                    error_expected("expression");
+                }
+                try_consume_err(TokenType_t::semi);
+                auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
+                return stmt;
+            }
+            // --- НОВОЕ: obj.method(args); как NodeStmtMtCall ---
+            else if (curtok.type == TokenType_t::semi) {
+                NodeExpr* expr = lvalue.value();
+
+                // Пытаемся распознать шаблон obj.method(args)
+                if (std::holds_alternative<NodeBinExpr*>(expr->var)) {
+                    NodeBinExpr* bexpr = std::get<NodeBinExpr*>(expr->var);
+                    if (std::holds_alternative<NodeBinExprDot*>(bexpr->var)) {
+                        NodeBinExprDot* dot = std::get<NodeBinExprDot*>(bexpr->var);
+
+                        if (std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
+                            NodeTerm* rhs_term = std::get<NodeTerm*>(dot->rhs->var);
+                            if (std::holds_alternative<NodeTermCall*>(rhs_term->var)) {
+                                NodeTermCall* call = std::get<NodeTermCall*>(rhs_term->var);
+
+                                auto stmt_call = m_allocator.emplace<NodeStmtMtCall>();
+                                stmt_call->def   = call->def;
+                                stmt_call->mt    = dot->lhs;
+                                stmt_call->name  = call->name;
+                                stmt_call->targs = call->targs;
+
+                                // Собираем аргументы: [ self, arg1, arg2, ... ]
+                                auto* arglist = m_allocator.emplace<NodeBinExprArgs>();
+                                arglist->args.push_back(dot->lhs);
+
+                                if (call->args.has_value()) {
+                                    NodeExpr* aexpr = call->args.value();
+                                    if (std::holds_alternative<NodeBinExpr*>(aexpr->var) &&
+                                        std::holds_alternative<NodeBinExprArgs*>(
+                                            std::get<NodeBinExpr*>(aexpr->var)->var
+                                        ))
+                                    {
+                                        NodeBinExpr* argsBin = std::get<NodeBinExpr*>(aexpr->var);
+                                        NodeBinExprArgs* argsNode =
+                                            std::get<NodeBinExprArgs*>(argsBin->var);
+                                        for (NodeExpr* e : argsNode->args) {
+                                            arglist->args.push_back(e);
+                                        }
+                                    } else {
+                                        // один аргумент без списка
+                                        arglist->args.push_back(aexpr);
+                                    }
+                                }
+
+                                NodeBinExpr* ab = m_allocator.emplace<NodeBinExpr>();
+                                ab->def = call->def;
+                                ab->var = arglist;
+                                NodeExpr* argsExpr = m_allocator.emplace<NodeExpr>();
+                                argsExpr->var = ab;
+                                stmt_call->args = argsExpr;
+
+                                try_consume_err(TokenType_t::semi);
+                                auto stmt = m_allocator.emplace<NodeStmt>(stmt_call);
+                                return stmt;
+                            }
+                        }
+                    }
+                }
+
+                // Если не узнали obj.method(...), это невалидное statement
+                error_expected("statement");
+            }
+            else {
+                error_expected("statement");
+            }
+        }
+
+        return {};
 	}
 
 	std::optional<NodeProg*> parse_prog()

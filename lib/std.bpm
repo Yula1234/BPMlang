@@ -200,7 +200,7 @@ namespace std {
 	proc print(int value, int dpchr) { std::fprint(stdout, value); putc(dpchr); }
 	proc print(char* value) = std::fprint(stdout, value);
 
-	proc fprint<T: __StdPrintable>(int __fd, T __obj) = __obj~m_fprint(__fd);
+	proc fprint<T: __StdPrintable>(int __fd, T __obj) = __obj.m_fprint(__fd);
 	proc print<T: __StdPrintable>(T __obj) = std::fprint(stdout, __obj);
 
 	proc exchange<T>(T& __s, T __v) -> T {

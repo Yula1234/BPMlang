@@ -633,53 +633,105 @@ public:
 
     DataType type_of_dot(const NodeBinExprDot* dot, const Token& def) {
         DataType otype = type_of_expr(dot->lhs);
-        if (std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
-            NodeTerm* id = std::get<NodeTerm*>(dot->rhs->var);
-            if (!std::holds_alternative<NodeTermIdent*>(id->var)) {
-                return BaseDataTypeVoid;
-            }
-            NodeTermIdent* tid = std::get<NodeTermIdent*>(id->var);
-            Token ident = tid->ident;
-            std::string field_name = ident.value.value();
-            if (!otype.root().is_object) {
-                return BaseDataTypeVoid;
-            }
-            std::string struct_name = otype.root().getobjectname();
-            std::optional<Struct> st = struct_lookup(struct_name);
-            if (st.has_value()) {
-                std::optional<Field> field = field_lookup(st.value(), field_name);
-                if (!field.has_value()) {
-                    GeneratorError(def, "struct `" + struct_name + "` don't have field `" + field_name + "`");
-                }
-                Struct stc = st.value();
-                Field  fd  = field.value();
-                if (stc.temp) {
-                    __stdvec<DataType> targs;
-                    TreeNode<BaseDataType>* current = otype.list.get_root()->right;
-                    for (size_t i = 0; i < stc.temps.size(); ++i) {
-                        if (current == nullptr) {
-                            GeneratorError(def, "Internal Compiler Error: malformed template type inside type_of_dot.");
-                        }
-                        size_t arg_len = count_template_nodes(current);
-                        targs.push_back(extract_type_nodes(current, arg_len));
-                        for (size_t k = 0; k < arg_len; ++k) {
-                            if (current) current = current->right;
-                        }
-                    }
-                    __map<std::string, DataType> temps = compute_temps(stc.temps, targs);
-                    substitute_template_wct(fd.type, temps);
-                }
-                return fd.type;
-            }
-            std::optional<Interface> inter = inter_lookup(struct_name);
-            if (inter.has_value()) {
-                GeneratorError(def, "interfaces have no fields; cannot access `" +
-                                     field_name + "` on interface `" + struct_name + "`");
-            }
-            return BaseDataTypeVoid;
-        } else {
+
+        if (!std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
             return BaseDataTypeVoid;
         }
+
+        NodeTerm* term = std::get<NodeTerm*>(dot->rhs->var);
+
+        // --- 1) obj.method(args): вызов метода ---
+        if (std::holds_alternative<NodeTermCall*>(term->var)) {
+            NodeTermCall* call = std::get<NodeTermCall*>(term->var);
+
+            // Строим временный NodeTermMtCall, как если бы это был obj~method(args)
+            NodeTermMtCall mt;
+            mt.def   = call->def;
+            mt.mt    = dot->lhs;
+            mt.name  = call->name;
+            mt.targs = call->targs;
+
+            // Собираем аргументы: первым будет self (dot->lhs), потом исходные аргументы вызова
+            __stdvec<NodeExpr*> allargs;
+            allargs.push_back(dot->lhs);
+
+            if (call->args.has_value()) {
+                NodeExpr* aexpr = call->args.value();
+                if (std::holds_alternative<NodeBinExpr*>(aexpr->var) &&
+                    std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(aexpr->var)->var))
+                {
+                    NodeBinExpr* be = std::get<NodeBinExpr*>(aexpr->var);
+                    NodeBinExprArgs* barg = std::get<NodeBinExprArgs*>(be->var);
+                    auto& raw = barg->args;
+                    allargs.insert(allargs.end(), raw.begin(), raw.end());
+                } else {
+                    allargs.push_back(aexpr);
+                }
+            }
+
+            NodeBinExprArgs bargs{ .args = allargs };
+            NodeBinExpr     bexpr{ .def = call->def, .var = &bargs };
+            NodeExpr        eargs{ .var = &bexpr };
+
+            mt.args = &eargs;
+
+            NodeTerm wrapTerm{ .var = &mt };
+            NodeExpr wrapExpr{ .var = &wrapTerm };
+
+            return type_of_expr(&wrapExpr);
+        }
+
+        // --- 2) obj.field: доступ к полю ---
+        if (!std::holds_alternative<NodeTermIdent*>(term->var)) {
+            return BaseDataTypeVoid;
+        }
+
+        NodeTermIdent* tid = std::get<NodeTermIdent*>(term->var);
+        Token ident = tid->ident;
+        std::string field_name = ident.value.value();
+
+        if (!otype.root().is_object) {
+            return BaseDataTypeVoid;
+        }
+
+        std::string struct_name = otype.root().getobjectname();
+        std::optional<Struct> st = struct_lookup(struct_name);
+        if (st.has_value()) {
+            std::optional<Field> field = field_lookup(st.value(), field_name);
+            if (!field.has_value()) {
+                GeneratorError(def,
+                    "struct `" + struct_name + "` don't have field `" + field_name + "`");
+            }
+            Struct stc = st.value();
+            Field  fd  = field.value();
+            if (stc.temp) {
+                __stdvec<DataType> targs;
+                TreeNode<BaseDataType>* current = otype.list.get_root()->right;
+                for (size_t i = 0; i < stc.temps.size(); ++i) {
+                    if (current == nullptr) {
+                        GeneratorError(def,
+                            "Internal Compiler Error: malformed template type inside type_of_dot.");
+                    }
+                    size_t arg_len = count_template_nodes(current);
+                    targs.push_back(extract_type_nodes(current, arg_len));
+                    for (size_t k = 0; k < arg_len; ++k) {
+                        if (current) current = current->right;
+                    }
+                }
+                __map<std::string, DataType> temps = compute_temps(stc.temps, targs);
+                substitute_template_wct(fd.type, temps);
+            }
+            return fd.type;
+        }
+
+        std::optional<Interface> inter = inter_lookup(struct_name);
+        if (inter.has_value()) {
+            GeneratorError(def,
+                "interfaces have no fields; cannot access `" + field_name +
+                "` on interface `" + struct_name + "`");
+        }
+
+        return BaseDataTypeVoid;
     }
 
     DataType type_of_expr(const NodeExpr* expr) {
@@ -1964,63 +2016,104 @@ public:
 
             void operator()(const NodeBinExprDot* dot) const {
                 DataType otype = gen.type_of_expr(dot->lhs);
-                if (std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
-                    NodeTerm* id = std::get<NodeTerm*>(dot->rhs->var);
-                    if (!std::holds_alternative<NodeTermIdent*>(id->var)) {
-                        gen.GeneratorError(base->def, "after `.` except identificator");
-                    }
-                    NodeTermIdent* tid = std::get<NodeTermIdent*>(id->var);
-                    Token ident = tid->ident;
-                    std::string field_name = ident.value.value();
 
-                    if (!otype.root().is_object) {
+                if (!std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
+                    gen.GeneratorError(base->def, "after `.` except identificator");
+                }
+
+                NodeTerm* term = std::get<NodeTerm*>(dot->rhs->var);
+
+                // --- 1) obj.method(args): вызвать метод как obj~method(args) ---
+                if (std::holds_alternative<NodeTermCall*>(term->var)) {
+                    NodeTermCall* call = std::get<NodeTermCall*>(term->var);
+
+                    NodeTermMtCall mt;
+                    mt.def   = call->def;
+                    mt.mt    = dot->lhs;
+                    mt.name  = call->name;
+                    mt.targs = call->targs;
+
+                    __stdvec<NodeExpr*> allargs;
+                    allargs.push_back(dot->lhs);
+
+                    if (call->args.has_value()) {
+                        NodeExpr* aexpr = call->args.value();
+                        if (std::holds_alternative<NodeBinExpr*>(aexpr->var) &&
+                            std::holds_alternative<NodeBinExprArgs*>(std::get<NodeBinExpr*>(aexpr->var)->var))
+                        {
+                            NodeBinExpr* be = std::get<NodeBinExpr*>(aexpr->var);
+                            NodeBinExprArgs* barg = std::get<NodeBinExprArgs*>(be->var);
+                            auto& raw = barg->args;
+                            allargs.insert(allargs.end(), raw.begin(), raw.end());
+                        } else {
+                            allargs.push_back(aexpr);
+                        }
+                    }
+
+                    NodeBinExprArgs bargs{ .args = allargs };
+                    NodeBinExpr     bexpr{ .def = call->def, .var = &bargs };
+                    NodeExpr        eargs{ .var = &bexpr };
+
+                    mt.args = &eargs;
+
+                    NodeTerm wrapTerm{ .var = &mt };
+                    gen.gen_term(&wrapTerm);
+                    return;
+                }
+
+                // --- 2) obj.field: доступ к полю ---
+                if (!std::holds_alternative<NodeTermIdent*>(term->var)) {
+                    gen.GeneratorError(base->def, "after `.` except identificator");
+                }
+
+                NodeTermIdent* tid = std::get<NodeTermIdent*>(term->var);
+                Token ident = tid->ident;
+                std::string field_name = ident.value.value();
+
+                if (!otype.root().is_object) {
+                    gen.GeneratorError(
+                        base->def,
+                        "bellow `.` except expression of type any object\nNOTE: but got " +
+                        otype.to_string()
+                    );
+                }
+
+                std::string struct_name = otype.root().getobjectname();
+                std::optional<Struct> st = gen.struct_lookup(struct_name);
+                size_t field_offset = 0;
+                if (st.has_value()) {
+                    std::optional<Field> field = gen.field_lookup(st.value(), field_name);
+                    if (!field.has_value()) {
                         gen.GeneratorError(
                             base->def,
-                            "bellow `.` except expression of type any object\nNOTE: but got " +
-                            otype.to_string()
+                            "object of type `" + otype.to_string() +
+                            "` doesn`t have field `" + field_name + "`"
                         );
                     }
-
-                    std::string struct_name = otype.root().getobjectname();
-                    std::optional<Struct> st = gen.struct_lookup(struct_name);
-                    size_t field_offset = 0;
-
-                    if (st.has_value()) {
-                        std::optional<Field> field = gen.field_lookup(st.value(), field_name);
-                        if (!field.has_value()) {
-                            gen.GeneratorError(
-                                base->def,
-                                "object of type `" + otype.to_string() +
-                                "` doesn`t have field `" + field_name + "`"
-                            );
-                        }
-                        field_offset = field.value().nth;
-                    } else {
-                        std::optional<Interface> inter = gen.inter_lookup(struct_name);
-                        if (inter.has_value()) {
-                            gen.GeneratorError(
-                                base->def,
-                                "interfaces have no fields; cannot access `" +
-                                field_name + "` on interface `" + struct_name + "`"
-                            );
-                        } else {
-                            assert(false && "unreacheable");
-                        }
-                    }
-
-                    gen.gen_expr(dot->lhs);
-                    gen.pop_reg(Reg::ECX);
-                    int32_t disp = static_cast<int32_t>(field_offset * 4U);
-                    if (lvalue) {
-                        if (disp != 0)
-                            gen.m_builder.add(gen.reg(Reg::ECX), gen.imm(disp));
-                        gen.push_reg(Reg::ECX);
-                    } else {
-                        MemRef m = MemRef::baseDisp(Reg::ECX, disp);
-                        gen.push_mem(m);
-                    }
+                    field_offset = field.value().nth;
                 } else {
-                    gen.GeneratorError(base->def, "after `.` except identificator");
+                    std::optional<Interface> inter = gen.inter_lookup(struct_name);
+                    if (inter.has_value()) {
+                        gen.GeneratorError(
+                            base->def,
+                            "interfaces have no fields; cannot access `" + field_name +
+                            "` on interface `" + struct_name + "`"
+                        );
+                    } else {
+                        assert(false && "unreacheable");
+                    }
+                }
+
+                gen.gen_expr(dot->lhs);
+                gen.pop_reg(Reg::ECX);
+                int32_t disp = static_cast<int32_t>(field_offset * 4U);
+                if (lvalue) {
+                    if (disp != 0)
+                        gen.m_builder.add(gen.reg(Reg::ECX), gen.imm(disp));
+                    gen.push_reg(Reg::ECX);
+                } else {
+                    MemRef m = MemRef::baseDisp(Reg::ECX, disp);
+                    gen.push_mem(m);
                 }
             }
 
