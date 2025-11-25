@@ -3004,7 +3004,14 @@ AFTER_GEN:
 
                 if (stmt_proc->rettype == BaseDataTypeConst) return;
                 if (stmt_proc->templates != NULL)            return;
-                if (stmt_proc->prototype)                    return;
+                if (stmt_proc->prototype) {
+                    std::vector<ProcAttr> attrs = stmt_proc->attrs;
+                    bool is_cimport = std::find(attrs.begin(), attrs.end(), ProcAttr::cimport) != attrs.end();
+                    if (is_cimport) {
+                        gen.m_cexterns.push_back(stmt_proc->name);
+                    }
+                    return;
+                }
                 if (override && movs->templates != NULL)     return;
 
                 std::vector<ProcAttr> attrs = stmt_proc->attrs;
@@ -4692,7 +4699,6 @@ private:
         "__traceback_saved",
         "__bpm_proc_enter",
         "__bpm_proc_leave",
-        "__bpm_gc_dump_state",
     };
 
     __stdvec<NodeScope*>                __oninits;

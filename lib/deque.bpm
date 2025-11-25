@@ -32,11 +32,11 @@ impl DequeIterator<T> [new] {
 	
 	proc m_deref(DequeIterator<T> self) -> T {
 		let __d = cast(deque<T>, self._deq);
-		return __d~get(self._idx); 
+		return __d.get(self._idx); 
 	}
 	
 	proc deref_to(DequeIterator<T> self) -> T {
-		return self~m_deref();
+		return self.m_deref();
 	}
 }
 
@@ -63,7 +63,7 @@ impl deque<T> [new] {
 		
 		let i = 0;
 		while(i < self.m_size) {
-			let p_idx = self~phys_idx(i);
+			let p_idx = self.phys_idx(i);
 			let val = rd32(self.m_data + (p_idx * 4));
 			store32(new_data + (i * 4), val);
 			i += 1;
@@ -77,16 +77,16 @@ impl deque<T> [new] {
 
 	proc push_back(deque<T> self, T value) {
 		if(self.m_size == self.m_cap) {
-			self~grow();
+			self.grow();
 		}
-		let p_idx = self~phys_idx(self.m_size);
+		let p_idx = self.phys_idx(self.m_size);
 		store32(self.m_data + (p_idx * 4), value);
 		self.m_size += 1;
 	}
 
 	proc push_front(deque<T> self, T value) {
 		if(self.m_size == self.m_cap) {
-			self~grow();
+			self.grow();
 		}
 		self.m_head = (self.m_head - 1 + self.m_cap) % self.m_cap;
 		store32(self.m_data + (self.m_head * 4), value);
@@ -96,7 +96,7 @@ impl deque<T> [new] {
 	proc pop_back(deque<T> self) -> T {
 		if(self.m_size == 0) raise std::exception("deque::pop_back empty");
 		self.m_size -= 1;
-		let p_idx = self~phys_idx(self.m_size);
+		let p_idx = self.phys_idx(self.m_size);
 		return cast(T, rd32(self.m_data + (p_idx * 4)));
 	}
 
@@ -109,7 +109,7 @@ impl deque<T> [new] {
 	}
 
 	proc get(deque<T> self, int index) -> T {
-		let p_idx = self~phys_idx(index);
+		let p_idx = self.phys_idx(index);
 		return cast(T, rd32(self.m_data + (p_idx * 4)));
 	}
 
@@ -117,16 +117,16 @@ impl deque<T> [new] {
 		// ИСПРАВЛЕНО: замена >= на not(<)
 		if(not(index < self.m_size)) raise std::exception("deque index out of bounds");
 		if(index < 0) raise std::exception("deque index negative");
-		return self~get(index);
+		return self.get(index);
 	}
 	
 	proc front(deque<T> self) -> T {
-		return self~at(0);
+		return self.at(0);
 	}
 	
 	proc back(deque<T> self) -> T {
 		if(self.m_size == 0) raise std::exception("deque empty");
-		return self~get(self.m_size - 1);
+		return self.get(self.m_size - 1);
 	}
 
 	proc begin(deque<T> self) -> DequeIterator<T> {
@@ -142,7 +142,7 @@ impl deque<T> [new] {
 			let i = 0;
 			try {
 				while(i < self.m_size) {
-					let val = self~get(i);
+					let val = self.get(i);
 					delete val;
 					i += 1;
 				}
@@ -155,8 +155,8 @@ impl deque<T> [new] {
 	proc clone(deque<T> self) -> deque<T> {
 		let new_deq = deque::new<T>();
 		
-		foreach_range(i, 0, self~size(), 1,
-			new_deq~push_back(self~at(i));
+		foreach_range(i, 0, self.size(), 1,
+			new_deq.push_back(self.at(i));
 		)
 		
 		return new_deq;
@@ -171,14 +171,14 @@ impl deque<T> [new] {
 		if (cast(ptr, self) == cast(ptr, other)) {
 			return;
 		}
-		self~clear();
-		foreach_range(i, 0, other~size(), 1,
-			self~push_back(other~at(i));
+		self.clear();
+		foreach_range(i, 0, other.size(), 1,
+			self.push_back(other.at(i));
 		)
 	}
 
 	proc copy(deque<T> other) -> deque<T> {
-		return other~clone();
+		return other.clone();
 	}
 
 	proc m_assign(deque<T>& self, deque<T>&& other) -> void {
@@ -200,7 +200,7 @@ impl deque<T> [new] {
 		let i = 0;
 		std::fprint(fd, "deque[");
 		while(i < __sz) {
-			std::fprint(fd, self~get(i));
+			std::fprint(fd, self.get(i));
 			if(i != (__sz - 1)) {
 				std::fprint(fd, ", ");
 			}

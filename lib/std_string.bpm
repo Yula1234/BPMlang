@@ -36,7 +36,7 @@ namespace string {
 		return string::new(self.m_data);
 	}
 	proc new(string other) -> string {
-		return other~clone();
+		return other.clone();
 	}
 	proc new(string&& other) -> string {
 		let __tmp: string = *cast(string&, other);
@@ -81,13 +81,13 @@ namespace string {
 		let __sz = strlen(_cstr);
 		if(__sz == 0) { return self; }
 		if((__sz + 1) > self.m_cap) {
-			self~extend(__sz + 1);
+			self.extend(__sz + 1);
 		}
 		memcpy(self.m_data, _cstr, __sz + 1);
 		return self;
 	}
 	proc m_assign(string self, string other) -> string {
-		if(self.m_cap < other.m_size) { self~extend(other.m_size + 1); }
+		if(self.m_cap < other.m_size) { self.extend(other.m_size + 1); }
 		memcpy(self.m_data, other.m_data, other.m_size + 1);
 		self.m_size = other.m_size;
 		self.m_cap = other.m_cap;
@@ -98,7 +98,7 @@ namespace string {
 		return *self;
 	}
 	proc m_inc(string self, int chr) -> string {
-		if((self.m_size + 1) > self.m_cap) { self~extend(self.m_size + 4); }
+		if((self.m_size + 1) > self.m_cap) { self.extend(self.m_size + 4); }
 		store8((self.m_data + self.m_size), chr);
 		store8((self.m_data + self.m_size) + 1, 0);
 	}
@@ -106,7 +106,7 @@ namespace string {
 		let __sz = strlen(_cstr);
 		if(__sz == 0) { return self; }
 		let __nsz = __sz + ((self.m_size) + 2);
-		if(__nsz > self.m_cap) { self~extend(__nsz); }
+		if(__nsz > self.m_cap) { self.extend(__nsz); }
 		std::strcat(self.m_data, _cstr);
 		self.m_size = __nsz;
 		return self;

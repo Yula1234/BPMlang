@@ -36,7 +36,7 @@ namespace std {
 		let __it: Iter2 = begin;
 		let __input: Iter = src;
 		while(__it != end) {
-			*__input = __it~deref_to();
+			*__input = __it.deref_to();
 			__input += 1;
 			__it += 1;
 		}

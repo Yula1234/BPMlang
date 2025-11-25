@@ -392,7 +392,8 @@ std::ostream& operator<<(std::ostream& out, DataType& dt) {
 enum class ProcAttr {
 	nostdargs,
 	noprolog,
-	nosizedargs
+	nosizedargs,
+	cimport,
 };
 
 struct InterfaceMethod {
@@ -411,6 +412,9 @@ std::optional<ProcAttr> string_to_PA(const std::string& str) {
 	}
 	if(str == "nosizedargs") {
 		return ProcAttr::nosizedargs;
+	}
+	if(str == "cimport") {
+		return ProcAttr::cimport;
 	}
 	return std::nullopt;
 }

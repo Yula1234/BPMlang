@@ -41,7 +41,7 @@ namespace FILE {
 		fclose(self.cfile);
 	}
 	proc destroy(FILE self) -> void {
-		self~close();
+		self.close();
 	}
 	proc size(FILE self) -> int {
 		fseek(self.cfile, 0, FSEEK_END);
@@ -53,12 +53,12 @@ namespace FILE {
 		return fgetc(self.cfile);
 	}
 	proc read_to_buffer(FILE self, char* buf) -> int {
-		fread(buf, self~size(), 1, self.cfile);
-		store8(buf + (self~size()), 0);
+		fread(buf, self.size(), 1, self.cfile);
+		store8(buf + (self.size()), 0);
 	}
 	proc read_to_string(FILE self) -> string {
-		let __bf = cast(char*, memalloc(self~size()));
-		self~read_to_buffer(__bf);
+		let __bf = cast(char*, memalloc(self.size()));
+		self.read_to_buffer(__bf);
 		let __s = std::string(__bf);
 		memfree(__bf);
 		return __s;

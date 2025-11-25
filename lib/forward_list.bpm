@@ -36,7 +36,7 @@ impl ForwardListIterator<T> [new] {
     }
 
     proc deref_to(ForwardListIterator<T> self) -> T {
-        return self~m_deref();
+        return self.m_deref();
     }
 }
 
@@ -62,21 +62,21 @@ impl forward_list<T> [new] {
     }
 
     proc push_front(forward_list<T> self, T value) {
-        let node = self~__alloc_node(value, self.m_head);
+        let node = self.__alloc_node(value, self.m_head);
         self.m_head = node;
         self.m_size += 1;
     }
 
     proc push_back(forward_list<T> self, T value) {
         if(self.m_head == null()) {
-            self~push_front(value);
+            self.push_front(value);
             return;
         }
         let cur = self.m_head;
         while(cast(ptr, rd32(cur + 4)) != null()) {
             cur = cast(ptr, rd32(cur + 4));
         }
-        let node = self~__alloc_node(value, null());
+        let node = self.__alloc_node(value, null());
         store32(cur + 4, node);
         self.m_size += 1;
     }
@@ -122,8 +122,8 @@ impl forward_list<T> [new] {
             return;
         }
         std::fprint(fd, "forward_list[");
-        let it = self~begin();
-        let ed = self~end();
+        let it = self.begin();
+        let ed = self.end();
         while(it != ed) {
             std::fprint(fd, *it);
             it += 1;
@@ -150,15 +150,15 @@ impl forward_list<T> [new] {
             } catch (err: exception) {
             }
         }
-        self~clear();
+        self.clear();
     }
 
     proc clone(forward_list<T> self) -> forward_list<T> {
         let res = forward_list::new<T>();
-        let it = self~begin();
-        let ed = self~end();
+        let it = self.begin();
+        let ed = self.end();
         while(it != ed) {
-            res~push_back(*it);
+            res.push_back(*it);
             it += 1;
         }
         return res;

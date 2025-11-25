@@ -5,22 +5,6 @@
 //      void* memalloc(size_t size);
 //      void  memfree(void* ptr);
 //  + явный gc_collect(), инициализация корней через gc_set_stack_base().
-//
-//  ИДЕЯ:
-//   - Каждый объект: [ GcHeader | user-bytes... ] из malloc().
-//   - Глобальный список всех объектов.
-//   - GC: помечает reachable через сканирование стека; потом sweep.
-//   - memfree: явное освобождение по желанию (не обязательно).
-//
-//  ПЛЮСЫ:
-//   - Просто интегрируется: подставляешь memalloc/memfree.
-//   - Нет ограничений на число объектов (нет CHUNK_LIST_CAP).
-//   - Нет ручного менеджмента heap[].
-//
-//  МИНУСЫ:
-//   - Каждый объект — отдельный malloc() (как у Boehm по умолчанию).
-//   - Для огромного числа мелких объектов может быть дороговато,
-//     но обычно сильно быстрее твоего прошлого варианта с кучей линейных проходов.
 // ========================================================
 
 typedef struct GcHeader {
@@ -32,8 +16,6 @@ typedef struct GcHeader {
 static GcHeader* gc_objects = NULL;
 
 // База стека — адрес "ниже" всех будущих кадров.
-// В твоём lib_core.c у тебя уже есть глобальная const uintptr_t* stack_base.
-// Здесь сделаем свой указатель, который ты проинициализируешь.
 static const uintptr_t* gc_stack_base = NULL;
 
 // Порог для запуска GC по байтам / количеству объектов
@@ -44,8 +26,6 @@ static size_t gc_max_objects_before_collect = 100000;     // 100k объекто
 
 // Внешний интерфейс:
 //   - вызвать один раз в старте программы, чтобы GC знал верх стека.
-//     В твоём коде можно сделать: gc_set_stack_base(stack_base);
-//     (где stack_base — тот же, что и использовался раньше).
 void gc_set_stack_base(const void* base) {
     gc_stack_base = (const uintptr_t*)base;
 }
@@ -177,7 +157,6 @@ void* memalloc(size_t size) {
 }
 
 // memfree: явное освобождение (опциональное в GC-системе)
-// Можно использовать для "delete" в твоём языке.
 void memfree(void* ptr) {
     if (!ptr) return;
 

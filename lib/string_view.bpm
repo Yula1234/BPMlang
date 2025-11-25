@@ -34,24 +34,24 @@ namespace string_view {
 		return rd8((self.data) + index);
 	}
 	proc trim_left(string_view self) {
-		while(self~first_chr() == ' ') {
-			self~cut();
+		while(self.first_chr() == ' ') {
+			self.cut();
 		}
 	}
 	proc chop_by(string_view self, int chr) -> int {
-		while(self~first_chr() != chr) {
-			if(self~first_chr() == 0) {
+		while(self.first_chr() != chr) {
+			if(self.first_chr() == 0) {
 				return 0;
 			}
-			self~cut();
+			self.cut();
 		}
-		self~cut();
+		self.cut();
 		return 0;
 	}
 	proc find(string_view self, int chr) -> int {
 		let i = 0;
 		while(i < (self.count)) {
-			if(self~at(i) == chr) {
+			if(self.at(i) == chr) {
 				return i;
 			}
 			i += 1;
