@@ -142,7 +142,7 @@ proc format_fprint_frame(int fd, int frame, char* format_str) -> void
 #define assert(__expr __message)
 	static_assert(is_same_t(__message, ct_type(ptr)), "`assert` __message must be of type `ptr`");
 	if(not(__expr)) {
-		format_print("%s:%d:%d AssertionFailed: %s\n", __FILE__, __LINE__, __COL__, __message);
+		printf("%s:%d:%d AssertionFailed: %s\n", __FILE__, __LINE__, __COL__, __message);
 		exit(1);
 	}
 	__empty_stmt$
