@@ -1,9 +1,10 @@
 include "std"
+include "fsys"
 include "std_string"
-include "lexer" // файл с кодом выше
+include "lexer"
 
-proc main() -> int {
-    let src = string::new("proc main() { } {} main");
+proc main(int argc, char** argv) -> int {
+    let src = FILE::open(std::nth_argv(argv, 1), "r").read_to_string();
     let lx  = Lexer::new(src);
 
     while (not(lx.eof())) {
