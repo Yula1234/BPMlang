@@ -145,26 +145,33 @@ inline void peephole_noops(IRProgram& prog) {
     for (size_t i = 0; i < N; ++i) {
         const IRInstr& ins = in[i];
 
-        
         if (ins.op == IROp::Mov &&
             ins.a.kind == OperandKind::Reg &&
             ins.b.kind == OperandKind::Reg &&
-            ins.a.reg == ins.b.reg)
+            ins.a.reg  == ins.b.reg)
         {
             continue;
         }
 
-        
         if (ins.op == IROp::Push && i + 1 < N) {
-            const IRInstr& next = in[i + 1];
+            const IRInstr& next = in[i+1];
+
+            if (ins.a.kind == OperandKind::Reg &&
+                next.op == IROp::Pop &&
+                next.a.kind == OperandKind::Reg &&
+                next.a.reg == ins.a.reg)
+            {
+                i += 1;
+                continue;
+            }
+
             if (next.op == IROp::Pop &&
                 next.a.kind == OperandKind::Reg)
             {
-                Operand dst = next.a; 
-                Operand src = ins.a;  
-
+                Operand dst = next.a;
+                Operand src = ins.a;
                 out.emplace_back(IROp::Mov, dst, src);
-                ++i; 
+                i += 1;
                 continue;
             }
         }

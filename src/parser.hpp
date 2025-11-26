@@ -625,7 +625,8 @@ struct NodeTerm {
 };
 
 struct NodeExpr {
-	std::variant<NodeTerm*, NodeBinExpr*> var;
+    std::variant<NodeTerm*, NodeBinExpr*> var;
+    mutable std::optional<DataType> cached_type = std::nullopt;
 };
 
 struct NodeStmtExit {
@@ -2860,11 +2861,9 @@ public:
                 auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
                 return stmt;
             }
-            // --- НОВОЕ: obj.method(args); как NodeStmtMtCall ---
             else if (curtok.type == TokenType_t::semi) {
                 NodeExpr* expr = lvalue.value();
 
-                // Пытаемся распознать шаблон obj.method(args)
                 if (std::holds_alternative<NodeBinExpr*>(expr->var)) {
                     NodeBinExpr* bexpr = std::get<NodeBinExpr*>(expr->var);
                     if (std::holds_alternative<NodeBinExprDot*>(bexpr->var)) {
@@ -2881,7 +2880,6 @@ public:
                                 stmt_call->name  = call->name;
                                 stmt_call->targs = call->targs;
 
-                                // Собираем аргументы: [ self, arg1, arg2, ... ]
                                 auto* arglist = m_allocator.emplace<NodeBinExprArgs>();
                                 arglist->args.push_back(dot->lhs);
 
@@ -2899,7 +2897,6 @@ public:
                                             arglist->args.push_back(e);
                                         }
                                     } else {
-                                        // один аргумент без списка
                                         arglist->args.push_back(aexpr);
                                     }
                                 }
@@ -2919,7 +2916,6 @@ public:
                     }
                 }
 
-                // Если не узнали obj.method(...), это невалидное statement
                 error_expected("statement");
             }
             else {

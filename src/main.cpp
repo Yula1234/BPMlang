@@ -18,6 +18,7 @@
 #include <chrono>
 #include <ctime>
 #include <stdexcept>
+#include <functional>
 
 /*
     To start using compiller

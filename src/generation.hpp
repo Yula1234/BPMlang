@@ -66,6 +66,18 @@ public:
     inline void   push_back(const T& _A_element) noexcept    { m_data[m_size++] = _A_element; }
 };
 
+namespace std {
+template<>
+struct hash<std::pair<std::string, std::string>> {
+    size_t operator()(const std::pair<std::string, std::string>& p) const noexcept {
+        std::hash<std::string> h;
+        size_t seed = h(p.first);
+        size_t h2   = h(p.second);
+        seed ^= h2 + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+        return seed;
+    }
+};
+
 class Generator {
 public:
     inline Operand reg(Reg r) const              { return Operand::regOp(r); }
@@ -641,12 +653,10 @@ public:
 
         NodeTerm* term = std::get<NodeTerm*>(dot->rhs->var);
 
-        // --- 1) obj.method(args) ---
         if (std::holds_alternative<NodeTermCall*>(term->var)) {
             NodeTermCall* call = std::get<NodeTermCall*>(term->var);
             std::string mname = call->name;
 
-            // 1.1. ДИНАМИЧЕСКИЙ ИНТЕРФЕЙС: lhs имеет интерфейсный тип
             if (is_interface_type(otype)) {
                 Interface iface = get_interface(otype, def);
                 const auto it = iface.methods.find(mname);
@@ -655,12 +665,8 @@ public:
                         "interface `" + iface.name + "` has no method `" + mname + "`");
                 }
                 const InterfaceMethodInfo& im = it->second;
-                // Возвращаем тип, объявленный в интерфейсе
                 return im.rettype;
             }
-
-            // 1.2. Обычный объектный тип: статический метод (через impl Type)
-            //     Здесь используем уже существующую механику MtCall/NmCall.
 
             NodeTermMtCall mt;
             mt.def   = call->def;
@@ -668,7 +674,6 @@ public:
             mt.name  = call->name;
             mt.targs = call->targs;
 
-            // Собираем аргументы: self + исходные args, как для статического метода
             __stdvec<NodeExpr*> allargs;
             allargs.push_back(dot->lhs);
 
@@ -699,7 +704,6 @@ public:
             return type_of_expr(&wrapExpr);
         }
 
-        // --- 2) obj.field ---
         if (!std::holds_alternative<NodeTermIdent*>(term->var)) {
             return BaseDataTypeVoid;
         }
@@ -754,9 +758,19 @@ public:
     }
 
     DataType type_of_expr(const NodeExpr* expr) {
+        if (m_temps.empty()) {
+            if (expr->cached_type.has_value()) {
+                return expr->cached_type.value();
+            }
+        }
+
         DataType res = __type_of_expr(expr);
         substitute_template(res);
         res = canonical_type(res);
+
+        if (m_temps.empty()) {
+            expr->cached_type = res;
+        }
         return res;
     }
 
@@ -793,7 +807,6 @@ public:
                 NodeTermMtCall* term_call = std::get<NodeTermMtCall*>(term->var);
                 DataType tpof = type_of_expr(term_call->mt);
 
-                // --- НОВОЕ: если это динамический интерфейсный тип ---
                 if (is_interface_type(tpof)) {
                     Interface iface = get_interface(tpof, term_call->def);
                     const auto it = iface.methods.find(term_call->name);
@@ -803,16 +816,13 @@ public:
                             term_call->name + "`");
                     }
                     const InterfaceMethodInfo& im = it->second;
-                    // Возвращаем тип, объявленный в интерфейсе
                     return im.rettype;
                 }
-                // --- /НОВОЕ ---
 
                 if (!tpof.root().is_object || tpof.root().link)
                     GeneratorError(term_call->def,
                         "can't call method from type " + tpof.to_string() + ".");
 
-                // Статический путь для обычных типов: Vec2, vector<T>, и т.п.
                 NodeTermNmCall nmcall;
                 nmcall.def  = term_call->def;
                 nmcall.nm   = tpof.root().getobjectname();
@@ -2060,7 +2070,6 @@ public:
                     gen.GeneratorError(base->def, "after `.` except identificator");
                 }
 
-                // 0) Динамический интерфейс: p.m_fprint(args)
                 if (gen.is_interface_type(otype)) {
                     NodeTerm* rhs_term = std::get<NodeTerm*>(dot->rhs->var);
                     if (!std::holds_alternative<NodeTermCall*>(rhs_term->var)) {
@@ -2071,7 +2080,6 @@ public:
 
                     Interface iface = gen.get_interface(otype, base->def);
 
-                    // Ищем индекс метода в method_order
                     int idx = -1;
                     for (int i = 0; i < static_cast<int>(iface.method_order.size()); ++i) {
                         if (iface.method_order[i] == mname) { idx = i; break; }
@@ -2081,22 +2089,19 @@ public:
                             "interface `" + iface.name + "` has no method `" + mname + "`");
                     }
 
-                    // lhs: интерфейсное значение → wrapper
-                    gen.gen_expr(dot->lhs);     // push wrapper
-                    gen.pop_reg(Reg::ECX);      // ECX = wrapper
+                    gen.gen_expr(dot->lhs);
+                    gen.pop_reg(Reg::ECX); 
 
-                    // wrapper.data и wrapper.fnptr[idx]
                     gen.m_builder.mov(gen.reg(Reg::EDX),
-                                      gen.mem(MemRef::baseDisp(Reg::ECX, 0)));                // data
+                                      gen.mem(MemRef::baseDisp(Reg::ECX, 0)));
                     gen.m_builder.mov(gen.reg(Reg::EAX),
-                                      gen.mem(MemRef::baseDisp(Reg::ECX, (1 + idx) * 4)));    // fnptr
+                                      gen.mem(MemRef::baseDisp(Reg::ECX, (1 + idx) * 4)));
 
                     __stdvec<NodeExpr*> args_raw;
                     if (call->args.has_value()) {
                         args_raw = gen.__getargs(call->args.value());
                     }
 
-                    // --- Проверка количества и типов аргументов по интерфейсной сигнатуре ---
                     const auto mit = iface.methods.find(mname);
                     if (mit == iface.methods.end()) {
                         gen.GeneratorError(base->def,
@@ -2104,9 +2109,6 @@ public:
                     }
                     const InterfaceMethodInfo& im = mit->second;
 
-                    // В интерфейсе:
-                    //   params[0] = self
-                    //   params[1..] = явные аргументы
                     size_t total_params      = im.params.size();
                     size_t explicit_expected = (total_params > 0 ? total_params - 1 : 0);
                     size_t explicit_got      = args_raw.size();
@@ -2118,17 +2120,11 @@ public:
                             " argument(s), but got " + std::to_string(explicit_got));
                     }
 
-                    // Проверка типов каждого явного аргумента
                     for (size_t i = 0; i < explicit_expected; ++i) {
-                        // Формальный тип из интерфейса (начиная с params[1])
                         DataType formal = gen.canonical_type(im.params[i + 1].second);
-                        // Фактический тип аргумента вызова
                         DataType actual = gen.canonical_type(gen.type_of_expr(args_raw[i]));
 
-                        // Особый случай: тип формального параметра "self"
                         if (formal.is_object() && formal.getobjectname() == "self") {
-                            // В динамическом интерфейсе мы не знаем конкретный T,
-                            // но можем потребовать, чтобы аргумент тоже имел тип интерфейса.
                             if (!actual.is_object() || actual.getobjectname() != iface.name) {
                                 gen.GeneratorError(call->def,
                                     "argument " + std::to_string(i + 1) + " of method `" + mname +
@@ -2146,26 +2142,21 @@ public:
                             }
                         }
                     }
-                    // --- /Проверка аргументов ---
 
-                    // Пушим дополнительные аргументы, затем self=data
                     for (int i = static_cast<int>(args_raw.size()) - 1; i >= 0; --i) {
-                        gen.gen_expr(args_raw[i]);   // push arg_i
+                        gen.gen_expr(args_raw[i]);
                     }
-                    gen.push_reg(Reg::EDX);          // push self (data)
+                    gen.push_reg(Reg::EDX); 
 
-                    // Вызов через EAX
                     gen.m_builder.emit(IRInstr(IROp::InlineAsm,
                                                Operand::symbolOp("call eax")));
 
-                    // Снять (1 + N) аргументов со стека
                     size_t pop_bytes = (1 + args_raw.size()) * 4;
                     if (pop_bytes != 0) {
                         gen.m_builder.add(gen.reg(Reg::ESP),
                                           gen.imm(static_cast<int>(pop_bytes)));
                     }
 
-                    // Если метод возвращает значение и это rvalue-контекст — положим его на стек
                     DataType ret = iface.methods[mname].rettype;
                     if (ret != BaseDataTypeVoid && !lvalue) {
                         gen.push_reg(Reg::EAX);
@@ -2175,7 +2166,6 @@ public:
 
                 NodeTerm* term = std::get<NodeTerm*>(dot->rhs->var);
 
-                // --- 1) obj.method(args): вызвать метод как obj~method(args) ---
                 if (std::holds_alternative<NodeTermCall*>(term->var)) {
                     NodeTermCall* call = std::get<NodeTermCall*>(term->var);
 
@@ -2213,7 +2203,6 @@ public:
                     return;
                 }
 
-                // --- 2) obj.field: доступ к полю ---
                 if (!std::holds_alternative<NodeTermIdent*>(term->var)) {
                     gen.GeneratorError(base->def, "after `.` except identificator");
                 }
@@ -2405,12 +2394,9 @@ CONVERT_FAILED:
             rtype = vtype.value();
             substitute_template(rtype);
             if (rtype.is_object() && is_interface_type(rtype)) {
-                // rtype = Interface, got_t = объектный тип (Vec2, vector<T>, ...)
-                // Проверяем, что got_t реализует интерфейс rtype:
                 ensure_implements_interface(got_t, rtype.getobjectname(), where);
-                // Вместо обычного gen_expr(value) генерим boxing:
-                gen_expr(value);         // на стеке: ptr на объект T
-                gen_box_interface(rtype, got_t, where); // преобразует T -> Interface wrapper
+                gen_expr(value);
+                gen_box_interface(rtype, got_t, where);
                 goto AFTER_GEN;
             }
             if (rtype != got_t2 && !rtype.root().is_object) {
@@ -2984,20 +2970,15 @@ AFTER_GEN:
                 DataType from_c = canonical_type(from);
                 DataType to_c   = canonical_type(to);
 
-                // 1) Сначала генерим исходный аргумент
                 if (from_c.root().link) {
                     gen_expr(args[i], false);
                 } else {
                     gen_expr(args[i], to_c.root().link);
                 }
 
-                // 2) Если параметр — интерфейс, а аргумент — не интерфейс, и can_convert сказал "да",
-                //    то надо забоксить T -> Interface.
                 if (is_interface_type(to_c) && !is_interface_type(from_c)) {
-                    // match_call_signature гарантировал, что implements_interface_quiet(from_c, iface) == true
                     gen_box_interface(to_c, from_c, where);
                 }
-                // Для остальных преобразований представление либо совпадает (ptr/T*), либо мы их пока не реализуем.
             } else {
                 gen_expr(args[i], false);
             }
@@ -3433,29 +3414,19 @@ AFTER_GEN:
                         gen.reg(Reg::ECX)
                     );
                 } else {
-                    // Объектные типы: struct, interface, и т.п.
 
-                    // 1) Особый случай: присваивание к ИНТЕРФЕЙСНОМУ типу
                     if (gen.is_interface_type(ltype)) {
-                        // 1.1 Вычисляем RHS, кладём на стек
-                        gen.gen_expr(stmt_assign->expr);   // stack: [..., T* или Interface*]
+                        gen.gen_expr(stmt_assign->expr);
 
-                        // 1.2 Если RHS не интерфейсного типа — забоксить T -> Interface
                         if (!gen.is_interface_type(vtype)) {
                             gen.gen_box_interface(ltype, vtype, stmt_assign->def);
-                            // теперь на стеке wrapper (ptr)
                         }
-                        // Стек сейчас: [..., wrapper]
 
-                        // 1.3 Вычисляем адрес lvalue, как обычно (dyn, obj.field, *ptr, ...)
                         gen.gen_expr(stmt_assign->lvalue, true);
-                        // Стек: [..., wrapper, addr]
 
-                        // 1.4 Снимаем addr и wrapper
-                        gen.pop_reg(Reg::EDX);  // EDX = addr (куда писать)
-                        gen.pop_reg(Reg::ECX);  // ECX = wrapper (ptr)
+                        gen.pop_reg(Reg::EDX); 
+                        gen.pop_reg(Reg::ECX); 
 
-                        // 1.5 Пишем 4-байтовый ptr wrapper'а в lvalue
                         gen.m_builder.mov(
                             gen.mem(MemRef::baseDisp(Reg::EDX, 0)),
                             gen.reg(Reg::ECX)
@@ -3463,7 +3434,6 @@ AFTER_GEN:
                         return;
                     }
 
-                    // 2) Обычный объектный тип: оставляем старый путь через m_assign
                     NodeStmtMtCall call;
                     call.def  = stmt_assign->def;
                     call.mt   = stmt_assign->lvalue;
@@ -3819,7 +3789,7 @@ AFTER_GEN:
                     info.params  = m.params;
                     info.rettype = m.rettype;
                     iface.methods[m.name] = std::move(info);
-                    iface.method_order.push_back(m.name);   // ВАЖНО: сохраняем порядок
+                    iface.method_order.push_back(m.name);
                 }
 
                 gen.m_interfaces[stmt_inter->name] = std::move(iface);
@@ -4009,9 +3979,7 @@ AFTER_GEN:
             {
                 DataType tpof = gen.type_of_expr(stmt_call->mt);
 
-                // 1) ДИНАМИЧЕСКИЙ ИНТЕРФЕЙС: __StdPrintable и т.п.
                 if (gen.is_interface_type(tpof)) {
-                    // Строим rhs: методный вызов method(args...), НО без self в args
                     NodeExpr* orig_args_expr = nullptr;
                     if (stmt_call->args.has_value()) {
                         orig_args_expr = stmt_call->args.value();
@@ -4027,11 +3995,9 @@ AFTER_GEN:
                         NodeBinExpr* be = std::get<NodeBinExpr*>(orig_args_expr->var);
                         NodeBinExprArgs* orig_args = std::get<NodeBinExprArgs*>(be->var);
 
-                        // Собираем новый список аргументов, пропуская первый, если он совпадает с mt
                         auto* new_args = gen.m_allocator.emplace<NodeBinExprArgs>();
                         for (size_t i = 0; i < orig_args->args.size(); ++i) {
                             NodeExpr* e = orig_args->args[i];
-                            // Если это первый аргумент и он == mt, пропускаем (self)
                             if (i == 0 && e == stmt_call->mt) {
                                 continue;
                             }
@@ -4045,10 +4011,9 @@ AFTER_GEN:
                             final_args_expr = gen.m_allocator.emplace<NodeExpr>();
                             final_args_expr->var = ab;
                         } else {
-                            final_args_expr = nullptr; // аргументов нет
+                            final_args_expr = nullptr;
                         }
                     } else {
-                        // Аргументы не в виде NodeBinExprArgs — используем как есть
                         final_args_expr = orig_args_expr;
                     }
 
@@ -4088,13 +4053,11 @@ AFTER_GEN:
                     return;
                 }
 
-                // 2) Статический путь: методы структур через impl Type
                 if (!tpof.is_object() || tpof.root().link) {
                     gen.GeneratorError(stmt_call->def,
                         "can't call method from type " + tpof.to_string() + ".");
                 }
 
-                // Как раньше: obj.method(...) → Namespace::method(obj, ...)
                 NodeStmtNmCall* nmcall = gen.m_allocator.emplace<NodeStmtNmCall>();
                 nmcall->def   = stmt_call->def;
                 nmcall->nm    = tpof.getobjectname();
@@ -4491,21 +4454,35 @@ private:
         return true;
     }
 
-    // Тихая проверка: реализует ли тип ty интерфейс iface_name (без ошибок, только true/false)
     bool implements_interface_quiet(const DataType& ty, const std::string& iface_name) {
         if (!ty.is_object()) return false;
 
         std::string tname = ty.getobjectname();
 
-        // Сам интерфейсный тип считаем реализацией самого себя
-        if (tname == iface_name) return true;
+        std::pair<std::string, std::string> key{ tname, iface_name };
+
+        auto it_cache = m_impl_cache.find(key);
+        if (it_cache != m_impl_cache.end()) {
+            return it_cache->second;
+        }
+
+        if (tname == iface_name) {
+            m_impl_cache[key] = true;
+            return true;
+        }
 
         auto ifcOpt = inter_lookup(iface_name);
-        if (!ifcOpt.has_value()) return false;
+        if (!ifcOpt.has_value()) {
+            m_impl_cache[key] = false;
+            return false;
+        }
         const Interface& ifc = ifcOpt.value();
 
         auto nmsOpt = namespace_lookup(tname);
-        if (!nmsOpt.has_value()) return false;
+        if (!nmsOpt.has_value()) {
+            m_impl_cache[key] = false;
+            return false;
+        }
         Namespace* ns = nmsOpt.value();
 
         for (const auto& km : ifc.methods) {
@@ -4514,6 +4491,7 @@ private:
 
             const auto it = ns->procs.find(mname);
             if (it == ns->procs.end()) {
+                m_impl_cache[key] = false;
                 return false;
             }
             const Procedure& baseProc = it->second;
@@ -4527,36 +4505,34 @@ private:
                     }
                 }
             }
-            if (!ok) return false;
+            if (!ok) {
+                m_impl_cache[key] = false;
+                return false;
+            }
         }
+
+        m_impl_cache[key] = true;
         return true;
     }
 
-    // Неявное приведение from -> to разрешено?
     bool can_convert(const DataType& from, const DataType& to) {
         DataType fc = canonical_type(from);
         DataType tc = canonical_type(to);
 
-        // Точное совпадение — ок
         if (fc == tc) return true;
 
-        // Интерфейсные типы: T -> Interface
         if (is_interface_type(tc)) {
-            // Interface -> тот же Interface
             if (is_interface_type(fc)) {
                 return fc.getobjectname() == tc.getobjectname();
             }
-            // Обычный объект -> Interface, если T реализует этот интерфейс
             if (fc.is_object()) {
                 return implements_interface_quiet(fc, tc.getobjectname());
             }
             return false;
         }
 
-        // Старое правило arg_eq: например, ptr и T* (через ptrlvl)
         if (fc.root().arg_eq(tc.root())) return true;
 
-        // any: можно (по желанию)
         if (tc.is_simple() && tc.getsimpletype() == SimpleDataType::any) return true;
 
         return false;
@@ -4587,7 +4563,6 @@ private:
                 used_conversion = true;
             }
 
-            // Шаблонные аргументы сравниваем только если не было неявной конверсии
             if (!used_conversion && argtype.is_object() && ex_type.is_object()) {
                 auto arg_targs = get_template_args(argtype);
                 auto ex_targs  = get_template_args(ex_type);
@@ -4672,9 +4647,6 @@ private:
 
         std::string tname = ty.getobjectname();
         if (tname == iface_name) {
-            // Динамический интерфейсный тип (__StdPrintable и т.п.)
-            // уже содержит wrapper {data, vtbl} и умеет вызывать методы по vtbl.
-            // Не требуем для него impl __StdPrintable { ... }.
             return;
         }
 
@@ -4720,14 +4692,11 @@ private:
                     iface_name + "`: method `" + mname + "` has incompatible signature");
             }
         }
-        // ty — конкретный тип, iface_name — имя интерфейса
         if (ty.is_object()) {
             m_dyn_iface_impls.insert(std::make_pair(iface_name, ty.getobjectname()));
         }
     }
 
-    // На стеке: значение srcType (ptr на объект T).
-    // Надо заменить его на ptr на wrapper-дескриптор интерфейса ifaceType.
     void gen_box_interface(const DataType& ifaceType,
                        const DataType& srcType,
                        const Token& where)
@@ -4735,25 +4704,20 @@ private:
         Interface iface = get_interface(ifaceType, where);
         size_t methods_count = iface.method_order.size();
 
-        // [data] + N * [fnptr]
         size_t wrapper_bytes = (1 + methods_count) * 4;
 
-        // На стеке сейчас T* (ptr на объект)
-        pop_reg(Reg::EAX);              // EAX = T*
-        push_reg(Reg::EAX);             // сохранить на стеке
+        pop_reg(Reg::EAX); 
+        push_reg(Reg::EAX);
 
-        // Выделить память под wrapper
         push_imm(static_cast<int32_t>(wrapper_bytes));
         m_builder.call(sym("memalloc"));
         m_builder.add(reg(Reg::ESP), imm(4));
-        // EAX = wrapper
 
-        pop_reg(Reg::ECX);              // ECX = T*
-        m_builder.mov(reg(Reg::EDX), reg(Reg::EAX));          // EDX = wrapper
+        pop_reg(Reg::ECX);
+        m_builder.mov(reg(Reg::EDX), reg(Reg::EAX));
         m_builder.mov(mem(MemRef::baseDisp(Reg::EDX, 0)),
-                      reg(Reg::ECX));                        // wrapper.data = T*
+                      reg(Reg::ECX));
 
-        // Ищем namespace для типа T
         std::string tname = srcType.getobjectname();
         auto nms = namespace_lookup(tname);
         if (!nms.has_value()) {
@@ -4762,7 +4726,6 @@ private:
         }
         Namespace* ns = nms.value();
 
-        // Для КАЖДОГО метода интерфейса в method_order пишем fnptr в wrapper
         for (size_t i = 0; i < methods_count; ++i) {
             const std::string& mname = iface.method_order[i];
             auto it = ns->procs.find(mname);
@@ -4773,14 +4736,20 @@ private:
             }
             Procedure proc = it->second;
 
-            std::string label = tname + "@" + mname;
-            if (proc.override) label += proc.get_sign();
+            std::string tsign;
 
-            MemRef dst_mem = MemRef::baseDisp(Reg::EDX, static_cast<int32_t>((1 + i) * 4));
+            if (proc.templates != NULL) {
+                std::vector<DataType> local_targs = get_template_args(srcType);
+                std::vector<NodeExpr*> empty_args;
+                tsign = instantiate_if_needed(proc, local_targs, empty_args,
+                                              where, mname, tname);
+            }
+            std::string label = tname + "@" + mname + tsign;
+            if (proc.override) label += proc.get_sign();
+            MemRef dst_mem = MemRef::baseDisp(Reg::EDX,
+                                              static_cast<int32_t>((1 + i) * 4));
             m_builder.mov(mem(dst_mem), sym(label));
         }
-
-        // На стек кладём ptr wrapper'а как значение интерфейсного типа
         push_reg(Reg::EDX);
     }
 
@@ -4792,25 +4761,27 @@ private:
 	    const std::string& name,
 	    const std::string& nname /* = "" */
 	) {
-	    bool   is_method_of_struct  = false;
-	    Struct ownerStruct;
-	    size_t structTemplateCount  = 0;
+	    bool is_method_of_struct  = false;
+        Struct ownerStruct;
+        size_t structTemplateCount  = 0;
 
-	    if (!nname.empty()) {
-	        std::optional<Struct> stOpt = struct_lookup(nname);
-	        if (stOpt.has_value() && stOpt->temp && !proc.params.empty()) {
-	            DataType selfParamType = canonical_type(proc.params[0].second);
-	            if (selfParamType.is_object() &&
-	                selfParamType.getobjectname() == nname &&
-	                proc.templates != nullptr &&
-	                proc.templates->size() >= stOpt->temps.size())
-	            {
-	                is_method_of_struct  = true;
-	                ownerStruct          = stOpt.value();
-	                structTemplateCount  = ownerStruct.temps.size();
-	            }
-	        }
-	    }
+        bool explicit_inst = !local_targs.empty() && call_args.empty();
+
+        if (!nname.empty() && !explicit_inst) {
+            std::optional<Struct> stOpt = struct_lookup(nname);
+            if (stOpt.has_value() && stOpt->temp && !proc.params.empty()) {
+                DataType selfParamType = canonical_type(proc.params[0].second);
+                if (selfParamType.is_object() &&
+                    selfParamType.getobjectname() == nname &&
+                    proc.templates != nullptr &&
+                    proc.templates->size() >= stOpt->temps.size())
+                {
+                    is_method_of_struct  = true;
+                    ownerStruct          = stOpt.value();
+                    structTemplateCount  = ownerStruct.temps.size();
+                }
+            }
+        }
 
 	    __map<std::string, DataType> temps;
 	    std::string                  tsign;
@@ -5171,6 +5142,7 @@ private:
     __stdvec<std::string>               m_tsigns;
     __stdvec<__map<std::string, DataType>> m_temps;
     __stdset<std::pair<std::string,std::string>> m_dyn_iface_impls;
+    __map<std::pair<std::string, std::string>, bool> m_impl_cache;
 
     size_t* m_string_index      = nullptr;
     size_t  CTX_IOTA            = 0ULL;
