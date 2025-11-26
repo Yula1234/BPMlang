@@ -1052,55 +1052,137 @@ public:
 		return res;
 	}
 
-	void DiagnosticMessage(Token tok, const std::string& header, const std::string& msg, const int col_inc) {
-		__white_console();
-		putloc(tok);
-		std::cout << ": ";
-		if(header == "NOTE") __light_blue_console();
-		else if(header == "note") __light_blue_console();
-		else __red_console();
-		std::cout << header << ": ";
-		__normal_console();
-		std::cout << msg << "\n";
-		std::string line = __get_fline(tok.file, tok.line);
-		while(line.starts_with('\t') || line.starts_with(' ')) {
-			tok.col--;
-			line = line.substr(1, line.size());
-		}
-		printf("\n %d | %s\n", tok.line, line.c_str());
-		int spacelvl = tok.col + 3 + col_inc;
-		spacelvl += std::to_string(tok.line).size();
-		for(int i = 0;i < spacelvl;++i) {
-			putc(' ', stdout);
-		}
-		__red_console();
-		fputs("^\n", stdout);
-		__normal_console();
+	void DiagnosticMessage(Token tok,
+	                       const std::string& header,
+	                       const std::string& msg,
+	                       const int col_inc,
+	                       bool show_expansion)
+	{
+	    auto normalize_kind = [](const std::string& h) -> std::string {
+	        if (h == "NOTE" || h == "note")        return "note";
+	        if (h == "WARNING" || h == "warning")  return "warning";
+	        if (h == "ERROR" || h == "error")      return "error";
+	        return h;
+	    };
+
+	    std::string kind = normalize_kind(header);
+
+	    auto set_color_for_kind = [](const std::string& k) {
+	        if (k == "error") {
+	            __red_console();
+	        } else if (k == "warning") {
+	            SetConsoleTextAttribute(
+	                hConsole,
+	                FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY
+	            );
+	        } else if (k == "note") {
+	            __light_blue_console();
+	        } else {
+	            __normal_console();
+	        }
+	    };
+
+	    auto reset_color = []() {
+	        __normal_console();
+	    };
+
+	    auto get_line_safely = [&](const std::string& file, int line) -> std::string {
+	        auto it = m_lines.find(file);
+	        if (it == m_lines.end()) return std::string{};
+	        auto& vec = it->second;
+	        if (line <= 0 || static_cast<size_t>(line) > vec.size()) return std::string{};
+	        return vec[line - 1];
+	    };
+
+	    auto print_header_line = [&](const Token& t, const std::string& kind_, const std::string& message) {
+	        reset_color();
+	        std::cout << t.file << ":" << t.line << ":" << t.col << ": ";
+	        set_color_for_kind(kind_);
+	        std::cout << kind_ << ": ";
+	        reset_color();
+	        std::cout << message << "\n";
+	    };
+
+	    auto print_source_with_caret = [&](const Token& t, int extra_col_inc) {
+		    std::string orig_line = get_line_safely(t.file, t.line);
+		    if (orig_line.empty()) return;
+
+		    std::string line = orig_line;
+		    int col = t.col;
+
+		    while (!line.empty() && (line[0] == ' ' || line[0] == '\t')) {
+		        line.erase(line.begin());
+		        col -= 1;
+		    }
+		    if (col < 1) col = 1;
+
+		    std::cout << " " << line << "\n";
+
+		    int caret_pos = col - 1 + extra_col_inc;
+		    if (caret_pos < 0) caret_pos = 0;
+
+		    std::cout << " ";
+		    for (int i = 0; i < caret_pos; ++i) {
+		        std::cout << " ";
+		    }
+
+		    set_color_for_kind("error");
+		    std::cout << "^\n";
+		    reset_color();
+		};
+
+	    print_header_line(tok, kind, msg);
+	    print_source_with_caret(tok, col_inc);
+
 		Token inexp = tok;
-		while(inexp.expand.has_value()) {
-			__light_blue_console();
-			printf("NOTE: ");
-			__normal_console();
-			printf("expanded from ");
-			Token exp = *(inexp.expand.value());
-			putloc(exp);
-			printf(".\n");
-			std::string line = __get_fline(exp.file, exp.line);
-			while(line.starts_with('\t') || line.starts_with(' ')) {
-				exp.col--;
-				line = line.substr(1, line.size());
-			}
-			printf("\n %d | %s\n", exp.line, line.c_str());
-			int spacelvl = exp.col + 3;
-			spacelvl += std::to_string(exp.line).size();
-			for(int i = 0;i < spacelvl;++i) {
-				putc(' ', stdout);
-			}
-			__red_console();
-			fputs("^\n", stdout);
-			__normal_console();
-			inexp = exp;
-		}
+	    if (show_expansion) {
+	        while (inexp.expand.has_value()) {
+	            Token exp = *(inexp.expand.value());
+
+	            std::string note_msg = (exp.type == TokenType_t::_include)
+	                ? "in file included from here"
+	                : "expanded from here";
+
+	            __white_console();
+	            std::cout << exp.file << ":" << exp.line << ":" << exp.col << ": ";
+	            __light_blue_console();
+	            std::cout << "note: ";
+	            __normal_console();
+	            std::cout << note_msg << "\n";
+
+	            std::string line = __get_fline(exp.file, exp.line);
+	            if (!line.empty()) {
+	                while (!line.empty() && (line[0] == ' ' || line[0] == '\t')) {
+	                    line.erase(line.begin());
+	                    exp.col -= 1;
+	                }
+	                if (exp.col < 1) exp.col = 1;
+
+	                std::cout << " " << line << "\n";
+
+	                int caret_pos = exp.col - 1;
+	                if (caret_pos < 0) caret_pos = 0;
+
+	                std::cout << " ";
+	                for (int i = 0; i < caret_pos; ++i) {
+	                    std::cout << " ";
+	                }
+	                __red_console();
+	                std::cout << "^\n";
+	                __normal_console();
+	            }
+
+	            inexp = exp;
+	        }
+	    }
+	}
+
+	void DiagnosticMessage(Token tok,
+                       const std::string& header,
+                       const std::string& msg,
+                       const int col_inc)
+	{
+	    DiagnosticMessage(tok, header, msg, col_inc, true);
 	}
 
 	void ParsingError(const std::string& msg, const int pos = 0) noexcept
@@ -2309,41 +2391,54 @@ public:
 		}
 
 		if(auto inc = try_consume(TokenType_t::_include)) {
-			if(peek().has_value() && peek().value().type != TokenType_t::string_lit) {
-				error_expected("file path string");
-			}
-			std::string fname = consume().value.value() + ".bpm";
-			std::string path = "";
-			if(file_exists(fname)) {
-				path = std::filesystem::canonical(fname).string();
-			}
-			else if(file_exists("lib/" + fname)) {
-				path = std::filesystem::canonical("lib/" + fname).string();
-			}
-			else if(__slashinpath && file_exists(basepath + "/" + fname)) {
-				path = std::filesystem::canonical(basepath + "/" + fname).string();
-			}
-			else {
-				ParsingError("file not found at `include` - `" + fname + "`");
-			}
-			m_preprocessor_stmt = true;
-			if(m_includes.find(path) != m_includes.end()) {
-				return {};
-			}
-			std::string contents;
-			{
-				std::stringstream contents_stream;
-				std::fstream input(path, std::ios::in);
-				contents_stream << input.rdbuf();
-				contents = contents_stream.str();
-				input.close();
-			}
-			Tokenizer nlexer(std::move(contents));
-			auto result = nlexer.tokenize(fname);
-			m_includes.insert(path);
-			m_tokens.insert(m_tokens.begin() + m_index, result.tokens->begin(), result.tokens->end());
-			m_lines[result.tokens->operator[](0).file] = std::move(*(result.lines));
-			return {};
+		    if(peek().has_value() && peek().value().type != TokenType_t::string_lit) {
+		        error_expected("file path string");
+		    }
+		    std::string fname = consume().value.value() + ".bpm";
+		    std::string path = "";
+		    if(file_exists(fname)) {
+		        path = std::filesystem::canonical(fname).string();
+		    }
+		    else if(file_exists("lib/" + fname)) {
+		        path = std::filesystem::canonical("lib/" + fname).string();
+		    }
+		    else if(__slashinpath && file_exists(basepath + "/" + fname)) {
+		        path = std::filesystem::canonical(basepath + "/" + fname).string();
+		    }
+		    else {
+		        ParsingError("file not found at `include` - `" + fname + "`");
+		    }
+		    m_preprocessor_stmt = true;
+		    if(m_includes.find(path) != m_includes.end()) {
+		        return {};
+		    }
+		    std::string contents;
+		    {
+		        std::stringstream contents_stream;
+		        std::fstream input(path, std::ios::in);
+		        contents_stream << input.rdbuf();
+		        contents = contents_stream.str();
+		        input.close();
+		    }
+		    Tokenizer nlexer(std::move(contents));
+		    auto result = nlexer.tokenize(fname);
+		    m_includes.insert(path);
+
+		    Token include_tok = inc.value();
+		    for (Token& t : *result.tokens) {
+		        if (t.expand.has_value()) {
+		            Token* prev = t.expand.value();
+		            Token* inc_copy = m_allocator.emplace<Token>(include_tok);
+		            inc_copy->expand = prev;
+		            t.expand = inc_copy;
+		        } else {
+		            t.expand = m_allocator.emplace<Token>(include_tok);
+		        }
+		    }
+
+		    m_tokens.insert(m_tokens.begin() + m_index, result.tokens->begin(), result.tokens->end());
+		    m_lines[result.tokens->operator[](0).file] = std::move(*(result.lines));
+		    return {};
 		}
 
 		if(auto buffer = try_consume(TokenType_t::buffer)) {

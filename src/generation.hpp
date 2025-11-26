@@ -501,7 +501,14 @@ public:
     }
 
     void GeneratorError(const Token& tok, __str_ref msg) {
-        DiagnosticMessage(tok, "error", msg, 0);
+        m_parser->DiagnosticMessage(tok, "error", msg, 0);
+
+        if (m_cur_proc.has_value()) {
+            const Procedure& p = m_cur_proc.value();
+            std::string detail = "in function `" + p.name + "`";
+            m_parser->DiagnosticMessage(p.def, "note", detail, 0, false);
+        }
+
         exit(EXIT_FAILURE);
     }
 
