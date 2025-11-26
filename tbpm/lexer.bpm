@@ -1,0 +1,168 @@
+const TOKEN_KIND_PROC   = iota;
+const TOKEN_KIND_ID     = iota;
+const TOKEN_KIND_OPAREN = iota;
+const TOKEN_KIND_CPAREN = iota;
+const TOKEN_KIND_OCURLY = iota;
+const TOKEN_KIND_CCURLY = reset;
+
+struct Token {
+    kind:  int,      // one of TOKEN_KIND_*
+    start: int,      // index in line
+    len:   int,      // lexem length
+    value: char*
+}
+
+impl Token {
+	proc kind_to_str(Token self) -> char* {
+		if (self.kind == TOKEN_KIND_PROC) {
+			return "proc";
+		}
+		elif (self.kind == TOKEN_KIND_ID) {
+			return "id";
+		}
+		elif (self.kind == TOKEN_KIND_OPAREN) {
+			return "(";
+		}
+		elif (self.kind == TOKEN_KIND_CPAREN) {
+			return ")";
+		}
+		elif (self.kind == TOKEN_KIND_OCURLY) {
+			return "{";
+		}
+		elif (self.kind == TOKEN_KIND_CCURLY) {
+			return "}";
+		}
+		assert(false, "unreachable");
+	}
+	proc m_fprint(Token self, int fd) {
+		std::fprint(fd, "Token(kind=");
+		std::fprint(fd, self.kind_to_str());
+		std::fprint(fd, ", start=");
+		std::fprint(fd, self.start);
+		std::fprint(fd, ", len=");
+		std::fprint(fd, self.len);
+		std::fprint(fd, ", value=");
+		std::fprint(fd, self.value);
+		std::fprint(fd, ")");
+	}
+}
+
+struct Lexer {
+    m_src:  string,
+    m_pos:  int
+}
+
+proc is_alpha(int c) -> int {
+    let lower = ((c > 'a') || (c == 'a')) && ((c < 'z') || (c == 'z'));
+    let upper = ((c > 'A') || (c == 'A')) && ((c < 'Z') || (c == 'Z'));
+    return lower || upper || (c == '_');
+}
+
+proc is_digit(int c) -> int {
+    return ((c > '0') || (c == '0')) && ((c < '9') || (c == '9'));
+}
+
+proc is_alnum(int c) -> int {
+    return is_alpha(c) || is_digit(c);
+}
+
+impl Lexer {
+
+    proc new(string src) -> Lexer {
+        return Lexer(src, 0);
+    }
+
+    proc eof(Lexer self) -> int {
+	    return not(self.m_pos < self.m_src.m_size);
+	}
+
+    proc current_char(Lexer self) -> int {
+        if (self.eof()) return 0;
+        return string::at(self.m_src, self.m_pos);
+    }
+
+    proc advance(Lexer self) -> void {
+        if (not(self.eof())) {
+            self.m_pos += 1;
+        }
+    }
+
+    proc skip_spaces(Lexer self) -> void {
+        while (not(self.eof())) {
+            let c = self.current_char();
+            if ((c == ' ') || (c == '\t') || (c == '\n') || (c == '\r')) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+    }
+
+    // Считывание идентификатора/ключевого слова
+    proc read_ident(Lexer self) -> Token {
+        let start = self.m_pos;
+        while (not(self.eof()) && is_alnum(self.current_char())) {
+            self.advance();
+        }
+
+        let length = self.m_pos - start;
+
+        // Вытащим подстроку для сравнения со "proc"
+        let buf = string::new("");
+        buf.extend(length + 1);
+        let i = 0;
+        while (i < length) {
+            store8(buf.m_data + i, string::at(self.m_src, start + i));
+            i += 1;
+        }
+        store8(buf.m_data + length, 0);
+
+        if (string::m_equal(buf, "proc")) {
+            // Ключевое слово proc
+            return Token(TOKEN_KIND_PROC, start, length, "");
+        }
+
+        // Просто идентификатор
+        return Token(TOKEN_KIND_ID, start, length, buf.m_data);
+    }
+
+    // Вернуть следующий токен, либо TOKEN_KIND_ID с len=0 как маркер EOF
+    proc next_token(Lexer self) -> Token {
+        self.skip_spaces();
+        if (self.eof()) {
+            return Token(TOKEN_KIND_ID, self.m_pos, 0, "");
+        }
+
+        let c = self.current_char();
+
+        // Скобки и фигурные скобки – одиночные токены
+        if (c == '(') {
+            let start = self.m_pos;
+            self.advance();
+            return Token(TOKEN_KIND_OPAREN, start, 1, "");
+        }
+        if (c == ')') {
+            let start = self.m_pos;
+            self.advance();
+            return Token(TOKEN_KIND_CPAREN, start, 1, "");
+        }
+        if (c == '{') {
+            let start = self.m_pos;
+            self.advance();
+            return Token(TOKEN_KIND_OCURLY, start, 1, "");
+        }
+        if (c == '}') {
+            let start = self.m_pos;
+            self.advance();
+            return Token(TOKEN_KIND_CCURLY, start, 1, "");
+        }
+
+        // Идентификатор или ключевое слово
+        if (is_alpha(c)) {
+            return self.read_ident();
+        }
+
+        // Если встретили что-то неожиданное – можно выбросить исключение или вернуть токен-сентинел
+        raise std::exception("unexpected character in lexer");
+    }
+}

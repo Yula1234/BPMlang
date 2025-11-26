@@ -1,0 +1,17 @@
+include "std"
+include "std_string"
+include "lexer" // файл с кодом выше
+
+proc main() -> int {
+    let src = string::new("proc main() { } {} main");
+    let lx  = Lexer::new(src);
+
+    while (not(lx.eof())) {
+        let tok = lx.next_token();
+        if (tok.len == 0) break; // EOF
+        std::print(tok);
+        std::print("\n");
+    }
+
+    return 0;
+}
