@@ -1,5 +1,5 @@
 #pragma once
-#include <utility> // std::exchange, std::move
+#include <utility>
 #include <iostream>
 #include <cassert>
 
@@ -17,20 +17,17 @@ struct TreeNode {
       right(std::exchange(other.right, nullptr))
     {}
 
-    // --- ИСПРАВЛЕНО ---
     TreeNode(const TreeNode<value_type>& other) 
         : data(other.data), left(nullptr), right(nullptr) 
     {
         if(other.left != nullptr)
-            left = new TreeNode<value_type>(*other.left); // Разыменовываем указатель (*)
+            left = new TreeNode<value_type>(*other.left);
         if(other.right != nullptr)
-            right = new TreeNode<value_type>(*other.right); // Используем other.right, а не right.right
+            right = new TreeNode<value_type>(*other.right);
     }
 
-    // --- ИСПРАВЛЕНО ---
     void operator=(const TreeNode<value_type>& other) {
         data = other.data;
-        // Корректное глубокое копирование
         if(other.left != nullptr) {
             if(left == nullptr) left = new TreeNode<value_type>(*other.left);
             else *left = *other.left;
@@ -47,7 +44,6 @@ struct TreeNode {
             right = nullptr;
         }
     }
-    // ------------------
 
     size_t size() const noexcept {
         size_t res {1};
@@ -150,7 +146,7 @@ public:
     
     ~BinaryTree() {
         delete_node(root);
-        root = nullptr; // Важно занулить после удаления
+        root = nullptr;
     }
     
     TreeNode<value_type>* get_root() const noexcept {

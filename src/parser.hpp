@@ -397,7 +397,7 @@ enum class ProcAttr {
 };
 
 struct InterfaceMethod {
-    Token def; // позиция имени метода
+    Token def;
     std::string name;
     std::vector<std::pair<std::string, DataType>> params;
     DataType rettype;
@@ -1614,45 +1614,71 @@ public:
 			auto stmt = m_allocator.emplace<NodeTerm>(expr_call);
 			return stmt;
 		}
-		if((peek().has_value() && peek().value().type == TokenType_t::ident
-			&& peek(1).has_value() && peek(1).value().type == TokenType_t::double_colon
-			&& peek(2).has_value() && peek(2).value().type == TokenType_t::ident
-			&& peek(3).has_value() && peek(3).value().type == TokenType_t::open_paren
-		) || (peek().has_value() && peek().value().type == TokenType_t::ident
-			&& peek(1).has_value() && peek(1).value().type == TokenType_t::double_colon
-			&& peek(2).has_value() && peek(2).value().type == TokenType_t::ident
-			&& peek(3).has_value() && peek(3).value().type == TokenType_t::less
-			)
-		) {
-			Token def = try_consume_err(TokenType_t::ident);
-			consume();
-			Token identif = try_consume_err(TokenType_t::ident);
-			auto expr_call = m_allocator.emplace<NodeTermNmCall>();
-			expr_call->def = def;
-			expr_call->nm = def.value.value();
-			expr_call->name = identif.value.value();
-			if(peek().has_value() && peek().value().type == TokenType_t::less) {
-				consume();
-				while(peek().has_value() && peek().value().type != TokenType_t::above) {
-					DataType dt = parse_type();
-					expr_call->targs.push_back(dt);
-					if(peek().has_value() && peek().value().type != TokenType_t::above) {
-						try_consume_err(TokenType_t::comma);
-					}
-				}
-				consume();
-			}
-			try_consume_err(TokenType_t::open_paren);
-			if(peek().has_value() && peek().value().type == TokenType_t::close_paren) {
-				expr_call->args = std::nullopt;
-			} else {
-				std::pair<NodeExpr*, size_t> pargs = parse_args();
-				expr_call->args = pargs.first;
-			}
-			try_consume_err(TokenType_t::close_paren);
-			auto stmt = m_allocator.emplace<NodeTerm>(expr_call);
-			return stmt;
-		}
+	
+        if (peek().has_value() &&
+            peek().value().type == TokenType_t::ident &&
+            peek(1).has_value() &&
+            peek(1).value().type == TokenType_t::double_colon)
+        {
+            Token first = try_consume_err(TokenType_t::ident);
+            std::vector<std::string> segments;
+            segments.push_back(first.value.value());
+
+            while (peek().has_value() && peek().value().type == TokenType_t::double_colon) {
+                consume();
+                Token segTok = try_consume_err(TokenType_t::ident);
+                segments.push_back(segTok.value.value());
+            }
+
+            if (!peek().has_value() ||
+                (peek().value().type != TokenType_t::less &&
+                 peek().value().type != TokenType_t::open_paren))
+            {
+                ParsingError("excepted `(` or `<` after qualified name");
+            }
+
+            if (segments.size() < 2) {
+                ParsingError("invalid qualified name");
+            }
+
+            std::string funcName = segments.back();
+            segments.pop_back();
+
+            std::string nsName;
+            for (size_t i = 0; i < segments.size(); ++i) {
+                if (i) nsName += "::";
+                nsName += segments[i];
+            }
+
+            auto expr_call = m_allocator.emplace<NodeTermNmCall>();
+            expr_call->def  = first;
+            expr_call->nm   = nsName;  
+            expr_call->name = funcName;
+
+            if (peek().has_value() && peek().value().type == TokenType_t::less) {
+                consume();
+                while (peek().has_value() && peek().value().type != TokenType_t::above) {
+                    DataType dt = parse_type();
+                    expr_call->targs.push_back(dt);
+                    if (peek().has_value() && peek().value().type != TokenType_t::above) {
+                        try_consume_err(TokenType_t::comma);
+                    }
+                }
+                try_consume_err(TokenType_t::above);
+            }
+
+            try_consume_err(TokenType_t::open_paren);
+            if (peek().has_value() && peek().value().type == TokenType_t::close_paren) {
+                expr_call->args = std::nullopt;
+            } else {
+                std::pair<NodeExpr*, size_t> pargs = parse_args();
+                expr_call->args = pargs.first;
+            }
+            try_consume_err(TokenType_t::close_paren);
+
+            auto stmt = m_allocator.emplace<NodeTerm>(expr_call);
+            return stmt;
+        }
 		if(auto ident = try_consume(TokenType_t::ident)) {
 			std::string tname = ident.value().value.value();
 			auto expr_ident = m_allocator.emplace<NodeTermIdent>();
@@ -2686,46 +2712,71 @@ public:
 			}
 		}
 
-		if((peek().value().type == TokenType_t::ident &&
-			peek(1).has_value() && peek(1).value().type == TokenType_t::double_colon &&
-			peek(2).has_value() && peek(2).value().type == TokenType_t::ident &&
-			peek(3).has_value() && peek(3).value().type == TokenType_t::open_paren
-		) || (peek().value().type == TokenType_t::ident &&
-			peek(1).has_value() && peek(1).value().type == TokenType_t::double_colon &&
-			peek(2).has_value() && peek(2).value().type == TokenType_t::ident &&
-			peek(3).has_value() && peek(3).value().type == TokenType_t::less)
-		)
-		{
-			Token def = try_consume_err(TokenType_t::ident);
-			consume();
-			Token identif = try_consume_err(TokenType_t::ident);
-			auto stmt_call = m_allocator.emplace<NodeStmtNmCall>();
-			stmt_call->def = def;
-			stmt_call->nm = def.value.value();
-			stmt_call->name = identif.value.value();
-			if(peek().has_value() && peek().value().type == TokenType_t::less) {
-				consume();
-				while(peek().has_value() && peek().value().type != TokenType_t::above) {
-					DataType dt = parse_type();
-					stmt_call->targs.push_back(dt);
-					if(peek().has_value() && peek().value().type != TokenType_t::above) {
-						try_consume_err(TokenType_t::comma);
-					}
-				}
-				consume();
-			}
-			try_consume_err(TokenType_t::open_paren);
-			if(peek().has_value() && peek().value().type == TokenType_t::close_paren) {
-				stmt_call->args = std::nullopt;
-			} else {
-				std::pair<NodeExpr*, size_t> pargs = parse_args();
-				stmt_call->args = pargs.first;
-			}
-			try_consume_err(TokenType_t::close_paren);
-			try_consume_err(TokenType_t::semi);
-			auto stmt = m_allocator.emplace<NodeStmt>(stmt_call);
-			return stmt;
-		}
+        if (peek().has_value() &&
+            peek().value().type == TokenType_t::ident &&
+            peek(1).has_value() &&
+            peek(1).value().type == TokenType_t::double_colon)
+        {
+            Token first = try_consume_err(TokenType_t::ident);
+            std::vector<std::string> segments;
+            segments.push_back(first.value.value());
+
+            while (peek().has_value() && peek().value().type == TokenType_t::double_colon) {
+                consume();
+                Token segTok = try_consume_err(TokenType_t::ident);
+                segments.push_back(segTok.value.value());
+            }
+
+            if (!peek().has_value() ||
+                (peek().value().type != TokenType_t::less &&
+                 peek().value().type != TokenType_t::open_paren))
+            {
+                ParsingError("excepted `(` or `<` after qualified name");
+            }
+
+            if (segments.size() < 2) {
+                ParsingError("invalid qualified name");
+            }
+
+            std::string funcName = segments.back();
+            segments.pop_back();
+
+            std::string nsName;
+            for (size_t i = 0; i < segments.size(); ++i) {
+                if (i) nsName += "::";
+                nsName += segments[i];
+            }
+
+            auto stmt_call = m_allocator.emplace<NodeStmtNmCall>();
+            stmt_call->def  = first;
+            stmt_call->nm   = nsName;   
+            stmt_call->name = funcName; 
+
+            if (peek().has_value() && peek().value().type == TokenType_t::less) {
+                consume();
+                while (peek().has_value() && peek().value().type != TokenType_t::above) {
+                    DataType dt = parse_type();
+                    stmt_call->targs.push_back(dt);
+                    if (peek().has_value() && peek().value().type != TokenType_t::above) {
+                        try_consume_err(TokenType_t::comma);
+                    }
+                }
+                try_consume_err(TokenType_t::above);
+            }
+
+            try_consume_err(TokenType_t::open_paren);
+            if (peek().has_value() && peek().value().type == TokenType_t::close_paren) {
+                stmt_call->args = std::nullopt;
+            } else {
+                std::pair<NodeExpr*, size_t> pargs = parse_args();
+                stmt_call->args = pargs.first;
+            }
+            try_consume_err(TokenType_t::close_paren);
+            try_consume_err(TokenType_t::semi);
+
+            auto stmt = m_allocator.emplace<NodeStmt>(stmt_call);
+            return stmt;
+        }
 
 		if(auto _namespace = try_consume(TokenType_t::_namespace)) {
 			auto stmt_space = m_allocator.emplace<NodeStmtNamespace>();

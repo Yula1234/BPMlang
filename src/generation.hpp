@@ -77,6 +77,7 @@ struct hash<std::pair<std::string, std::string>> {
         return seed;
     }
 };
+}
 
 class Generator {
 public:
@@ -195,7 +196,7 @@ public:
             }
             std::string lbl = "__";
             if (cnm.has_value()) {
-                lbl += cnm.value() + "@";
+                lbl += gen.mangle_ns_name(cnm.value()) + "@";
             } else {
                 if (!gen.m_tsigns.empty() && !mbn.empty())
                     lbl += mbn + "@";
@@ -1516,7 +1517,7 @@ public:
                     gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` expects " + std::to_string(proc.params.size()) + " args, but got 0");
                 }
                 gen.gen_args(raw_args, proc.params, term_call->def);
-                std::string label = nname + "@" + pname + tsign;
+                std::string label = gen.mangle_ns_name(nname) + "@" + pname + tsign;
                 if (proc.override) label += proc.get_sign();
                 gen.m_builder.call(gen.sym(label));
                 if (stack_allign != 0) {
@@ -3184,26 +3185,18 @@ AFTER_GEN:
                 std::string label;
                 if (stmt_proc->name != "main") {
                     if (gen.in_namespace()) {
-                        label += gen.m_cur_namespace->name;
+                        std::string ns_asm = gen.mangle_ns_name(gen.m_cur_namespace->name);
+                        label += ns_asm;
                         label += "@";
                     }
                     label += stmt_proc->name;
-                    if (override) {
-                        label += movs->get_sign();
-                    }
+                    if (override) label += movs->get_sign();
                 } else {
                     label = "__main";
                 }
-
-                if (gen.m_used_labels.find(label) != gen.m_used_labels.end()) {
-                    gen.DiagnosticMessage(stmt_proc->def, "error",
-                                          "procedure `" + stmt_proc->name + "` redefinition (ASM label `" +
-                                          label + "` already used).", 0);
-                    exit(1);
-                }
+                gen.m_builder.label(label);
                 gen.m_used_labels.insert(label);
 
-                gen.m_builder.label(label);
 
                 if (!noprolog) {
                     gen.m_builder.push(gen.reg(Reg::EBP));
@@ -3883,20 +3876,35 @@ AFTER_GEN:
 
             void operator()(const NodeStmtNamespace* stmt_space) const
             {
-                std::optional<Namespace*> enm = gen.namespace_lookup(stmt_space->name);
-                if (!enm.has_value()) {
-                    Namespace* nm = gen.m_allocator.emplace<Namespace>();
-                    nm->procs = {};
-                    nm->name  = stmt_space->name;
-                    gen.m_cur_namespace = nm;
-                    gen.m_namespaces[nm->name] = nm;
+                std::string fullName;
+                if (!gen.m_ns_stack.empty()) {
+                    fullName = gen.m_ns_stack.back() + "::" + stmt_space->name;
                 } else {
-                    gen.m_cur_namespace = enm.value();
+                    fullName = stmt_space->name;
                 }
+
+                Namespace* nm;
+                auto enm = gen.namespace_lookup(fullName);
+                if (!enm.has_value()) {
+                    nm = gen.m_allocator.emplace<Namespace>();
+                    nm->procs = {};
+                    nm->name  = fullName;
+                    gen.m_namespaces[fullName] = nm;
+                } else {
+                    nm = enm.value();
+                }
+
+                Namespace* prev_ns = gen.m_cur_namespace;
+
+                gen.m_cur_namespace = nm;
+                gen.m_ns_stack.push_back(fullName);
+
                 for (NodeStmt* stmt : stmt_space->scope->stmts) {
                     gen.gen_stmt(stmt);
                 }
-                gen.m_cur_namespace = NULL;
+
+                gen.m_ns_stack.pop_back();
+                gen.m_cur_namespace = prev_ns;
             }
 
             void operator()(NodeStmtImpl* stmt_impl) const
@@ -3966,7 +3974,7 @@ AFTER_GEN:
 
                 gen.gen_args(raw_args, proc.params, stmt_call->def);
 
-                std::string label = nname + "@" + pname + tsign;
+                std::string label = gen.mangle_ns_name(nname) + "@" + pname + tsign;
                 if (proc.override) label += proc.get_sign();
                 gen.m_builder.call(gen.sym(label));
 
@@ -4330,6 +4338,19 @@ private:
         if (!dt.is_object()) return false;
         std::string nm = dt.getobjectname();
         return inter_lookup(nm).has_value();
+    }
+
+    std::string mangle_ns_name(const std::string& ns) const {
+        std::string out;
+        out.reserve(ns.size());
+        for (char c : ns) {
+            if (c == ':') {
+                out.push_back('_');
+                continue;
+            }
+            out.push_back(c);
+        }
+        return out;
     }
 
     Interface get_interface(const DataType& dt, const Token& where) {
@@ -5020,7 +5041,7 @@ private:
     void end_scope_sp(Procedure& proc, UNUSED_ARG const Token& def)
     {
         std::string lbl;
-        if (in_namespace()) lbl += "__" + m_cur_namespace->name + "@";
+        if (in_namespace()) lbl += "__" + mangle_ns_name(m_cur_namespace->name) + "@";
         else                lbl += "__";
         if (!proc.mbn.empty()) lbl += proc.mbn + "@";
         lbl += proc.name;
@@ -5076,6 +5097,8 @@ private:
     __map<std::string, GVar>          m_global_vars;
     __map<std::string, Interface>     m_interfaces;
     __map<std::string, Namespace*>    m_namespaces;
+
+    __stdvec<std::string> m_ns_stack;
 
     Namespace* m_cur_namespace = nullptr;
     ArenaAllocator m_allocator;
