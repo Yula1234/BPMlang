@@ -4250,6 +4250,16 @@ AFTER_GEN:
 	    gen_all_template_instances();
 
 	    m_builder.label("main");
+        m_builder.push( Operand::regOp(Reg::EBP) );
+
+        // mov ebp, esp
+        m_builder.mov(
+            Operand::regOp(Reg::EBP),
+            Operand::regOp(Reg::ESP)
+        );
+
+        m_builder.push( Operand::memOp( MemRef::baseDisp(Reg::EBP, 12) ) );
+        m_builder.push( Operand::memOp( MemRef::baseDisp(Reg::EBP, 8) ) );
 
 	    m_builder.call(sym("__bpm_set_sigsegv_handler"));
 	    m_builder.push(reg(Reg::EBP));
@@ -4268,6 +4278,7 @@ AFTER_GEN:
 	    m_init_typeid_table_ir();
 
 	    m_builder.call(sym("__main"));
+        m_builder.add(reg(Reg::ESP), imm(8));
 
 	    m_builder.push(imm(0));
 	    m_builder.call(sym("ExitProcess@4"));
