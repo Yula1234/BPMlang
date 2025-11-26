@@ -112,7 +112,9 @@ namespace std {
 cextern "write";
 proc write(int fd, char* data, int size) -> int;
 
+#define __boffset_ptr(__p __n) (__p + (__n * 4))$
+
 namespace std {
 	proc nth_argv(char** __argv, int __nth) -> char* =
-		return rd32_as(__argv + (__nth * 4), char*);
+		return rd32_as(__boffset_ptr(__argv, __nth), char*);
 }
