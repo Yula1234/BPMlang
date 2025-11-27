@@ -79,9 +79,11 @@ proc memmove(ptr dst, ptr src, int size) -> void;
 cextern "printf";
 cextern "fprintf";
 cextern "sprintf";
-proc sprintf(ptr p, char* fstr)     -> void [nosizedargs];
-proc printf(char* fstring)          -> void [nosizedargs];
-proc fprintf(ptr fd, char* fstring) -> void [nosizedargs];
+cextern "snprintf";
+proc sprintf(ptr p, char* fstr)     	 -> void [nosizedargs];
+proc snprintf(ptr p, int sz, char* fstr) -> void [nosizedargs];
+proc printf(char* fstring)               -> void [nosizedargs];
+proc fprintf(ptr fd, char* fstring)      -> void [nosizedargs];
 
 cextern "memset";
 proc memset(ptr mem, int val, int size) -> void;

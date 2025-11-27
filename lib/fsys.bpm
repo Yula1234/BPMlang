@@ -27,15 +27,37 @@ struct FILE {
 	flag: int   // FILE* -> _flag 
 }
 
+const FERROR_FAILED_OPEN = 0;
+
+struct FsysException {
+	FCAUSE: int,
+	__stub1: int,
+	__stub2: int
+}
+
+impl FsysException {
+	proc what(FsysException self) -> char* {
+		let __wc = std::alloc<char>(32);
+		snprintf(__wc, 32, "FCAUSE = %d", self.FCAUSE);
+		return __wc;
+	}
+}
+
 namespace FILE {
 	proc open(char* FilePath, char* Mode) -> FILE {
 		let cfile = fopen(FilePath, Mode);
+		if (cfile == cast(ptr, 0)) {
+			raise FsysException(FERROR_FAILED_OPEN, 0, 0);
+		}
 		let desc = fileno(cfile);
 		return FILE(
 			cfile,
 			desc,
 			rd32(cfile + 12)
 		);
+	}
+	proc __assign(FILE& self, FILE other) {
+		store32(cast(ptr, self), other);
 	}
 	proc close(FILE self) -> void {
 		fclose(self.cfile);
