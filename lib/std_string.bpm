@@ -28,7 +28,7 @@ namespace std {
 namespace string {
 	proc new(char* _cstr) -> string {
 		let __sz = strlen(_cstr);
-		let __s = string(std::alloc<char>(__sz), __sz, __sz);
+		let __s = string(std::alloc<char>(__sz + 1), __sz, __sz + 1);
 		memcpy(__s.m_data, _cstr, __sz + 1);
 		return __s;
 	}

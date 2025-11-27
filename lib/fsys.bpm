@@ -8,7 +8,7 @@ cextern "fseek";
 cextern "ftell";
 cextern "fread";
 
-#define EOF() neg(1)$
+#define __EOF() neg(1)$
 
 proc fopen(char* FilePath, char* Mode) -> ptr;
 proc fclose(ptr CFile) -> int;
@@ -30,7 +30,9 @@ struct FILE {
 namespace FILE {
 	proc open(char* FilePath, char* Mode) -> FILE {
 		let cfile = fopen(FilePath, Mode);
+		printf("cfile = %d\n", cfile);
 		let desc = fileno(cfile);
+		printf("desc = %d\n", desc);
 		return FILE(
 			cfile,
 			desc,
@@ -44,22 +46,28 @@ namespace FILE {
 		self.close();
 	}
 	proc size(FILE self) -> int {
-		fseek(self.cfile, 0, FSEEK_END);
-		let __sz = ftell(self.cfile);
 		fseek(self.cfile, 0, FSEEK_SET);
-		return __sz;
+		let __sz = 0;
+		let __c = 0;
+		while (__c != __EOF()) {
+			__c = fgetc(self.cfile);
+			__sz += 1;
+		}
+		fseek(self.cfile, 0, FSEEK_SET);
+		return __sz - 1;
 	}
 	proc getc(FILE self) -> int {
 		return fgetc(self.cfile);
 	}
 	proc read_to_buffer(FILE self, char* buf) -> int {
+		fseek(self.cfile, 0, FSEEK_SET);
 		let __readed = fread(buf, 1, self.size(), self.cfile);
 		store8(buf + __readed, 0);
 	}
 	proc read_to_string(FILE self) -> string {
-		let __bf = cast(char*, memalloc(self.size()));
+		let __bf = cast(char*, memalloc(self.size() + 1));
 		self.read_to_buffer(__bf);
-		let __s = std::string(__bf);
+		let __s = string::new(__bf);
 		memfree(__bf);
 		return __s;
 	}

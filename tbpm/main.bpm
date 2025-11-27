@@ -1,17 +1,26 @@
 include "std"
 include "fsys"
 include "std_string"
+include "vector"
 include "lexer"
 
 proc main(int argc, char** argv) -> int {
-    let src = FILE::open(std::nth_argv(argv, 1), "r").read_to_string();
+    let file = FILE::open(std::nth_argv(argv, 1), "r");
+    printf("%d\n", file.size());
+    let src = file.read_to_string();
+    file.close();
+    printf("readed to string\n");
     let lx  = Lexer::new(src);
+    printf("after lx\n");
+    std::print(src);
+    std::print("\n");
 
-    while (not(lx.eof())) {
-        let tok = lx.next_token();
-        if (tok.len == 0) break; // EOF
-        std::print(tok);
-        std::print("\n");
+    let tokens = lx.lex();
+    let it = tokens.begin();
+    while (it != tokens.end()) {
+    	std::print(*it);
+    	std::print("\n");
+    	it += 1;
     }
 
     return 0;

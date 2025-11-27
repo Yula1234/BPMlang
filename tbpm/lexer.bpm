@@ -90,7 +90,7 @@ impl Lexer {
     proc skip_spaces(Lexer self) -> void {
         while (not(self.eof())) {
             let c = self.current_char();
-            if ((c == ' ') || (c == '\t') || (c == '\n') || (c == '\r')) {
+            if ((c == ' ') || (c == '\t') || (c == '\n')) {
                 self.advance();
             } else {
                 break;
@@ -164,5 +164,14 @@ impl Lexer {
 
         // Если встретили что-то неожиданное – можно выбросить исключение или вернуть токен-сентинел
         raise std::exception("unexpected character in lexer");
+    }
+    proc lex(Lexer self) -> vector<Token> {
+    	let res = vector::new<Token>();
+    	while (not(self.eof())) {
+        	let tok = self.next_token();
+        	if (tok.len == 0) break; // EOF
+        	res.push(tok);
+    	}
+    	return res;
     }
 }
