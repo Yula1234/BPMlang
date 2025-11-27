@@ -16,7 +16,7 @@ proc fileno(ptr CFile) -> int;
 proc fgetc(ptr CFile) -> int;
 proc fseek(ptr CFile, int val, int opt) -> void;
 proc ftell(ptr CFile) -> int;
-proc fread(ptr buf, int size, int count, ptr filestream) -> void;
+proc fread(ptr buf, int size, int count, ptr filestream) -> int;
 
 const FSEEK_END = 2;
 const FSEEK_SET = 0;
@@ -53,8 +53,8 @@ namespace FILE {
 		return fgetc(self.cfile);
 	}
 	proc read_to_buffer(FILE self, char* buf) -> int {
-		fread(buf, self.size(), 1, self.cfile);
-		store8(buf + (self.size()), 0);
+		let __readed = fread(buf, 1, self.size(), self.cfile);
+		store8(buf + __readed, 0);
 	}
 	proc read_to_string(FILE self) -> string {
 		let __bf = cast(char*, memalloc(self.size()));

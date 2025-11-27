@@ -56,6 +56,12 @@ namespace string {
 		std::strcat(__np, rhs);
 		return string(__np, __szlr, __szlr + 2);
 	}
+	proc push_back(string self, int __c) -> void {
+		buffer __resbt(2);
+		store8(&__resbt, __c);
+		store8(&__resbt + 1, 0);
+		self.m_add(&__resbt);
+	}
 	proc m_add(string self, string rhs) -> string {
 		return self + rhs.m_data;
 	}
