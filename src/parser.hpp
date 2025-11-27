@@ -2242,6 +2242,9 @@ public:
 						ParsingError("unkown Procedure Attribute `" + attr_name + "`");
 					}
 					stmt_proc->attrs.push_back(cur_attr.value());
+					if(peek().has_value() && peek().value().type != TokenType_t::close_bracket) {
+						try_consume_err(TokenType_t::comma);
+					}
 				}
 				try_consume_err(TokenType_t::close_bracket);
 			}

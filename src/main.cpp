@@ -52,46 +52,28 @@ int main(int argc, char* argv[]) {
 
     auto start = std::chrono::system_clock::now();
 
-    if (argc < 2) {
-        show_usage(std::cerr);
+    ArgParser argparser(argc, argv);
+    argparser.parse();
+
+    std::string input_filename = argparser.get_input_file();
+    
+    if (input_filename.empty()) {
+        std::cerr << "ERROR: No input file provided.\n";
+        argparser.print_help();
         return EXIT_FAILURE;
     }
 
-    basepath = argv[1];
+    basepath = input_filename;
 
-    __slashinpath = basepath.find("/") != std::string::npos;
-
-    if(__slashinpath) {
-        while(basepath[basepath.length() - 1] != '/') {
-            basepath.pop_back();
-        }
-        basepath.pop_back();
-    }
-
-    if(FILE *file = fopen(argv[1], "r")) {
-        fclose(file);
-    } else {
-        char* path = argv[1];
-        std::cerr << "ERROR: file `" << path << "` not found\n";
+    if (!std::filesystem::exists(input_filename)) {
+        std::cerr << "ERROR: file `" << input_filename << "` not found\n";
         exit(1);
-    }
-
-    ArgParser argparser(argc, argv);
-
-    argparser.parse();
-
-    std::string contents;
-    {
-        std::stringstream contents_stream;
-        std::fstream input(argv[1], std::ios::in);
-        contents_stream << input.rdbuf();
-        contents = contents_stream.str();
     }
 
     std::string user_code;
     {
         std::stringstream contents_stream;
-        std::fstream input(argv[1], std::ios::in);
+        std::fstream input(input_filename, std::ios::in);
         contents_stream << input.rdbuf();
         user_code = contents_stream.str();
     }
@@ -100,14 +82,14 @@ int main(int argc, char* argv[]) {
     auto internal_res = internal_tokenizer.tokenize("<built-in>");
     
     Tokenizer user_tokenizer(std::move(user_code));
-    auto user_res = user_tokenizer.tokenize(argv[1]);
+    auto user_res = user_tokenizer.tokenize(input_filename);
     
     internal_res.tokens->insert(internal_res.tokens->end(), user_res.tokens->begin(), user_res.tokens->end());
     
     Parser parser(std::move(*internal_res.tokens), std::vector<std::string>()); 
     
     parser.m_lines["<built-in>"] = std::move(*internal_res.lines);
-    parser.m_lines[argv[1]]       = std::move(*user_res.lines);
+    parser.m_lines[input_filename]       = std::move(*user_res.lines);
     
     std::optional<NodeProg*> prog = parser.parse_prog();
 

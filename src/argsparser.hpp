@@ -1,99 +1,206 @@
 #pragma once
 
+#include <iostream>
+#include <vector>
+#include <string>
+#include <optional>
+#include <unordered_map>
+#include <filesystem>
+#include <cstdlib>
+#include <cassert>
+#include <algorithm>
+
+namespace fs = std::filesystem;
+
 enum class FlagType {
     output,
     run,
     time,
     sasm,
     dump,
-    optimize
+    optimize,
+    help,
+    unknown
 };
 
-struct Flag {
+struct FlagDefinition {
     FlagType type;
-    std::optional<std::string> operand;
+    std::string short_name;
+    std::string long_name;
+    bool requires_value;
+    std::string description;
+};
+
+struct ParsedFlag {
+    FlagType type;
+    std::optional<std::string> value;
 };
 
 class ArgParser {
 private:
-    char** m_argv;
     int m_argc;
-    std::vector<Flag> m_flags;
-public:
-    ArgParser(int argc, char** argv) {
-        m_argc = argc;
-        m_argv = argv;
+    char** m_argv;
+
+    std::vector<FlagDefinition> m_defs;
+    
+    std::vector<ParsedFlag> m_parsed_flags;
+    std::string m_input_file;
+    std::string m_binary_name;
+
+    void init_definitions() {
+        m_defs = {
+            {FlagType::output,   "-o", "--output",   true,  "Specify output file name"},
+            {FlagType::dump,     "-d", "--dump",     true,  "Dump IR/ASM to file and exit"},
+            {FlagType::run,      "-r", "--run",      false, "Run the program after compilation"},
+            {FlagType::time,     "-t", "--time",     false, "Measure compilation time"},
+            {FlagType::optimize, "-O", "--optimize", false, "Enable IR optimization"},
+            {FlagType::sasm,     "-s", "--sasm",     false, "Keep intermediate .asm file"},
+            {FlagType::help,     "-h", "--help",     false, "Show this help message"}
+        };
     }
-    std::optional<Flag> find_flag(FlagType type) {
-        for(int i = 0;i < static_cast<int>(m_flags.size());++i) {
-            if(m_flags[i].type == type) {
-                return m_flags[i];
+
+    std::optional<FlagDefinition> find_def(const std::string& arg) {
+        for (const auto& def : m_defs) {
+            if (def.short_name == arg || def.long_name == arg) {
+                return def;
             }
         }
         return std::nullopt;
     }
-    void parse() {
-        for(int i = 2;i < m_argc;++i) {
-            if(strcmp(m_argv[i], "-o") == 0) {
-                if(i == (m_argc - 1)) {
-                    std::cerr << "-o argument except file name\n";
-                    exit(1);
-                }
-                m_flags.push_back({ .type = FlagType::output , .operand = m_argv[++i] });
-            }
-            else if(strcmp(m_argv[i], "-d") == 0) {
-                if(i == (m_argc - 1)) {
-                    std::cerr << "-d argument except file name\n";
-                    exit(1);
-                }
-                m_flags.push_back({ .type = FlagType::dump , .operand = m_argv[++i] });
-            }
-            else if(strcmp(m_argv[i], "-r") == 0) {
-                m_flags.push_back({ .type = FlagType::run , .operand = std::nullopt });
-            }
-            else if(strcmp(m_argv[i], "-t") == 0) {
-                m_flags.push_back({ .type = FlagType::time , .operand = std::nullopt });
-            }
-            else if(strcmp(m_argv[i], "-O") == 0) {
-                m_flags.push_back({ .type = FlagType::optimize , .operand = std::nullopt });
-            }
-            else if(strcmp(m_argv[i], "-s") == 0) {
-                m_flags.push_back({ .type = FlagType::sasm , .operand = std::nullopt });
-            }
-            else {
-                printf("unkown command flag `%s`\n", m_argv[i]);
-                exit(1);
+
+public:
+    ArgParser(int argc, char** argv) 
+        : m_argc(argc), m_argv(argv) 
+    {
+        if (argc > 0) m_binary_name = argv[0];
+        init_definitions();
+    }
+    std::optional<ParsedFlag> find_flag(FlagType type) {
+        for (const auto& flag : m_parsed_flags) {
+            if (flag.type == type) {
+                return flag;
             }
         }
+        return std::nullopt;
     }
+
+    void print_help() {
+        std::cout << "Usage: " << fs::path(m_binary_name).filename().string() << " <input.bpm> [options]\n\n";
+        std::cout << "Options:\n";
+        for (const auto& def : m_defs) {
+            std::cout << "  " << def.short_name << ", " << def.long_name;
+            if (def.requires_value) std::cout << " <value>";
+            
+            // Выравнивание
+            size_t len = def.short_name.length() + def.long_name.length() + (def.requires_value ? 7 : 0);
+            if (len < 20) {
+                for(size_t i = 0; i < 20 - len; ++i) std::cout << " ";
+            } else {
+                std::cout << "\n                      ";
+            }
+            
+            std::cout << " " << def.description << "\n";
+        }
+        std::cout << std::endl;
+    }
+
+    void parse() {
+        
+        bool input_found = false;
+
+        for (int i = 1; i < m_argc; ++i) {
+            std::string arg = m_argv[i];
+
+            if (arg[0] == '-') {
+                auto def_opt = find_def(arg);
+                if (!def_opt.has_value()) {
+                    std::cerr << "Error: Unknown flag `" << arg << "`\n";
+                    std::cerr << "Use -h or --help for usage info.\n";
+                    exit(EXIT_FAILURE);
+                }
+                
+                FlagDefinition def = def_opt.value();
+                std::optional<std::string> val = std::nullopt;
+
+                if (def.requires_value) {
+                    if (i + 1 < m_argc && m_argv[i+1][0] != '-') {
+                        val = m_argv[++i];
+                    } else {
+                        std::cerr << "Error: Flag `" << arg << "` requires a value.\n";
+                        exit(EXIT_FAILURE);
+                    }
+                }
+
+                m_parsed_flags.push_back({def.type, val});
+
+                if (def.type == FlagType::help) {
+                    print_help();
+                    exit(EXIT_SUCCESS);
+                }
+            } else {
+                if (!input_found) {
+                    m_input_file = arg;
+                    input_found = true;
+                } else {
+                    std::cerr << "Warning: Multiple input files specified, using `" << m_input_file << "`, ignoring `" << arg << "`.\n";
+                }
+            }
+        }
+
+    }
+    
+    std::string get_input_file() const {
+        return m_input_file;
+    }
+
     int compile() {
-        if(auto d_flag = find_flag(FlagType::dump)) {
+        if (find_flag(FlagType::dump)) {
             return EXIT_SUCCESS;
         }
-        system("nasm --gprefix _ -fwin32 output.asm -o output.o");
-        if(auto s_flag = find_flag(FlagType::sasm)) {}
-        else {
-            system("del output.asm");
+
+        fs::path asm_file = "output.asm";
+        fs::path obj_file = "output.o";
+        
+        std::string nasm_cmd = "nasm --gprefix _ -fwin32 " + asm_file.string() + " -o " + obj_file.string();
+        if (system(nasm_cmd.c_str()) != 0) {
+            std::cerr << "Error: Assembler (nasm) failed.\n";
+            return EXIT_FAILURE;
         }
-        std::optional<Flag> has_o_flag = std::nullopt;
-        if(auto o_flag = find_flag(FlagType::output)) {
-            has_o_flag = o_flag;
-            std::string link_com;
-            assert(o_flag.value().operand.has_value());
-            link_com = "gcc -o " + o_flag.value().operand.value() + " " + __PATH "/lib/lib_core.o output.o -m32";
-            system(link_com.c_str());
-        } else {
-            system("gcc -o out.exe output.o " __PATH "/lib/lib_core.o -m32");
+
+        if (!find_flag(FlagType::sasm)) {
+            std::error_code ec;
+            fs::remove(asm_file, ec);
+            if (ec) std::cerr << "Warning: Could not delete " << asm_file << ": " << ec.message() << "\n";
         }
-        system("del output.o");
-        if(auto r_flag = find_flag(FlagType::run)) {
-            if(has_o_flag.has_value()) {
-                return system(has_o_flag.value().operand.value().c_str());
-            }
-            else {
-                return system("out.exe");
-            }
+
+        fs::path lib_core = fs::path(__PATH) / "lib" / "lib_core.o";
+        fs::path output_exe = "out.exe";
+        
+        if (auto o_flag = find_flag(FlagType::output)) {
+            output_exe = o_flag->value.value();
         }
+
+        if (!fs::exists(lib_core)) {
+            std::cerr << "Error: Core library not found at " << lib_core << "\n";
+            std::cerr << "Please check __PATH definition.\n";
+            return EXIT_FAILURE;
+        }
+
+        std::string link_cmd = "gcc -o " + output_exe.string() + " " + obj_file.string() + " " + lib_core.string() + " -m32";
+        
+        if (system(link_cmd.c_str()) != 0) {
+            std::cerr << "Error: Linker (gcc) failed.\n";
+            return EXIT_FAILURE;
+        }
+
+        std::error_code ec;
+        fs::remove(obj_file, ec);
+
+        if (find_flag(FlagType::run)) {
+            int run_ret = system(output_exe.string().c_str());
+            return run_ret;
+        }
+
         return EXIT_SUCCESS;
     }
 };
