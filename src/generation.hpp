@@ -2498,16 +2498,54 @@ AFTER_GEN:
     {
         bool nosizedargs =
             std::find(proc.attrs.begin(), proc.attrs.end(), ProcAttr::nosizedargs) != proc.attrs.end();
-        int bad = -1;
-        if (!match_call_signature(args, params, proc, nosizedargs, &bad)) {
-            GeneratorError(def,
-                "procedure `" + proc.name + "`\nexcept type " +
-                canonical_type(params[bad].second).to_string() + " at " + std::to_string(bad) +
-                " argument\nNOTE: but found type " +
-                canonical_type(type_of_expr(args[bad])).to_string());
+
+        const size_t args_sz   = args.size();
+        const size_t params_sz = params.size();
+
+        // Явная проверка количества аргументов
+        if (!nosizedargs) {
+            if (args_sz != params_sz) {
+                GeneratorError(
+                    def,
+                    "procedure `" + proc.name + "` expects " +
+                    std::to_string(params_sz) + " argument(s), but " +
+                    std::to_string(args_sz) + " were provided"
+                );
+            }
+        } else {
+            // nosizedargs == true: аргументов может быть больше параметров,
+            // но меньше — нельзя (иначе даже формальные параметры нельзя заполнить).
+            if (args_sz < params_sz) {
+                GeneratorError(
+                    def,
+                    "procedure `" + proc.name + "` expects at least " +
+                    std::to_string(params_sz) + " argument(s), but " +
+                    std::to_string(args_sz) + " were provided"
+                );
+            }
         }
 
-        *stack_allign += args.size();
+        int bad = -1;
+        if (!match_call_signature(args, params, proc, nosizedargs, &bad)) {
+            // Если match_call_signature вернул bad == -1 (на всякий случай),
+            // то дадим общее сообщение, чтобы не падать.
+            if (bad < 0 || bad >= static_cast<int>(params_sz) || bad >= static_cast<int>(args_sz)) {
+                GeneratorError(
+                    def,
+                    "procedure `" + proc.name + "` has incompatible argument types"
+                );
+            } else {
+                GeneratorError(
+                    def,
+                    "procedure `" + proc.name + "`\nexcept type " +
+                    canonical_type(params[bad].second).to_string() + " at " +
+                    std::to_string(bad) + " argument\nNOTE: but found type " +
+                    canonical_type(type_of_expr(args[bad])).to_string()
+                );
+            }
+        }
+
+        *stack_allign += args_sz;
     }
 
     void substitute_template(DataType& type) {
