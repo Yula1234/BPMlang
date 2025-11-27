@@ -11,14 +11,13 @@ proc main(int argc, char** argv) -> int {
         file.__assign(FILE::open(filename, "r"));
     } catch(e : FsysException) {
         if (e.FCAUSE == FERROR_FAILED_OPEN) {
-            printf("ERROR: file %s doesn't exists\n");
+            printf("ERROR: file %s doesn't exists\n", filename);
             exit(EXIT_FAILURE);
         }
     }
     let src = file.read_to_string();
     file.close();
     let lx  = Lexer::new(src);
-
     let tokens = lx.lex();
     let it = tokens.begin();
     while (it != tokens.end()) {
