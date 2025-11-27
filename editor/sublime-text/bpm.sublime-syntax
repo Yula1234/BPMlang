@@ -49,7 +49,7 @@ contexts:
     - match: '\b(all_cast|object_cast|simple_cast|cast_to|__oninit|interface|char|any|int|ptr|void|cast)\b'
       scope: storage.type.hl
 
-    - match: '\b(self|NOT_IMPLEMENTED|null|nostdargs|noprolog|nosizedargs|true|false)\b'
+    - match: '\b(self|NOT_IMPLEMENTED|null|nostdargs|noprolog|nosizedargs|true|false|cimport)\b'
       scope: constant.language.hl
 
     - match: '\/\*'
