@@ -5,15 +5,19 @@ include "vector"
 include "lexer"
 
 proc main(int argc, char** argv) -> int {
-    let file = FILE::open(std::nth_argv(argv, 1), "r");
-    printf("%d\n", file.size());
+    let filename = std::nth_argv(argv, 1);
+    let file: FILE;
+    try {
+        file.__assign(FILE::open(filename, "r"));
+    } catch(e : FsysException) {
+        if (e.FCAUSE == FERROR_FAILED_OPEN) {
+            printf("ERROR: file %s doesn't exists\n");
+            exit(EXIT_FAILURE);
+        }
+    }
     let src = file.read_to_string();
     file.close();
-    printf("readed to string\n");
     let lx  = Lexer::new(src);
-    printf("after lx\n");
-    std::print(src);
-    std::print("\n");
 
     let tokens = lx.lex();
     let it = tokens.begin();
