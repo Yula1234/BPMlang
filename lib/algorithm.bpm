@@ -1,14 +1,9 @@
 namespace std {
-	proc find_if<Iter>(Iter begin, Iter end, ProcPtr<int> pred) -> Iter {
+	proc find_if<Iter, T>(Iter begin, Iter end, ProcPtr<int, T> pred) -> Iter {
+		static_assert(is_same_t(*begin, ct_type(T)), "std::find_if(Iter<T>, Iter<T>, ProcPtr<int, T>) except that *Iter return -> T");
 		let __it: Iter = begin;
 		while(__it != end) {
-			__pushonstack(*__it);
-			__pushonstack(pred);
-			asm "pop ebx";
-			asm "call ebx";
-			asm "add esp, 4";
-			asm "push eax";
-			let __fres = cast(int, __popfromstack());
+			let __fres = pred(*__it);
 			if(__fres) return __it;
 			__it += 1;
 		}
@@ -41,22 +36,17 @@ namespace std {
 			__it += 1;
 		}
 	}
-	proc copy_if_range<Iter, Iter2>(Iter src, Iter2 begin, Iter2 end, ProcPtr<int> pred) {
+	proc copy_if_range<Iter, Iter2, T>(Iter src, Iter2 begin, Iter2 end, ProcPtr<int, T> pred) -> Iter {
 		let __it: Iter2 = begin;
 		let __input: Iter = src;
 		while(__it != end) {
-			__pushonstack(*__it);
-			__pushonstack(pred);
-			asm "pop ebx";
-			asm "call ebx";
-			asm "add esp, 4";
-			asm "push eax";
-			let __fres = cast(int, __popfromstack());
+			let __fres = pred(*__it);
 			if(__fres) {
 				*__input = *__it;
 				__input += 1;
 			}
 			__it += 1;
 		}
+		return __input;
 	}
 }
