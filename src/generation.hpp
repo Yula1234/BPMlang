@@ -4199,6 +4199,57 @@ AFTER_GEN:
 
                 gen.m_builder.label(end_lab);
             }
+            void operator()(const NodeStmtFor* stmt_for) const
+            {
+                size_t init_size = 0;
+                if (stmt_for->init) {
+                    NodeScope tmp_scope;
+                    tmp_scope.stmts.push_back(stmt_for->init);
+                    init_size = gen.collect_alligns(&tmp_scope);
+                }
+                
+                size_t body_size = gen.collect_alligns(stmt_for->scope);
+                
+                gen.begin_scope(static_cast<int>(init_size + body_size));
+                
+                if (stmt_for->init) {
+                    gen.gen_stmt(stmt_for->init);
+                }
+                
+                auto start_label = gen.create_label();
+                auto end_label   = gen.create_label();
+                auto step_label  = gen.create_label();
+                
+                gen.m_breaks.push_back(end_label);
+                gen.m_break_scopes.push_back(init_size + body_size);
+
+                gen.m_builder.label(start_label);
+                
+                if (stmt_for->cond) {
+                    gen.gen_expr(stmt_for->cond);
+                    gen.pop_reg(Reg::EAX);
+                    gen.m_builder.emit(IRInstr(IROp::Test, gen.reg(Reg::EAX), gen.reg(Reg::EAX)));
+                    gen.m_builder.jz(gen.label(end_label));
+                }
+                
+                for(const auto& st : stmt_for->scope->stmts) {
+                    gen.gen_stmt(st);
+                }
+                
+                gen.m_builder.label(step_label);
+                if (stmt_for->step) {
+                    gen.gen_stmt(stmt_for->step);
+                }
+                
+                gen.m_builder.jmp(gen.label(start_label));
+                
+                gen.m_builder.label(end_label);
+                
+                gen.m_breaks.pop_back();
+                gen.m_break_scopes.pop_back();
+                
+                gen.end_scope();
+            }
         };
 
         StmtVisitor visitor{ *this };

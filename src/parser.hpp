@@ -864,6 +864,13 @@ struct NodeStmtTry {
 	std::string name;
 };
 
+struct NodeStmtFor {
+    NodeStmt* init;  
+    NodeExpr* cond;  
+    NodeStmt* step;  
+    NodeScope* scope;
+};
+
 struct NodeStmt {
 	std::variant<NodeStmtExit*, NodeStmtLet*,
 				NodeScope*, NodeStmtIf*,
@@ -881,7 +888,8 @@ struct NodeStmt {
 				NodeStmtNamespace*,NodeStmtNmCall*,
 				NodeStmtMtCall*, NodeStmtConst*,
 				NodeStmtTypedef*,NodeStmtImpl*,
-				NodeStmtRaise*, NodeStmtTry*> var;
+				NodeStmtRaise*, NodeStmtTry*,
+				NodeStmtFor*> var;
 };
 
 struct NodeProg {
@@ -2037,7 +2045,7 @@ public:
 		return {};
 	}
 
-	std::optional<NodeStmt*> parse_stmt() // NOLINT(*-no-recursion)
+	std::optional<NodeStmt*> parse_stmt(bool expect_semi = true) // NOLINT(*-no-recursion)
 	{
 		std::optional<Token> tok0 = peek();
 		if (!tok0.has_value()) {
@@ -2056,7 +2064,7 @@ public:
 			}
 			stmt_exit->def = def;
 			try_consume_err(TokenType_t::close_paren);
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_exit;
 			return stmt;
@@ -2293,7 +2301,7 @@ public:
 				stmt_call->args = pargs.first;
 			}
 			try_consume_err(TokenType_t::close_paren);
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>(stmt_call);
 			return stmt;
 		}
@@ -2311,7 +2319,7 @@ public:
 				}
 			}
 			stmt_return->def = def;
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_return;
 			return stmt;
@@ -2330,7 +2338,7 @@ public:
 			stmt_st8->expr = args->args[1];
 			stmt_st8->def = def;
 			try_consume_err(TokenType_t::close_paren);
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_st8;
 			return stmt;
@@ -2349,7 +2357,7 @@ public:
 			stmt_st16->expr = args->args[1];
 			stmt_st16->def = def;
 			try_consume_err(TokenType_t::close_paren);
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_st16;
 			return stmt;
@@ -2368,7 +2376,7 @@ public:
 			stmt_st32->expr = args->args[1];
 			stmt_st32->def = def;
 			try_consume_err(TokenType_t::close_paren);
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_st32;
 			return stmt;
@@ -2457,7 +2465,7 @@ public:
 				error_expected("constant expression");
 			}
 			try_consume_err(TokenType_t::close_paren);
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_buf;
 			return stmt;
@@ -2480,7 +2488,7 @@ public:
 			} else {
 				error_expected("string with asm code");
 			}
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_asm;
 			return stmt;
@@ -2490,7 +2498,7 @@ public:
 			Token def = _cextern.value();
 			auto stmt_cextern = m_allocator.emplace<NodeStmtCextern>();
 			stmt_cextern->name = try_consume_err(TokenType_t::string_lit).value.value();
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_cextern;
 			return stmt;
@@ -2507,7 +2515,7 @@ public:
 				error_expected("expression");
 			}
 			try_consume_err(TokenType_t::close_paren);
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_push;
 			return stmt;
@@ -2515,7 +2523,7 @@ public:
 
 		if(auto _empty = try_consume(TokenType_t::empty_stmt)) {
 			m_preprocessor_stmt = true;
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			return {};
 		}
 
@@ -2530,7 +2538,7 @@ public:
 			} else {
 				error_expected("expression");
 			}
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_const;
 			return stmt;
@@ -2543,7 +2551,7 @@ public:
 			stmt_tdef->name = name;
 			try_consume_err(TokenType_t::eq);
 			stmt_tdef->type = parse_type();
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_tdef;
 			return stmt;
@@ -2693,7 +2701,7 @@ public:
 
 			try_consume_err(TokenType_t::close_paren);
 
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_st;
@@ -2730,7 +2738,7 @@ public:
 				error_expected("expression");
 			}
 			stmt_delete->def = def;
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_delete;
 			return stmt;
@@ -2746,7 +2754,7 @@ public:
 				error_expected("expression");
 			}
 			stmt_raise->def = def;
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_raise;
 			return stmt;
@@ -2756,7 +2764,7 @@ public:
 			Token def = _break.value();
 			auto stmt_break = m_allocator.emplace<NodeStmtBreak>();
 			stmt_break->def = def;
-			try_consume_err(TokenType_t::semi);
+			if (expect_semi) try_consume_err(TokenType_t::semi);
 			auto stmt = m_allocator.emplace<NodeStmt>();
 			stmt->var = stmt_break;
 			return stmt;
@@ -2881,7 +2889,7 @@ public:
                 stmt_call->args = pargs.first;
             }
             try_consume_err(TokenType_t::close_paren);
-            try_consume_err(TokenType_t::semi);
+            if (expect_semi) try_consume_err(TokenType_t::semi);
 
             auto stmt = m_allocator.emplace<NodeStmt>(stmt_call);
             return stmt;
@@ -2947,6 +2955,55 @@ public:
 			return stmt;
 		}
 
+		if (auto _for = try_consume(TokenType_t::for_)) {
+            try_consume_err(TokenType_t::open_paren);
+            
+            auto stmt_for = m_allocator.emplace<NodeStmtFor>();
+            
+            if (peek().value().type != TokenType_t::semi) {
+                if (auto init = parse_stmt(true)) { // true = ждем ;
+                    stmt_for->init = init.value();
+                } else {
+                    error_expected("statement in for-init");
+                }
+            } else {
+                consume();
+                stmt_for->init = nullptr;
+            }
+            
+            if (peek().value().type != TokenType_t::semi) {
+                if (auto cond = parse_expr()) {
+                    stmt_for->cond = cond.value();
+                } else {
+                    error_expected("expression in for-cond");
+                }
+            } else {
+                stmt_for->cond = nullptr;
+            }
+            try_consume_err(TokenType_t::semi);
+            
+            if (peek().value().type != TokenType_t::close_paren) {
+                if (auto step = parse_stmt(false)) {
+                    stmt_for->step = step.value();
+                } else {
+                    error_expected("statement in for-step");
+                }
+            } else {
+                stmt_for->step = nullptr;
+            }
+            
+            try_consume_err(TokenType_t::close_paren);
+            
+            if (auto scope = parse_scope()) {
+                stmt_for->scope = scope.value();
+            } else {
+                error_expected("scope for loop body");
+            }
+            
+            auto stmt = m_allocator.emplace<NodeStmt>(stmt_for);
+            return stmt;
+		}
+
 		if (auto lvalue = parse_expr(0, true)) {
             if (!peek().has_value()) {
                 error_expected("statement");
@@ -2965,7 +3022,7 @@ public:
                 } else {
                     error_expected("expression");
                 }
-                try_consume_err(TokenType_t::semi);
+                if (expect_semi) try_consume_err(TokenType_t::semi);
                 auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
                 return stmt;
             }
@@ -2978,7 +3035,7 @@ public:
                 } else {
                     error_expected("expression");
                 }
-                try_consume_err(TokenType_t::semi);
+                if (expect_semi) try_consume_err(TokenType_t::semi);
                 auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
                 return stmt;
             }
@@ -2991,7 +3048,7 @@ public:
                 } else {
                     error_expected("expression");
                 }
-                try_consume_err(TokenType_t::semi);
+                if (expect_semi) try_consume_err(TokenType_t::semi);
                 auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
                 return stmt;
             }
@@ -3004,7 +3061,7 @@ public:
                 } else {
                     error_expected("expression");
                 }
-                try_consume_err(TokenType_t::semi);
+                if (expect_semi) try_consume_err(TokenType_t::semi);
                 auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
                 return stmt;
             }
@@ -3017,7 +3074,7 @@ public:
                 } else {
                     error_expected("expression");
                 }
-                try_consume_err(TokenType_t::semi);
+                if (expect_semi) try_consume_err(TokenType_t::semi);
                 auto stmt = m_allocator.emplace<NodeStmt>(stmt_assign);
                 return stmt;
             }
@@ -3068,7 +3125,7 @@ public:
                                 argsExpr->var = ab;
                                 stmt_call->args = argsExpr;
 
-                                try_consume_err(TokenType_t::semi);
+                                if (expect_semi) try_consume_err(TokenType_t::semi);
                                 auto stmt = m_allocator.emplace<NodeStmt>(stmt_call);
                                 return stmt;
                             }
