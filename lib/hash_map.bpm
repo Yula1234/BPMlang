@@ -45,6 +45,10 @@ impl MapIterator<K, V> [new] {
         return MapEntry<K, V>(node.key, node.value);
     }
 
+    proc m_assign(MapIterator<K, V>& self, MapIterator<K, V> other) {
+        store32(cast(ptr, self), other);
+    }
+
     proc m_inc(MapIterator<K, V> self, int __cnt) {
         if (self._node != null()) {
             let node = cast(MapNode<K, V>, self._node);

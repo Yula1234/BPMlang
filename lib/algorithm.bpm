@@ -1,16 +1,33 @@
+include "std"
+
+interface __StdIterator<T, U> {
+	proc m_equal(self, T other) -> int;
+	proc m_not_equal(self, T other) -> int;
+	proc m_inc(self, int __cnt) -> void;
+	proc m_deref(self) -> U;
+}
+
+interface __StdDistanceIterator<T> {
+	proc m_equal(self, T other) -> int;
+	proc m_not_equal(self, T other) -> int;
+	proc m_inc(self, int __cnt) -> void;
+}
+
 namespace std {
-	proc find_if<Iter, T>(Iter begin, Iter end, ProcPtr<int, T> pred) -> Iter {
+	proc find_if<Iter : __StdIterator<Iter, T>, T>(Iter begin, Iter end, ProcPtr<int, T> __pred) -> Iter {
 		static_assert(is_same_t(*begin, ct_type(T)), "std::find_if(Iter<T>, Iter<T>, ProcPtr<int, T>) except that *Iter return -> T");
+		static_assert(is_implements_t(ct_type(T), ct_type(__StdEquatable<T>)) || is_implements_t(ct_type(T), ct_type(__SimpleTypeI)), "std::find_if(Iter, Iter, ProcPtr<int, T>) expects T to implement the __StdEquatable interface");
 		let __it: Iter = begin;
 		while(__it != end) {
-			let __fres = pred(*__it);
+			let __fres = __pred(*__it);
 			if(__fres) return __it;
 			__it += 1;
 		}
 		return end;
 	}
-	proc find<Iter, T>(Iter begin, Iter end, T value) -> Iter {
+	proc find<Iter : __StdIterator<Iter, T>, T>(Iter begin, Iter end, T value) -> Iter {
 		static_assert(is_same_t(*begin, ct_type(T)), "std::find(Iter<T>, Iter<T>, T) except that *Iter return -> T");
+		static_assert(is_implements_t(ct_type(T), ct_type(__StdEquatable<T>)) || is_implements_t(ct_type(T), ct_type(__SimpleTypeI)), "std::find(Iter, Iter, T) expects T to implement the __StdEquatable interface");
 		let __it: Iter = begin;
 		while(__it != end) {
 			if(*__it == value) return __it;
@@ -18,7 +35,7 @@ namespace std {
 		}
 		return end;
 	}
-	proc distance<Iter>(Iter begin, Iter end) -> int {
+	proc distance<Iter : __StdDistanceIterator<Iter>>(Iter begin, Iter end) -> int {
 		let __it: Iter = begin;
 		let __counter: int = 0;
 		while(__it != end) {
@@ -27,7 +44,7 @@ namespace std {
 		}
 		return __counter;
 	}
-	proc copy_range<Iter, Iter2>(Iter src, Iter2 begin, Iter2 end) {
+	proc copy_range<Iter : __StdDistanceIterator<Iter>, Iter2 : __StdDistanceIterator<Iter>>(Iter src, Iter2 begin, Iter2 end) {
 		let __it: Iter2 = begin;
 		let __input: Iter = src;
 		while(__it != end) {
@@ -36,11 +53,11 @@ namespace std {
 			__it += 1;
 		}
 	}
-	proc copy_if_range<Iter, Iter2, T>(Iter src, Iter2 begin, Iter2 end, ProcPtr<int, T> pred) -> Iter {
+	proc copy_if_range<Iter : __StdIterator<Iter, T>, Iter2 : __StdIterator<Iter, T>, T : __StdAssignable<T>>(Iter src, Iter2 begin, Iter2 end, ProcPtr<int, T> __pred) -> Iter {
 		let __it: Iter2 = begin;
 		let __input: Iter = src;
 		while(__it != end) {
-			let __fres = pred(*__it);
+			let __fres = __pred(*__it);
 			if(__fres) {
 				*__input = *__it;
 				__input += 1;

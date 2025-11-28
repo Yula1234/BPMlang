@@ -167,6 +167,14 @@ interface __StdPrintable {
     proc m_fprint(self, int fd);
 }
 
+interface __StdEquatable<T> {
+	proc m_equal(self, T other) -> int;
+}
+
+interface __StdAssignable<T> {
+	proc m_assign(self, T other) -> void;
+}
+
 namespace std {
 	proc fprintf(int fd, char* format_str) -> void
 	[nosizedargs] {
@@ -247,7 +255,7 @@ namespace std {
 		return lhs == rhs;
 	}
 
-	proc equal<T>(T lhs, T rhs) -> int {
+	proc equal<T: __StdEquatable>(T lhs, T rhs) -> int {
 		return lhs == rhs;
 	}
 
