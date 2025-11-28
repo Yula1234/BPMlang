@@ -516,119 +516,20 @@ public:
         DiagnosticMessage(tok, "warning", msg, 0);
     }
 
-    DataType extract_full_type(TreeNode<BaseDataType>* start_node) {
-        DataType dt;
-        if (!start_node) return dt;
-        dt = start_node->data;
-        if (start_node->right) {
-            TreeNode<BaseDataType>* src  = start_node->right;
-            TreeNode<BaseDataType>* dest = dt.list.get_root();
-            while (src != nullptr) {
-                dt.list.insert_right(src->data, dest);
-                dest = dest->right;
-                src  = src->right;
-            }
-        }
-        return dt;
-    }
-
-    DataType create_datatype_from_chain(TreeNode<BaseDataType>* start_node) {
-        DataType dt;
-        if (!start_node) return dt;
-        dt.list.insert_data(start_node->data, dt.list.get_root_ptr());
-        TreeNode<BaseDataType>* src  = start_node->right;
-        TreeNode<BaseDataType>* dest = dt.list.get_root();
-        while (src != nullptr) {
-            dt.list.insert_right(src->data, dest);
-            dest = dest->right;
-            src  = src->right;
-        }
-        return dt;
-    }
-
-    void append_type_chain(DataType& target_dt, TreeNode<BaseDataType>* target_node, DataType& source_dt) {
-        TreeNode<BaseDataType>* src_curr = source_dt.list.get_root();
-        TreeNode<BaseDataType>* dst_curr = target_node;
-        while (src_curr != nullptr) {
-            target_dt.list.insert_right(src_curr->data, dst_curr);
-            dst_curr = dst_curr->right;
-            src_curr = src_curr->right;
-        }
-    }
-
-    size_t count_template_nodes(TreeNode<BaseDataType>* start_node) {
-        if (!start_node) return 0;
-        size_t total_nodes = 1;
-        if (start_node->data.is_object) {
-            std::string name = start_node->data.getobjectname();
-            size_t expected_args = 0;
-            std::optional<Struct> st = struct_lookup(name);
-            if (st.has_value() && st.value().temp) {
-                expected_args = st.value().temps.size();
-            }
-            TreeNode<BaseDataType>* child_iter = start_node->right;
-            for (size_t i = 0; i < expected_args; ++i) {
-                if (!child_iter) break;
-                size_t arg_len = count_template_nodes(child_iter);
-                total_nodes += arg_len;
-                for (size_t k = 0; k < arg_len; ++k) {
-                    if (child_iter) child_iter = child_iter->right;
-                }
-            }
-        }
-        return total_nodes;
-    }
-
-    DataType extract_type_nodes(TreeNode<BaseDataType>* start_node, size_t count) {
-        DataType dt;
-        if (count == 0 || !start_node) return dt;
-        dt = start_node->data;
-        TreeNode<BaseDataType>* src = start_node->right;
-        TreeNode<BaseDataType>* dst = dt.list.get_root();
-        for (size_t i = 1; i < count; ++i) {
-            if (!src) break;
-            dt.list.insert_right(src->data, dst);
-            dst = dst->right;
-            src = src->right;
-        }
-        return dt;
-    }
-
     std::vector<DataType> get_template_args(const DataType& dt) {
-        std::vector<DataType> res;
-        if (!dt.is_object()) return res;
-        std::string name = dt.getobjectname();
-        std::optional<Struct> st = struct_lookup(name);
-        if (!st.has_value() || !st.value().temp) return res;
-        TreeNode<BaseDataType>* current = dt.list.get_root()->right;
-        for (size_t i = 0; i < st.value().temps.size(); ++i) {
-            if (!current) break;
-            size_t len = count_template_nodes(current);
-            res.push_back(extract_type_nodes(current, len));
-            for (size_t k = 0; k < len && current; ++k) {
-                current = current->right;
-            }
-        }
-        return res;
+        return dt.node->generics;
     }
 
     DataType canonical_type(const DataType& src) {
-        DataType type = src;
-        TreeNode<BaseDataType>* root = type.list.get_root();
-        if (!root) return type;
-        if (!root->data.is_object) {
-            if (!root->data.is_simple() ||
-                root->data.getsimpletype() != SimpleDataType::proc_ptr) {
-                root->right = nullptr;
-            }
-            return type;
-        }
-        std::optional<Struct> st = struct_lookup(root->data.getobjectname());
+        if (!src.is_object()) return src;
+        
+        std::optional<Struct> st = struct_lookup(src.getobjectname());
         if (!st.has_value() || !st.value().temp) {
-            root->right = nullptr;
-            return type;
+            DataType clean_copy = src;
+            DataType res(src.root()); 
+            return res;
         }
-        return type;
+        return src;
     }
 
     bool same_param_types(const std::vector<std::pair<std::string, DataType>>& a,
@@ -736,19 +637,16 @@ public:
             Struct stc = st.value();
             Field  fd  = field.value();
             if (stc.temp) {
-                __stdvec<DataType> targs;
-                TreeNode<BaseDataType>* current = otype.list.get_root()->right;
-                for (size_t i = 0; i < stc.temps.size(); ++i) {
-                    if (current == nullptr) {
-                        GeneratorError(def,
-                            "Internal Compiler Error: malformed template type inside type_of_dot.");
-                    }
-                    size_t arg_len = count_template_nodes(current);
-                    targs.push_back(extract_type_nodes(current, arg_len));
-                    for (size_t k = 0; k < arg_len; ++k) {
-                        if (current) current = current->right;
-                    }
+                std::vector<DataType> targs;
+                targs = otype.node->generics;
+
+                if (targs.size() != stc.temps.size()) {
+                    GeneratorError(def, 
+                        "Internal Compiler Error: template args count mismatch for struct `" 
+                        + stc.name + "` (expected " + std::to_string(stc.temps.size()) 
+                        + ", got " + std::to_string(targs.size()) + ")");
                 }
+
                 __map<std::string, DataType> temps = compute_temps(stc.temps, targs);
                 substitute_template_wct(fd.type, temps);
             }
@@ -853,17 +751,24 @@ public:
             if (std::holds_alternative<NodeTermUnref*>(term->var)) {
                 NodeTermUnref* unref = std::get<NodeTermUnref*>(term->var);
                 DataType tp = type_of_expr(unref->expr);
-                if (!tp.root().link && tp.root().ptrlvl == 0 && !tp.is_object() && tp.root() != SimpleDataType::ptr) {
+                
+                if (!tp.root().link && tp.root().ptrlvl == 0 && !tp.is_object() && tp.root().getsimpletype() != SimpleDataType::ptr) {
                     GeneratorError(unref->def, "can't dereference not-reference or pointer type.");
                 }
+                
                 if (tp.root().link) {
-                    tp.root().link = false;
-                    return tp;
+                    DataType res(tp.root());
+                    res.node->generics = tp.node->generics;
+                    res.root().link = false; 
+                    return res;
                 }
                 if (tp.root().ptrlvl != 0ULL) {
-                    tp.root().ptrlvl--;
-                    return tp;
+                    DataType res(tp.root());
+                    res.node->generics = tp.node->generics;
+                    res.root().ptrlvl--;
+                    return res;
                 }
+
                 if (tp.is_object()) {
                     NodeTermMtCall deref;
                     deref.def = unref->def;
@@ -898,20 +803,35 @@ public:
             }
             if (std::holds_alternative<NodeTermAmpersand*>(term->var)) {
                 DataType tp = type_of_expr(std::get<NodeTermAmpersand*>(term->var)->expr);
-                tp.root().ptrlvl += 1;
-                return tp;
+                
+                DataType res(tp.root());
+                res.node->generics = tp.node->generics;
+                res.root().ptrlvl += 1;
+                
+                return res;
             }
             if (std::holds_alternative<NodeTermDrvalue*>(term->var)) {
                 DataType tp = type_of_expr(std::get<NodeTermDrvalue*>(term->var)->expr);
                 if (!tp.root().link) {
                     GeneratorError(std::get<NodeTermDrvalue*>(term->var)->def, "__disable_rvalue__ on a non-rvalue expression");
                 }
-                tp.root().link = false;
-                return tp;
+                
+                DataType res(tp.root());
+                res.node->generics = tp.node->generics;
+                res.root().link = false;
+                
+                return res;
             }
             if (std::holds_alternative<NodeTermCall*>(term->var)) {
                 NodeTermCall* call = std::get<NodeTermCall*>(term->var);
                 std::string name = call->name;
+                std::optional<Var> var = var_lookup(name);
+                if (var.has_value() && 
+                    var.value().type.root().is_simple() &&
+                    var.value().type.root().getsimpletype() == SimpleDataType::proc_ptr) {
+                    if (var.value().type.node->generics.empty()) return BaseDataTypeVoid;
+                    return var.value().type.node->generics[0];
+                }
                 std::optional<Procedure> _proc = proc_lookup(name);
                 if (_proc.has_value()) {
                     Procedure proc = _proc.value();
@@ -949,14 +869,11 @@ public:
                     DataType dt = bs;
                     if (st.temp && call->targs.size() != st.temps.size())
                         GeneratorError(call->def, "struct `" + st.name + "` except " + std::to_string(st.temps.size()) + " template arguments in <...>, bug got " + std::to_string(call->targs.size()) + ".");
-                    TreeNode<BaseDataType>* current = dt.list.get_root();
                     for (int i = 0; i < static_cast<int>(call->targs.size()); ++i) {
                         DataType arg_tp = call->targs[i];
                         substitute_template(arg_tp);
-                        append_type_chain(dt, current, arg_tp);
-                        while (current->right != nullptr) {
-                            current = current->right;
-                        }
+                        
+                        dt.node->generics.push_back(arg_tp);
                     }
                     return dt;
                 }
@@ -1012,8 +929,13 @@ public:
                 }
                 std::optional<Procedure> prc = proc_lookup(std::get<NodeTermIdent*>(term->var)->ident.value.value());
                 if (prc.has_value()) {
-                    DataType tp = BaseDataTypeProcPtr;
-                    tp.list.insert_right(prc.value().rettype.root(), tp.list.get_root());
+                    DataType tp(BaseDataTypeProcPtr);
+                    
+                    tp.node->generics.push_back(prc.value().rettype);
+                    
+                    for(const auto& param : prc.value().params) {
+                        tp.node->generics.push_back(param.second);
+                    }
                     return tp;
                 }
                 GeneratorError(std::get<NodeTermIdent*>(term->var)->ident, "unkown word `" + std::get<NodeTermIdent*>(term->var)->ident.value.value() + "`");
@@ -1514,16 +1436,26 @@ public:
                 }
                 std::vector<NodeExpr*> raw_args;
                 if (term_call->args.has_value()) raw_args = gen.__getargs(term_call->args.value());
-                std::string tsign = gen.instantiate_if_needed(proc, term_call->targs, raw_args, term_call->def, pname, nname);
+                
+                auto inst_res = gen.instantiate_if_needed(proc, term_call->targs, raw_args, term_call->def, pname, nname);
+                std::string tsign = inst_res.first;
+                auto temps = inst_res.second;
+
                 if (proc.rettype.root() == BaseDataTypeVoid)
                     gen.GeneratorError(term_call->def, "can't use void " + nname + "::" + pname + "(...) as value");
+                
                 size_t stack_allign = 0;
+                Procedure proc_check = proc;
+                gen.substitute_template_params(temps, proc_check.params);
+
                 if (!raw_args.empty() || proc.params.empty()) {
-                    if (!raw_args.empty()) gen.__typecheck_call(raw_args, proc.params, term_call->def, proc, &stack_allign);
+                    if (!raw_args.empty()) gen.__typecheck_call(raw_args, proc_check.params, term_call->def, proc_check, &stack_allign);
                 } else {
                     gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` expects " + std::to_string(proc.params.size()) + " args, but got 0");
                 }
-                gen.gen_args(raw_args, proc.params, term_call->def);
+                
+                gen.gen_args(raw_args, proc_check.params, term_call->def);
+                
                 std::string label = gen.mangle_ns_name(nname) + "@" + pname + tsign;
                 if (proc.override) label += proc.get_sign();
                 gen.m_builder.call(gen.sym(label));
@@ -1535,6 +1467,45 @@ public:
 
             void operator()(NodeTermCall* term_call) const {
                 const std::string name = term_call->def.value.value();
+                std::optional<Var> var = gen.var_lookup(name);
+                if (var.has_value() && 
+                    var.value().type.root().is_simple() &&
+                    var.value().type.root().getsimpletype() == SimpleDataType::proc_ptr) {
+                    
+                    DataType funcType = var.value().type;
+                    const auto& gens = funcType.node->generics;
+                    
+                    if (gens.empty()) {
+                        gen.GeneratorError(term_call->def, "ProcPtr without return type signature");
+                    }
+                    
+                    DataType retType = gens[0];
+                    std::vector<DataType> paramTypes;
+                    for(size_t i = 1; i < gens.size(); ++i) paramTypes.push_back(gens[i]);
+                    
+                    std::vector<NodeExpr*> callArgs;
+                    if (term_call->args.has_value()) callArgs = gen.__getargs(term_call->args.value());
+                    
+                    if (callArgs.size() != paramTypes.size()) {
+                         gen.GeneratorError(term_call->def, "indirect call expects " + std::to_string(paramTypes.size()) + " args, got " + std::to_string(callArgs.size()));
+                    }
+                    
+                    for (int i = static_cast<int>(callArgs.size()) - 1; i >= 0; --i) {
+                        gen.gen_expr(callArgs[i]); 
+                    }
+                    
+                    gen.m_builder.mov(gen.reg(Reg::EAX), gen.mem(var.value().mem()));
+                    
+                    gen.m_builder.call(gen.reg(Reg::EAX));
+                    
+                    if (!callArgs.empty()) {
+                        gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(callArgs.size() * 4));
+                    }
+                    
+                    gen.push_reg(Reg::EAX);
+                    return;
+                }
+                
                 std::optional<Procedure> _proc = gen.proc_lookup(name);
                 if (_proc.has_value()) {
                     Procedure proc = _proc.value();
@@ -1553,14 +1524,23 @@ public:
                         gen.GeneratorError(term_call->def, "can't use void " + term_call->name + "(...) as value");
                     std::vector<NodeExpr*> raw_args;
                     if (term_call->args.has_value()) raw_args = gen.__getargs(term_call->args.value());
-                    std::string tsign = gen.instantiate_if_needed(proc, term_call->targs, raw_args, term_call->def, name, "");
+                    
+                    auto inst_res = gen.instantiate_if_needed(proc, term_call->targs, raw_args, term_call->def, name, "");
+                    std::string tsign = inst_res.first;
+                    auto temps = inst_res.second;
+                    
                     size_t stack_allign = 0;
+                    Procedure proc_check = proc;
+                    gen.substitute_template_params(temps, proc_check.params);
+
                     if (!raw_args.empty() || proc.params.empty()) {
-                        if (!raw_args.empty()) gen.__typecheck_call(raw_args, proc.params, term_call->def, proc, &stack_allign);
+                        if (!raw_args.empty()) gen.__typecheck_call(raw_args, proc_check.params, term_call->def, proc_check, &stack_allign);
                     } else {
                         gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` expects " + std::to_string(proc.params.size()) + " args, but got 0");
                     }
-                    gen.gen_args(raw_args, proc.params, term_call->def);
+                    
+                    gen.gen_args(raw_args, proc_check.params, term_call->def);
+                    
                     std::string label = name + tsign;
                     if (proc.override) label += proc.get_sign();
                     gen.m_builder.call(gen.sym(label));
@@ -2502,7 +2482,6 @@ AFTER_GEN:
         const size_t args_sz   = args.size();
         const size_t params_sz = params.size();
 
-        // Явная проверка количества аргументов
         if (!nosizedargs) {
             if (args_sz != params_sz) {
                 GeneratorError(
@@ -2513,8 +2492,6 @@ AFTER_GEN:
                 );
             }
         } else {
-            // nosizedargs == true: аргументов может быть больше параметров,
-            // но меньше — нельзя (иначе даже формальные параметры нельзя заполнить).
             if (args_sz < params_sz) {
                 GeneratorError(
                     def,
@@ -2527,8 +2504,6 @@ AFTER_GEN:
 
         int bad = -1;
         if (!match_call_signature(args, params, proc, nosizedargs, &bad)) {
-            // Если match_call_signature вернул bad == -1 (на всякий случай),
-            // то дадим общее сообщение, чтобы не падать.
             if (bad < 0 || bad >= static_cast<int>(params_sz) || bad >= static_cast<int>(args_sz)) {
                 GeneratorError(
                     def,
@@ -2548,102 +2523,49 @@ AFTER_GEN:
         *stack_allign += args_sz;
     }
 
-    void substitute_template(DataType& type) {
-        if (m_temps.empty()) return;
-        if (!type.root().is_object) return;
-
-        std::string oname = type.root().getobjectname();
-        const auto& env = m_temps.back();
-        const auto it = env.find(oname);
-        if (it != env.end()) {
-            BaseDataType old = type.root();
-            DataType mapped = it->second;
-
-            TreeNode<BaseDataType>* root_node = type.list.get_root();
-            bool has_template_args =
-                (root_node->right != nullptr);
-            bool mapped_has_children =
-                (mapped.list.get_root() &&
-                 mapped.list.get_root()->right != nullptr);
-
-            if (has_template_args && !mapped_has_children) {
-                BaseDataType new_root = mapped.root();
-                new_root.ptrlvl = old.ptrlvl;
-                new_root.link   = old.link;
-                new_root.rvalue = old.rvalue;
-                root_node->data = new_root;
-            } else {
-                type = mapped;
-                type.root().ptrlvl += old.ptrlvl;
-                if (old.link)   type.root().link   = true;
-                if (old.rvalue) type.root().rvalue = true;
+    void substitute_template_wct(DataType& type, __map<std::string, DataType>& temps) {
+        bool generics_changed = false;
+        std::vector<DataType> new_generics;
+        
+        if (!type.node->generics.empty()) {
+            new_generics = type.node->generics;
+            for(auto& arg : new_generics) {
+                DataType old_arg = arg;
+                substitute_template_wct(arg, temps);
+                if (arg != old_arg) generics_changed = true;
             }
         }
 
-        TreeNode<BaseDataType>* cur = type.list.get_root()->right;
-        while (cur != nullptr) {
-            DataType tmp = cur->data;
-            substitute_template(tmp);
-            cur->data = tmp.root();
-            TreeNode<BaseDataType>* extra = nullptr;
-            TreeNode<BaseDataType>* tmp_root = tmp.list.get_root();
-            if (tmp_root) extra = tmp_root->right;
-            TreeNode<BaseDataType>* last = cur;
-            while (extra != nullptr) {
-                auto* new_node = new TreeNode<BaseDataType>(extra->data);
-                new_node->right = last->right;
-                last->right = new_node;
-                last = new_node;
-                extra = extra->right;
+        if (type.root().is_object) {
+            std::string oname = type.root().getobjectname();
+            const auto it = temps.find(oname);
+            
+            if (it != temps.end()) {
+                DataType mapped = it->second;
+                
+                DataType res(mapped.root());
+                res.node->generics = mapped.node->generics;
+                
+                res.root().ptrlvl += type.root().ptrlvl;
+                if (type.root().link)   res.root().link   = true;
+                if (type.root().rvalue) res.root().rvalue = true;
+                
+                type = res; 
+                return; 
             }
-            cur = last->right;
+        }
+
+        if (generics_changed) {
+            DataType res(type.root());
+            res.node->generics = new_generics;
+            type = res;
         }
     }
 
-    void substitute_template_wct(DataType& type, __map<std::string, DataType>& temps) {
-        if (!type.root().is_object) return;
-        std::string oname = type.root().getobjectname();
-        const auto it = temps.find(oname);
-        if (it != temps.end()) {
-            BaseDataType old = type.root();
-            DataType mapped = it->second;
-            TreeNode<BaseDataType>* root_node = type.list.get_root();
-            bool has_template_args =
-                (root_node->right != nullptr);
-            bool mapped_has_children =
-                (mapped.list.get_root() &&
-                 mapped.list.get_root()->right != nullptr);
-            if (has_template_args && !mapped_has_children) {
-                BaseDataType new_root = mapped.root();
-                new_root.ptrlvl = old.ptrlvl;
-                new_root.link   = old.link;
-                new_root.rvalue = old.rvalue;
-                root_node->data = new_root;
-            } else {
-                type = mapped;
-                type.root().ptrlvl += old.ptrlvl;
-                if (old.link)   type.root().link   = true;
-                if (old.rvalue) type.root().rvalue = true;
-            }
-        }
-        TreeNode<BaseDataType>* cur = type.list.get_root()->right;
-        while (cur != nullptr) {
-            DataType tmp = cur->data;
-            substitute_template_wct(tmp, temps);
-            cur->data = tmp.root();
-            TreeNode<BaseDataType>* extra = nullptr;
-            TreeNode<BaseDataType>* tmp_root = tmp.list.get_root();
-            if (tmp_root) extra = tmp_root->right;
-            TreeNode<BaseDataType>* last = cur;
-            while (extra != nullptr) {
-                auto* new_node = new TreeNode<BaseDataType>(extra->data);
-                new_node->right = last->right;
-                last->right = new_node;
-                last = new_node;
-                extra = extra->right;
-            }
-            cur = last->right;
-        }
+    void substitute_template(DataType& type) {
+        if (m_temps.empty()) return;
+        
+        substitute_template_wct(type, m_temps.back());
     }
 
     bool __try_typecheck_call(const std::vector<NodeExpr*>& args, const Procedure& proc) {
@@ -3304,6 +3226,7 @@ AFTER_GEN:
                     gen.GeneratorError(stmt_return->def, "return without procedure");
                 }
                 DataType rettype = cproc.value().rettype;
+                gen.substitute_template(rettype);
                 if (rettype.root() == BaseDataTypeVoid && stmt_return->expr.has_value()) {
                     gen.GeneratorError(stmt_return->def, "return from void procedure with value");
                 } else if (!stmt_return->expr.has_value() && rettype.root() != BaseDataTypeVoid) {
@@ -3638,22 +3561,25 @@ AFTER_GEN:
                 std::vector<NodeExpr*> raw_args;
                 if (stmt_call->args.has_value()) raw_args = gen.__getargs(stmt_call->args.value());
 
-                std::string tsign =
-                    gen.instantiate_if_needed(proc, stmt_call->targs, raw_args,
-                                              stmt_call->def, name, "");
+                auto inst_res = gen.instantiate_if_needed(proc, stmt_call->targs, raw_args, stmt_call->def, name, "");
+                std::string tsign = inst_res.first;
+                auto temps = inst_res.second;
 
                 size_t stack_allign = 0;
+                Procedure proc_check = proc;
+                gen.substitute_template_params(temps, proc_check.params);
+
                 if (!raw_args.empty() || proc.params.empty()) {
                     if (!raw_args.empty())
-                        gen.__typecheck_call(raw_args, proc.params, stmt_call->def,
-                                             proc, &stack_allign);
+                        gen.__typecheck_call(raw_args, proc_check.params, stmt_call->def,
+                                             proc_check, &stack_allign);
                 } else {
                     gen.GeneratorError(stmt_call->def, "procedure `" + proc.name + "` expects " +
                                                           std::to_string(proc.params.size()) +
                                                           " args, but got 0");
                 }
 
-                gen.gen_args(raw_args, proc.params, stmt_call->def);
+                gen.gen_args(raw_args, proc_check.params, stmt_call->def);
 
                 std::string label = name + tsign;
                 if (proc.override) label += proc.get_sign();
@@ -4003,21 +3929,24 @@ AFTER_GEN:
                 std::vector<NodeExpr*> raw_args;
                 if (stmt_call->args.has_value()) raw_args = gen.__getargs(stmt_call->args.value());
 
-                std::string tsign =
-                    gen.instantiate_if_needed(proc, stmt_call->targs, raw_args,
-                                              stmt_call->def, pname, nname);
+                auto inst_res = gen.instantiate_if_needed(proc, stmt_call->targs, raw_args, stmt_call->def, pname, nname);
+                std::string tsign = inst_res.first;
+                auto temps = inst_res.second;
 
                 size_t stack_allign = 0;
+                Procedure proc_check = proc;
+                gen.substitute_template_params(temps, proc_check.params);
+
                 if (!raw_args.empty() || proc.params.empty()) {
                     if (!raw_args.empty())
-                        gen.__typecheck_call(raw_args, proc.params, stmt_call->def, proc, &stack_allign);
+                        gen.__typecheck_call(raw_args, proc_check.params, stmt_call->def, proc_check, &stack_allign);
                 } else {
                     gen.GeneratorError(stmt_call->def,
                         "procedure `" + proc.name + "` expects " +
                         std::to_string(proc.params.size()) + " args, but got 0");
                 }
 
-                gen.gen_args(raw_args, proc.params, stmt_call->def);
+                gen.gen_args(raw_args, proc_check.params, stmt_call->def);
 
                 std::string label = gen.mangle_ns_name(nname) + "@" + pname + tsign;
                 if (proc.override) label += proc.get_sign();
@@ -4290,7 +4219,6 @@ AFTER_GEN:
 	    m_builder.label("main");
         m_builder.push( Operand::regOp(Reg::EBP) );
 
-        // mov ebp, esp
         m_builder.mov(
             Operand::regOp(Reg::EBP),
             Operand::regOp(Reg::ESP)
@@ -4453,48 +4381,48 @@ private:
                 bool is_temp_s = false;
 
                 for (int j = 0; j < static_cast<int>(templates->size()); ++j) {
-                    if (!params[i].second.is_object()) continue;
 
-                    if (templates->operator[](j) == params[i].second.getobjectname()) {
+                    if (params[i].second.is_object() && 
+                        templates->operator[](j) == params[i].second.getobjectname()) 
+                    {
                         counter = j;
                         break;
                     }
 
-                    TreeNode<BaseDataType>* current = params[i].second.list.get_root()->right;
+                    const auto& p_gens = params[i].second.node->generics;
                     temp_s = 0;
-                    while (current != nullptr) {
-                        if (current->data.is_object &&
-                            templates->operator[](j) == current->data.getobjectname())
+                    
+                    for(size_t k = 0; k < p_gens.size(); ++k) {
+                        std::string gen_name = "";
+                        if(p_gens[k].is_object()) gen_name = p_gens[k].getobjectname();
+
+                        if (p_gens[k].is_object() && 
+                            templates->operator[](j) == p_gens[k].getobjectname()) 
                         {
-                            if (targs[j].is_simple() &&
-                                targs[j].getsimpletype() == SimpleDataType::_void)
+                            if (targs[j].root().is_simple() &&
+                                targs[j].root().getsimpletype() == SimpleDataType::_void)
                             {
-                                counter   = j;
+                                counter = j;
                                 is_temp_s = true;
                                 break;
                             }
                         }
                         temp_s++;
-                        current = current->right;
                     }
+                    
                     if (is_temp_s) break;
                     else temp_s = -1;
                 }
 
                 if (counter != -1) {
-                    if (targs[counter].is_simple() &&
-                        targs[counter].getsimpletype() == SimpleDataType::_void)
+                    if (targs[counter].root().is_simple() &&
+                        targs[counter].root().getsimpletype() == SimpleDataType::_void)
                     {
                         if (is_temp_s) {
                             DataType ct = type_of_expr(args[i]);
-                            TreeNode<BaseDataType>* cur = ct.list.get_root()->right;
-
-                            for (int k = 0; k < temp_s && cur; ++k) {
-                                cur = cur->right;
-                            }
-
-                            if (cur) {
-                                targs[counter] = create_datatype_from_chain(cur);
+                            
+                            if (temp_s >= 0 && temp_s < static_cast<int>(ct.node->generics.size())) {
+                                targs[counter] = ct.node->generics[temp_s];
                             }
                         } else {
                             DataType arg_tp = type_of_expr(args[i]);
@@ -4608,9 +4536,15 @@ private:
             return false;
         }
 
-        if (fc.root().arg_eq(tc.root())) return true;
+        if (fc.root().arg_eq(tc.root())) {
+             if (fc.node->generics.empty() && tc.node->generics.empty()) return true;
+             
+             if (fc.is_simple() && fc.root().getsimpletype() == SimpleDataType::proc_ptr) return false;
+             
+             return true; 
+        }
 
-        if (tc.is_simple() && tc.getsimpletype() == SimpleDataType::any) return true;
+        if (tc.root().is_simple() && tc.root().getsimpletype() == SimpleDataType::any) return true;
 
         return false;
     }
@@ -4632,7 +4566,7 @@ private:
 
             bool used_conversion = false;
 
-            if (!argtype.root().arg_eq(ex_type.root())) {
+            if (!argtype.is_compatible_with(ex_type)) {
                 if (!can_convert(argtype, ex_type)) {
                     if (bad_index) *bad_index = i;
                     return false;
@@ -4818,8 +4752,9 @@ private:
             if (proc.templates != NULL) {
                 std::vector<DataType> local_targs = get_template_args(srcType);
                 std::vector<NodeExpr*> empty_args;
-                tsign = instantiate_if_needed(proc, local_targs, empty_args,
+                auto inst_res = instantiate_if_needed(proc, local_targs, empty_args,
                                               where, mname, tname);
+                tsign = inst_res.first;
             }
             std::string label = tname + "@" + mname + tsign;
             if (proc.override) label += proc.get_sign();
@@ -4830,15 +4765,15 @@ private:
         push_reg(Reg::EDX);
     }
 
-	std::string instantiate_if_needed(
-	    Procedure& proc,
-	    std::vector<DataType>& local_targs,
-	    const std::vector<NodeExpr*>& call_args,
-	    const Token& def,
-	    const std::string& name,
-	    const std::string& nname /* = "" */
-	) {
-	    bool is_method_of_struct  = false;
+    std::pair<std::string, __map<std::string, DataType>> instantiate_if_needed(
+        Procedure& proc,
+        std::vector<DataType>& local_targs,
+        const std::vector<NodeExpr*>& call_args,
+        const Token& def,
+        const std::string& name,
+        const std::string& nname /* = "" */
+    ) {
+        bool is_method_of_struct  = false;
         Struct ownerStruct;
         size_t structTemplateCount  = 0;
 
@@ -4860,83 +4795,78 @@ private:
             }
         }
 
-	    __map<std::string, DataType> temps;
-	    std::string                  tsign;
+        __map<std::string, DataType> temps;
+        std::string                  tsign;
 
-	    if (is_method_of_struct) {
-	        if (call_args.empty()) {
-	            GeneratorError(def, "internal compiler error: method call without self argument");
-	        }
+        if (is_method_of_struct) {
+            if (call_args.empty()) {
+                GeneratorError(def, "internal compiler error: method call without self argument");
+            }
 
-	        DataType selfType = type_of_expr(call_args[0]);
-	        substitute_template(selfType);
-	        selfType = canonical_type(selfType);
+            DataType selfType = type_of_expr(call_args[0]);
+            substitute_template(selfType);
+            selfType = canonical_type(selfType);
 
-	        if (!selfType.is_object()) {
-	            GeneratorError(def, "method `" + proc.name + "` called on non-object self type " +
-	                                 selfType.to_string());
-	        }
+            if (!selfType.is_object()) {
+                GeneratorError(def, "method `" + proc.name + "` called on non-object self type " +
+                                     selfType.to_string());
+            }
 
-	        std::string oname = selfType.getobjectname();
-	        if (oname != nname) {
-	            GeneratorError(def, "method `" + proc.name + "` called with self of different type: expected `" +
-	                                 nname + "`, got `" + oname + "`");
-	        }
+            std::string oname = selfType.getobjectname();
+            if (oname != nname) {
+                GeneratorError(def, "method `" + proc.name + "` called with self of different type: expected `" +
+                                     nname + "`, got `" + oname + "`");
+            }
 
-	        std::vector<DataType> structArgs = get_template_args(selfType);
-	        if (structArgs.size() != structTemplateCount) {
-	            GeneratorError(def, "internal compiler error: mismatch struct template args count for `" +
-	                                 nname + "`");
-	        }
+            std::vector<DataType> structArgs = get_template_args(selfType);
+            if (structArgs.size() != structTemplateCount) {
+                GeneratorError(def, "internal compiler error: mismatch struct template args count for `" +
+                                     nname + "`");
+            }
 
-	        for (size_t i = 0; i < structTemplateCount; ++i) {
-	            temps[ownerStruct.temps[i]] = structArgs[i];
-	        }
+            for (size_t i = 0; i < structTemplateCount; ++i) {
+                temps[ownerStruct.temps[i]] = structArgs[i];
+            }
 
-	        substitute_template_params(temps, proc.params);
-	        substitute_template_wct(proc.rettype, temps);
+            for (auto& t : structArgs) {
+                DataType tt = t;
+                substitute_template(tt);
+                tsign += tt.sign();
+            }
+        } else {
+            if (proc.templates != NULL && local_targs.empty()) {
+                if (!call_args.empty() || proc.params.empty()) {
+                    try_derive_templates(local_targs, proc.params, def, proc.templates, call_args, proc);
+                }
+            }
 
-	        for (auto& t : structArgs) {
-	            DataType tt = t;
-	            substitute_template(tt);
-	            tsign += tt.sign();
-	        }
-	    } else {
-	        if (proc.templates != NULL && local_targs.empty()) {
-	            if (!call_args.empty() || proc.params.empty()) {
-	                try_derive_templates(local_targs, proc.params, def, proc.templates, call_args, proc);
-	            }
-	        }
+            if (proc.templates != NULL && local_targs.empty()) {
+                GeneratorError(def,
+                    "procedure `" + proc.name +
+                    "` expects template arguments in <...> or successful type deduction.");
+            }
 
-	        if (proc.templates != NULL && local_targs.empty()) {
-	            GeneratorError(def,
-	                "procedure `" + proc.name +
-	                "` expects template arguments in <...> or successful type deduction.");
-	        }
+            if (local_targs.empty())
+                return {"", temps}; 
 
-	        if (local_targs.empty())
-	            return ""; 
+            if (proc.templates != NULL && local_targs.size() != proc.templates->size()) {
+                GeneratorError(def, "template args mismatch");
+            }
 
-	        if (proc.templates != NULL && local_targs.size() != proc.templates->size()) {
-	            GeneratorError(def, "template args mismatch");
-	        }
+            size_t counter = 0;
+            for (auto&& el : *proc.templates) {
+                DataType arg_dt = local_targs[counter++];
+                substitute_template(arg_dt);
+                temps[el] = arg_dt;
+            }
 
-	        size_t counter = 0;
-	        for (auto&& el : *proc.templates) {
-	            DataType arg_dt = local_targs[counter++];
-	            substitute_template(arg_dt);
-	            temps[el] = arg_dt;
-	        }
 
-	        substitute_template_params(temps, proc.params);
-	        substitute_template_wct(proc.rettype, temps);
-
-	        for (int i = 0; i < static_cast<int>(local_targs.size()); ++i) {
-	            DataType t = local_targs[i];
-	            substitute_template(t);
-	            tsign += t.sign();
-	        }
-	    }
+            for (int i = 0; i < static_cast<int>(local_targs.size()); ++i) {
+                DataType t = local_targs[i];
+                substitute_template(t);
+                tsign += t.sign();
+            }
+        }
 
         if (proc.from != nullptr && !proc.from->constraints.empty()) {
             for (const auto& c : proc.from->constraints) {
@@ -4949,37 +4879,37 @@ private:
             }
         }
 
-	    Procedure* inst_p = nullptr;
-	    if (nname.empty()) {
-	        if (proc.override)
-	            inst_p = m_procs[name].overrides[proc.overload_nth - 1];
-	        else
-	            inst_p = &m_procs[name];
-	    } else {
-	        if (proc.override)
-	            inst_p = m_namespaces[nname]->procs[name].overrides[proc.overload_nth - 1];
-	        else
-	            inst_p = &m_namespaces[nname]->procs[name];
-	    }
+        Procedure* inst_p = nullptr;
+        if (nname.empty()) {
+            if (proc.override)
+                inst_p = m_procs[name].overrides[proc.overload_nth - 1];
+            else
+                inst_p = &m_procs[name];
+        } else {
+            if (proc.override)
+                inst_p = m_namespaces[nname]->procs[name].overrides[proc.overload_nth - 1];
+            else
+                inst_p = &m_namespaces[nname]->procs[name];
+        }
 
-	    if (!inst_p->instanceated[tsign]) {
-	        inst_p->instanceated[tsign] = true;
+        if (!inst_p->instanceated[tsign]) {
+            inst_p->instanceated[tsign] = true;
 
-	        PendingTemplateInstance pt;
-	        pt.proc  = proc; 
-	        pt.tsign = tsign;
-	        pt.nname = nname;
-	        pt.temps = temps;
+            PendingTemplateInstance pt;
+            pt.proc  = proc; 
+            pt.tsign = tsign;
+            pt.nname = nname;
+            pt.temps = temps;
 
-	        if (!m_pending_templates) {
-	            GeneratorError(def, "internal error: m_pending_templates is null");
-	        }
+            if (!m_pending_templates) {
+                GeneratorError(def, "internal error: m_pending_templates is null");
+            }
 
-	        m_pending_templates->push_back(std::move(pt));
-	    }
+            m_pending_templates->push_back(std::move(pt));
+        }
 
-	    return tsign;
-	}
+        return {tsign, temps};
+    }
 
 	struct PendingTemplateInstance {
     	Procedure                    proc;  

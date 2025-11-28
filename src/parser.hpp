@@ -227,69 +227,76 @@ struct BaseDataType {
     }
 };
 
+struct DataType;
+
+struct TypeNode {
+    BaseDataType data;
+    std::vector<DataType> generics;
+};
+
 struct DataType {
-	BinaryTree<BaseDataType> list;
-	DataType() = default;
-	DataType(const BaseDataType& bs) noexcept {
-		list.insert_data(bs, list.get_root_ptr());
-	}
-	void operator=(const BaseDataType& dt) {
-		list.insert_data(dt, list.get_root_ptr());
-	}
-	DataType& operator=(const DataType&) = default;
-	bool operator==(const DataType& dt) const {
-		return list == dt.list;
-	}
-	bool operator!=(const DataType& dt) const {
-		return !this->operator==(dt);
-	}
-	BaseDataType& root() const {
-		return list.get_root()->data;
-	}
-	std::string sign() const {
-		std::string res;
-		TreeNode<BaseDataType>* current = list.get_root();
-		
-		while(current != nullptr) {
-			res += current->data.sign();
-			res += "_"; 
-			current = current->right;
-		}
-		return res;
-	}
-	std::string to_string() const {
-		TreeNode<BaseDataType>* current = list.get_root();
-		std::string postfix = current->data.get_postfix();
-		std::string res(current->data.to_string_d());
-		current = current->right;
-		if(current == nullptr) {
-			return res + postfix;
-		}
-		res += '<';
-		while(current != nullptr) {
-			res += current->data.to_string_wt();
-			current = current->right;
-			if(current != nullptr) {
-				res += ',';
-			}
-		}
-		res += '>';
-		return res + postfix;
-	}
-	std::string to_string_d() {
-		return root().to_string_d();
-	}
-	std::string getobjectname() const {
-		return root().getobjectname();
-	}
-	SimpleDataType getsimpletype() {
-		return root().getsimpletype();
-	}
-	bool is_object() const {
-		return root().is_object;
-	}
-	bool is_simple() {
-		return root().is_simple();
+    std::shared_ptr<TypeNode> node;
+
+    DataType() {
+        node = std::make_shared<TypeNode>();
+    }
+
+    DataType(const BaseDataType& bs) {
+        node = std::make_shared<TypeNode>();
+        node->data = bs;
+    }
+
+    BaseDataType& root() const { return node->data; }
+    
+    bool is_object() const { return node->data.is_object; }
+    bool is_simple() const { return node->data.is_simple(); }
+    std::string getobjectname() const { return node->data.getobjectname(); }
+    
+    bool operator==(const DataType& other) const {
+        if (this == &other) return true;
+        if (node->data != other.node->data) return false;
+        if (node->generics.size() != other.node->generics.size()) return false;
+        
+        for(size_t i = 0; i < node->generics.size(); ++i) {
+            if (node->generics[i] != other.node->generics[i]) return false;
+        }
+        return true;
+    }
+    
+    bool operator!=(const DataType& other) const { return !(*this == other); }
+
+    std::string sign() const {
+        std::string res = node->data.sign();
+        for(const auto& arg : node->generics) {
+            res += "_" + arg.sign();
+        }
+        return res;
+    }
+
+    std::string to_string() const {
+        std::string res = node->data.to_string_d();
+        if (!node->generics.empty()) {
+            res += "<";
+            for(size_t i = 0; i < node->generics.size(); ++i) {
+                res += node->generics[i].to_string();
+                if (i != node->generics.size() - 1) res += ",";
+            }
+            res += ">";
+        }
+        res += node->data.get_postfix();
+        return res;
+    }
+
+	bool is_compatible_with(const DataType& other) const {
+	    if (!this->root().arg_eq(other.root())) return false;
+	    
+	    if (this->node->generics.size() != other.node->generics.size()) return false;
+	    
+	    for(size_t i = 0; i < this->node->generics.size(); ++i) {
+	        if (this->node->generics[i] != other.node->generics[i]) return false;
+	    }
+	    
+	    return true;
 	}
 };
 
@@ -317,23 +324,6 @@ BaseDataType make_char_type() {
 	BaseDataType tp = SimpleDataType::_char;
 	return tp;
 }
-
-void copy_tree_chain(TreeNode<BaseDataType>* src, TreeNode<BaseDataType>* dest_parent, DataType& dest_dt) {
-    if (!src) return;
-        
-    TreeNode<BaseDataType>* current_src = src;
-    TreeNode<BaseDataType>* current_dest = dest_parent;
-    
-    while(current_src != nullptr) {
-        dest_dt.list.insert_right(current_src->data, current_dest);
-        
-        if (current_dest->right != nullptr) {
-            current_dest = current_dest->right;
-        }
-        
-        current_src = current_src->right;
-    }
- }
 
 BaseDataType BaseDataTypeInt = make_int_type();
 BaseDataType BaseDataTypePtr = make_ptr_type();
@@ -1002,54 +992,43 @@ public:
 	}
 
 	DataType parse_type() {
-		Token __base = consume();
-		if(!is_type_token(__base.type)) {
-			ParsingError("excepted type");
-		}
-		BaseDataType type;
-		type = uni_token_to_dt(__base);
-		DataType res = type;
-		TreeNode<BaseDataType>* current = res.list.get_root();
-		if(peek().has_value() && peek().value().type == TokenType_t::less) {
-			consume();
-			while(peek().has_value() && peek().value().type != TokenType_t::above) {
-				check_split_shr(); 
-				if(peek().value().type == TokenType_t::above) break;
+	    Token __base = consume();
+	    if(!is_type_token(__base.type)) {
+	        ParsingError("excepted type");
+	    }
+	    
+	    BaseDataType type_base = uni_token_to_dt(__base);
+	    DataType res(type_base);
 
-                DataType arg_type = parse_type();
-                
-				res.list.insert_right(arg_type.root(), current);
-                
-				current = current->right; 
+	    if(peek().has_value() && peek().value().type == TokenType_t::less) {
+	        consume(); // Сьедаем '<'
+	        while(peek().has_value() && peek().value().type != TokenType_t::above) {
+	            check_split_shr(); 
+	            if(peek().value().type == TokenType_t::above) break;
 
-                if (arg_type.list.get_root()->right != nullptr) {
-                    copy_tree_chain(arg_type.list.get_root()->right, current, res);
-                    
-                    while(current->right != nullptr) {
-                        current = current->right;
-                    }
-                }
+	            DataType arg_type = parse_type();
+	            res.node->generics.push_back(arg_type);
 
-				check_split_shr();
-				if(peek().has_value() && peek().value().type != TokenType_t::above) {
-					try_consume_err(TokenType_t::comma);
-				}
-			}
-			consume();
-		}
-		while(peek().has_value() && peek().value().type == TokenType_t::star) {
-			consume();
-			res.root().ptrlvl++;
-		}
-		if(peek().has_value() && peek().value().type == TokenType_t::double_ampersand) {
-			res.root().rvalue = true;
-			consume();
-		}
-		else if(peek().has_value() && peek().value().type == TokenType_t::ampersand) {
-			res.root().link = true;
-			consume();
-		}
-		return res;
+	            check_split_shr();
+	            if(peek().has_value() && peek().value().type != TokenType_t::above) {
+	                try_consume_err(TokenType_t::comma);
+	            }
+	        }
+	        consume();
+	    }
+	    while(peek().has_value() && peek().value().type == TokenType_t::star) {
+	        consume();
+	        res.root().ptrlvl++;
+	    }
+	    if(peek().has_value() && peek().value().type == TokenType_t::double_ampersand) {
+	        res.root().rvalue = true;
+	        consume();
+	    }
+	    else if(peek().has_value() && peek().value().type == TokenType_t::ampersand) {
+	        res.root().link = true;
+	        consume();
+	    }
+	    return res;
 	}
 
 	void DiagnosticMessage(Token tok,

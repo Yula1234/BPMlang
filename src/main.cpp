@@ -38,7 +38,6 @@ bool __slashinpath;
     and standart libraries.
 */
 
-#include "libs/binary_tree.hpp"
 #include "arena.hpp"
 #include "argsparser.hpp"
 #include "generation.hpp"
