@@ -114,7 +114,6 @@ impl deque<T> [new] {
 	}
 
 	proc at(deque<T> self, int index) -> T {
-		// ИСПРАВЛЕНО: замена >= на not(<)
 		if(not(index < self.m_size)) raise std::exception("deque index out of bounds");
 		if(index < 0) raise std::exception("deque index negative");
 		return self.get(index);
@@ -191,7 +190,7 @@ impl deque<T> [new] {
 		return __tmp;
 	}
 
-	proc m_fprint<T>(deque<T> self, int fd) {
+	proc m_fprint(deque<T> self, int fd) {
 		let __sz: int = self.m_size;
 		if(__sz == 0) {
 			std::fprint(fd, "deque[]\n");
