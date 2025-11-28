@@ -1,20 +1,65 @@
 include "std"
 
-// ------------------------------------------------------------
-// Простая хеш-таблица с цепочечной адресацией:
-//   map<K, V>
-//   - map::new<K, V>() -> map<K, V>
-//   - self.put(key, value)
-//   - self.get(key) -> V      (бросает std::exception, если нет ключа)
-//   - self.has(key) -> int    (1 / 0)
-//   - self.remove(key)
-//   - self.size() -> int
-//   - self.empty() -> int
-//   - self.destroy()          (для delete self)
-// ------------------------------------------------------------
 
 const MAP_INITIAL_CAP = 16;
 const MAP_LOAD_FACTOR_PERCENT = 75; // 75%
+
+struct MapEntry<K, V> {
+    key: K,
+    value: V
+}
+
+struct MapIterator<K, V> {
+    _map:        ptr,
+    _bucket_idx: int,
+    _node:       ptr
+}
+
+impl MapIterator<K, V> [new] {
+    proc new<K, V>(ptr m, int idx, ptr node) -> MapIterator<K, V> {
+        return MapIterator<K, V>(m, idx, node);
+    }
+
+    proc m_equal(MapIterator<K, V> lhs, MapIterator<K, V> rhs) -> int {
+        return (lhs._node == rhs._node) && (lhs._bucket_idx == rhs._bucket_idx);
+    }
+
+    proc m_not_equal(MapIterator<K, V> lhs, MapIterator<K, V> rhs) -> int {
+        return (lhs._node != rhs._node) || (lhs._bucket_idx != rhs._bucket_idx);
+    }
+
+    proc m_deref(MapIterator<K, V> self) -> MapEntry<K, V> {
+        if (self._node == null()) {
+            raise std::exception("MapIterator dereference out of bounds");
+        }
+        let node = cast(MapNode<K, V>, self._node); 
+        return MapEntry<K, V>(node.key, node.value);
+    }
+
+    proc m_inc(MapIterator<K, V> self, int __cnt) {
+        if (self._node != null()) {
+            let node = cast(MapNode<K, V>, self._node);
+            self._node = node.next;
+        }
+
+        if (self._node == null()) {
+            let m = cast(map<K, V>, self._map);
+            
+            self._bucket_idx += 1;
+            while (self._bucket_idx < m.m_cap) {
+                // Доступ к бакетам через m
+                let bucket_addr = m.m_buckets + (self._bucket_idx * 4);
+                let head = cast(ptr, rd32(bucket_addr));
+                
+                if (head != null()) {
+                    self._node = head;
+                    return;
+                }
+                self._bucket_idx += 1;
+            }
+        }
+    }
+}
 
 struct MapNode<K, V> {
     key:   K,
@@ -209,11 +254,9 @@ impl map<K, V> [new] {
                 }
                 first = 0;
 
-                // key
                 std::fprint(fd, node_ref.key);
                 std::fprint(fd, ": ");
 
-                // value
                 std::fprint(fd, node_ref.value);
 
                 current = node_ref.next;
@@ -223,6 +266,22 @@ impl map<K, V> [new] {
         }
 
         std::fprint(fd, "}");
+    }
+
+    proc begin(map<K, V> self) -> MapIterator<K, V> {
+        let i = 0;
+        while (i < self.m_cap) {
+            let head = cast(ptr, rd32(self.m_buckets + (i * 4)));
+            if (head != null()) {
+                return MapIterator<K, V>(cast(ptr, self), i, head);
+            }
+            i += 1;
+        }
+        return self.end();
+    }
+
+    proc end(map<K, V> self) -> MapIterator<K, V> {
+        return MapIterator<K, V>(cast(ptr, self), self.m_cap, null());
     }
 
     proc destroy(map<K, V> self) {
