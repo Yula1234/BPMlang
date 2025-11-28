@@ -752,6 +752,7 @@ struct NodeStmtStruct {
 	std::optional<std::string> __allocator;
 	__stdvec<std::string> temps;
 	bool temp;
+	std::optional<DataType> parent; 
 };
 
 struct NodeStmtInterface {
@@ -2577,6 +2578,12 @@ public:
 				try_consume_err(TokenType_t::close_paren);
 				stmt_struct->__allocator = allc_id.value.value();
 			}
+
+			if (peek().has_value() && peek().value().type == TokenType_t::double_dot) {
+            	consume();
+            	stmt_struct->parent = parse_type();
+        	}
+
 			if(peek().has_value() && peek().value().type == TokenType_t::less) {
 				consume();
 				while(peek().has_value() && peek().value().type != TokenType_t::above) {

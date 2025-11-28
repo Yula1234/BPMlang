@@ -234,6 +234,7 @@ public:
         bool    temp;
         __stdvec<std::string> temps;
         Token   def;
+        std::optional<DataType> parent_type;
 
         size_t size_of() const noexcept {
             return __fields.size();
@@ -534,6 +535,36 @@ public:
             return res;
         }
         return src;
+    }
+
+    bool is_base_of(const DataType& base, const DataType& derived) {
+        if (!base.is_object() || !derived.is_object()) return false;
+        
+        // Если типы равны - это не наследование, но совместимость
+        if (base == derived) return true;
+        
+        std::optional<Struct> st_opt = struct_lookup(derived.getobjectname());
+        if (!st_opt.has_value()) return false;
+        
+        if (!st_opt.value().parent_type.has_value()) return false;
+        
+        DataType parent = st_opt.value().parent_type.value();
+        
+        // Подстановка шаблонов, если derived шаблонный
+        // Но у нас derived - это конкретный тип (инстанс).
+        // Значит, parent уже должен быть конкретным (если мы его правильно сохранили/подставили при создании).
+        // Стоп. Struct хранит parent как он написан в определении (Parent<T>).
+        
+        // Нам нужно инстанцировать parent тип, используя аргументы derived.
+        if (st_opt.value().temp) {
+            std::vector<DataType> targs = get_template_args(derived);
+            __map<std::string, DataType> temps = compute_temps(st_opt.value().temps, targs);
+            substitute_template_wct(parent, temps);
+        }
+        
+        // Рекурсивно проверяем
+        if (parent == base) return true;
+        return is_base_of(base, parent);
     }
 
     bool same_param_types(const std::vector<std::pair<std::string, DataType>>& a,
@@ -3825,17 +3856,52 @@ AFTER_GEN:
                     gen.DiagnosticMessage(alrh.value().def, "note", "first defenition here", strlen("struct "));
                     exit(EXIT_FAILURE);
                 }
+
+                __stdvec<std::pair<std::string, DataType>> final_fields;
+                std::optional<DataType> parent_dt = stmt_struct->parent;
+
+                if (parent_dt.has_value()) {
+                    std::string pname = parent_dt.value().getobjectname();
+                    std::optional<Struct> p_struct_opt = gen.struct_lookup(pname);
+                    
+                    if (!p_struct_opt.has_value()) {
+                        gen.GeneratorError(stmt_struct->def, "parent struct `" + pname + "` not found");
+                    }
+                    
+                    Struct p_struct = p_struct_opt.value();
+                    
+                    final_fields = p_struct.__fields;
+                    
+                    if (p_struct.temp) {
+                        std::vector<DataType> targs = gen.get_template_args(parent_dt.value());
+                        
+                        if (targs.size() != p_struct.temps.size()) {
+                             gen.GeneratorError(stmt_struct->def, "parent struct template args mismatch");
+                        }
+
+                        __map<std::string, DataType> temps = gen.compute_temps(p_struct.temps, targs);
+                        
+                        for(auto& f : final_fields) {
+                            gen.substitute_template_wct(f.second, temps);
+                        }
+                    }
+                }
+                
+                final_fields.insert(final_fields.end(), stmt_struct->fields.begin(), stmt_struct->fields.end());
+
                 size_t current_type_id = (*gen.m_typeid_table_size)++;
                 gen.m_typeid_table.push_back(std::make_pair(current_type_id, stmt_struct->name));
+                
                 gen.m_structs[stmt_struct->name] = {
                     .name       = stmt_struct->name,
-                    .fields     = gen.compute_fields(stmt_struct->fields),
+                    .fields     = gen.compute_fields(final_fields),
                     .__allocator = stmt_struct->__allocator,
-                    .__fields   = stmt_struct->fields,
+                    .__fields   = final_fields,
                     .m_typeid   = gen.m_structs_count++,
                     .temp       = stmt_struct->temp,
                     .temps      = stmt_struct->temps,
-                    .def        = stmt_struct->def
+                    .def        = stmt_struct->def,
+                    .parent_type = stmt_struct->parent
                 };
             }
 
@@ -4735,6 +4801,7 @@ private:
         DataType tc = canonical_type(to);
 
         if (fc == tc) return true;
+        if (is_base_of(tc, fc)) return true;
 
         if (is_interface_type(tc)) {
             if (is_interface_type(fc)) {
