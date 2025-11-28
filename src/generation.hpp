@@ -51,7 +51,10 @@ impl __SigSegvException { proc what(__SigSegvException self) -> char* {
         let __fst = __popfromstack();
         return cast(char*, __fst); } }
 __oninit { __pushonstack(typeid(__SigSegvException)); asm "pop edx"; asm "mov dword [__BpmSigSegvExceptionTypeId], edx"; }
-namespace std { proc exception(char* mess_) -> exception = return exception(mess_, 0, 0); })";
+namespace std { proc exception(char* mess_) -> exception = return exception(mess_, 0, 0); }
+interface __ObjectTypeI {}
+interface __SimpleTypeI {}
+interface __PointerTypeI {})";
 }
 
 template<typename T>
@@ -282,6 +285,7 @@ public:
         __map<std::string, InterfaceMethodInfo> methods;
         __stdvec<std::string> method_order;
         size_t m_typeid;
+        __stdvec<std::string> temps;
     };
 
     struct Namespace {
@@ -2382,7 +2386,7 @@ CONVERT_FAILED:
             rtype = vtype.value();
             substitute_template(rtype);
             if (rtype.is_object() && is_interface_type(rtype)) {
-                ensure_implements_interface(got_t, rtype.getobjectname(), where);
+                ensure_implements_interface(got_t, rtype, where);
                 gen_expr(value);
                 gen_box_interface(rtype, got_t, where);
                 goto AFTER_GEN;
@@ -2624,6 +2628,29 @@ AFTER_GEN:
                 GeneratorError(def, "ct_not excepts 1 args");
             }
             return static_cast<int>(!(static_cast<bool>(eval(args[0], def))));
+        }
+        if (name == "is_implements_t") {
+            if (!call->args.has_value()) GeneratorError(def, "is_implements_t excepts 2 args");
+            std::vector<NodeExpr*> args = __getargs(call->args.value());
+            if (args.size() != 2) GeneratorError(def, "is_implements_t excepts 2 args");
+
+            std::optional<NodeTermType*> type_1 = ptools::get::type(args[0]);
+            std::optional<NodeTermType*> type_2 = ptools::get::type(args[1]);
+            
+            DataType ty;
+            if (type_1.has_value()) ty = type_1.value()->type;
+            else                    ty = type_of_expr(args[0]);
+            
+            DataType iface;
+            if (type_2.has_value()) iface = type_2.value()->type;
+            else                    iface = type_of_expr(args[1]);
+
+            substitute_template(ty);
+            substitute_template(iface);
+
+
+            bool result = check_implements_quiet(ty, iface);
+            return static_cast<int>(result);
         }
         return std::nullopt;
     }
@@ -3746,6 +3773,7 @@ AFTER_GEN:
                 Interface iface;
                 iface.name    = stmt_inter->name;
                 iface.m_typeid = gen.m_structs_count++;
+                iface.temps   = stmt_inter->temps;
 
                 for (const auto& m : stmt_inter->methods) {
                     InterfaceMethodInfo info;
@@ -4645,45 +4673,120 @@ private:
         return true;
     }
 
+    bool check_implements_quiet(const DataType& ty, const DataType& iface_type) {
+        std::string iface_name = iface_type.getobjectname();
+        
+        if (iface_name == "__ObjectTypeI") return ty.is_object();
+        if (iface_name == "__SimpleTypeI") return ty.is_simple();
+        if (iface_name == "__PointerTypeI") return (ty.root().ptrlvl > 0 || (ty.is_simple() && ty.root().getsimpletype() == SimpleDataType::ptr));
+
+        if (!ty.is_object()) return false;
+
+        std::string tname = ty.getobjectname();
+        auto ifcOpt = inter_lookup(iface_name);
+        if (!ifcOpt.has_value()) return false;
+        const Interface& ifc = ifcOpt.value();
+
+        __map<std::string, DataType> iface_temps;
+        auto& args = iface_type.node->generics;
+        if (args.size() != ifc.temps.size()) return false;
+        for(size_t i=0; i<args.size(); ++i) iface_temps[ifc.temps[i]] = args[i];
+
+        auto nmsOpt = namespace_lookup(tname);
+        if (!nmsOpt.has_value()) return false;
+        Namespace* ns = nmsOpt.value();
+
+        for (const auto& km : ifc.methods) {
+            InterfaceMethodInfo im = km.second;
+            for(auto& p : im.params) substitute_template_wct(p.second, iface_temps);
+            substitute_template_wct(im.rettype, iface_temps);
+
+            const auto it = ns->procs.find(km.first);
+            if (it == ns->procs.end()) return false;
+            const Procedure& baseProc = it->second;
+
+            bool ok = method_matches_interface(baseProc, im, ty);
+            if (!ok) {
+                for (Procedure* ov : baseProc.overrides) {
+                    if (method_matches_interface(*ov, im, ty)) {
+                        ok = true;
+                        break;
+                    }
+                }
+            }
+            if (!ok) return false;
+        }
+        return true;
+    }
+
     void ensure_implements_interface(const DataType& ty,
-                                 const std::string& iface_name,
+                                 const DataType& iface_type,
                                  const Token& where)
     {
         if (!ty.is_object()) {
             GeneratorError(where,
                 "type " + ty.to_string() +
                 " is not an object type and cannot implement interface `" +
-                iface_name + "`");
+                iface_type.to_string() + "`");
         }
 
+        std::string iface_name = iface_type.getobjectname();
         std::string tname = ty.getobjectname();
-        if (tname == iface_name) {
-            return;
-        }
 
+        if (iface_name == "__ObjectTypeI") {
+            if (ty.is_object()) return;
+            GeneratorError(where, "type `" + ty.to_string() + "` is not an object type");
+        }
+        
+        if (iface_name == "__SimpleTypeI") {
+            if (ty.is_simple()) return;
+            GeneratorError(where, "type `" + ty.to_string() + "` is not a simple type");
+        }
+        
+        if (iface_name == "__PointerTypeI") {
+            if (ty.root().ptrlvl > 0 || (ty.is_simple() && ty.root().getsimpletype() == SimpleDataType::ptr)) return;
+            GeneratorError(where, "type `" + ty.to_string() + "` is not a pointer");
+        }
+        
         std::optional<Interface> ifcOpt = inter_lookup(iface_name);
         if (!ifcOpt.has_value()) {
             GeneratorError(where, "unkown interface `" + iface_name + "`");
         }
         const Interface& ifc = ifcOpt.value();
 
+        __map<std::string, DataType> iface_temps;
+        auto& args = iface_type.node->generics;
+        
+        if (args.size() != ifc.temps.size()) {
+             GeneratorError(where, "interface `" + iface_name + "` expects " + 
+                            std::to_string(ifc.temps.size()) + " template args, but got " + 
+                            std::to_string(args.size()));
+        }
+        
+        for(size_t i=0; i<args.size(); ++i) {
+            iface_temps[ifc.temps[i]] = args[i];
+        }
+
         std::optional<Namespace*> nmsOpt = namespace_lookup(tname);
         if (!nmsOpt.has_value()) {
             GeneratorError(where,
                 "type `" + tname + "` does not implement interface `" +
-                iface_name + "`: no `impl " + tname + " { ... }` with required methods");
+                iface_type.to_string() + "`: no `impl " + tname + " { ... }` with required methods");
         }
         Namespace* ns = nmsOpt.value();
 
         for (const auto& km : ifc.methods) {
             const std::string& mname = km.first;
-            const InterfaceMethodInfo& im = km.second;
+            InterfaceMethodInfo im = km.second; 
+            
+            for(auto& p : im.params) substitute_template_wct(p.second, iface_temps);
+            substitute_template_wct(im.rettype, iface_temps);
 
             const auto it = ns->procs.find(mname);
             if (it == ns->procs.end()) {
                 GeneratorError(where,
                     "type `" + tname + "` does not implement interface `" +
-                    iface_name + "`: missing method `" + mname + "`");
+                    iface_type.to_string() + "`: missing method `" + mname + "`");
             }
             const Procedure& baseProc = it->second;
 
@@ -4700,20 +4803,30 @@ private:
             if (!ok) {
                 GeneratorError(where,
                     "type `" + tname + "` does not correctly implement interface `" +
-                    iface_name + "`: method `" + mname + "` has incompatible signature");
+                    iface_type.to_string() + "`: method `" + mname + "` has incompatible signature");
             }
-        }
-        if (ty.is_object()) {
-            m_dyn_iface_impls.insert(std::make_pair(iface_name, ty.getobjectname()));
         }
     }
 
-    void gen_box_interface(const DataType& ifaceType,
+        void gen_box_interface(const DataType& ifaceType,
                        const DataType& srcType,
                        const Token& where)
     {
         Interface iface = get_interface(ifaceType, where);
         size_t methods_count = iface.method_order.size();
+
+        __map<std::string, DataType> iface_temps;
+        auto& args = ifaceType.node->generics;
+        
+        if (args.size() != iface.temps.size()) {
+             GeneratorError(where, "interface `" + iface.name + "` expects " + 
+                            std::to_string(iface.temps.size()) + " template args, but got " + 
+                            std::to_string(args.size()));
+        }
+        
+        for(size_t i=0; i<args.size(); ++i) {
+            iface_temps[iface.temps[i]] = args[i];
+        }
 
         size_t wrapper_bytes = (1 + methods_count) * 4;
 
@@ -4752,10 +4865,12 @@ private:
             if (proc.templates != NULL) {
                 std::vector<DataType> local_targs = get_template_args(srcType);
                 std::vector<NodeExpr*> empty_args;
+                
                 auto inst_res = instantiate_if_needed(proc, local_targs, empty_args,
                                               where, mname, tname);
                 tsign = inst_res.first;
             }
+            
             std::string label = tname + "@" + mname + tsign;
             if (proc.override) label += proc.get_sign();
             MemRef dst_mem = MemRef::baseDisp(Reg::EDX,
@@ -4875,7 +4990,10 @@ private:
                     continue;
                 }
                 DataType actual = it->second;
-                ensure_implements_interface(actual, c.iface_name, def);
+
+                substitute_template_wct(required_iface, temps);
+                
+                ensure_implements_interface(actual, required_iface, def);
             }
         }
 

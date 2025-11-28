@@ -681,7 +681,7 @@ struct NodeStmtWhile {
 
 struct TypeConstraint {
     std::string type_param;
-    std::string iface_name;
+    DataType iface_type;
 };
 
 struct NodeStmtProc {
@@ -757,6 +757,7 @@ struct NodeStmtStruct {
 struct NodeStmtInterface {
     Token def;
     std::string name;
+    std::vector<std::string> temps;
     std::vector<InterfaceMethod> methods;
 };
 
@@ -1001,7 +1002,7 @@ public:
 	    DataType res(type_base);
 
 	    if(peek().has_value() && peek().value().type == TokenType_t::less) {
-	        consume(); // Сьедаем '<'
+	        consume();
 	        while(peek().has_value() && peek().value().type != TokenType_t::above) {
 	            check_split_shr(); 
 	            if(peek().value().type == TokenType_t::above) break;
@@ -2178,10 +2179,11 @@ public:
 
 		            if (peek().has_value() && peek().value().type == TokenType_t::double_dot) {
 		                consume();
-		                Token ifaceTok = try_consume_err(TokenType_t::ident);
+		                DataType ifaceType = parse_type();
+                        
 		                TypeConstraint c;
 		                c.type_param = tname;
-		                c.iface_name = ifaceTok.value.value();
+		                c.iface_type = ifaceType;
 		                stmt_proc->constraints.push_back(c);
 		            }
 
@@ -2582,6 +2584,17 @@ public:
 		    auto stmt_interface = m_allocator.emplace<NodeStmtInterface>();
 		    stmt_interface->name = try_consume_err(TokenType_t::ident).value.value();
 		    stmt_interface->def  = def;
+
+		    if (peek().has_value() && peek().value().type == TokenType_t::less) {
+		        consume();
+		        while (peek().has_value() && peek().value().type != TokenType_t::above) {
+		            stmt_interface->temps.push_back(try_consume_err(TokenType_t::ident).value.value());
+		            if (peek().has_value() && peek().value().type != TokenType_t::above) {
+		                try_consume_err(TokenType_t::comma);
+		            }
+		        }
+		        consume();
+		    }
 
 		    try_consume_err(TokenType_t::open_curly);
 		    while (peek().has_value() && peek().value().type != TokenType_t::close_curly) {
