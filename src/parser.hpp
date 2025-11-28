@@ -871,6 +871,12 @@ struct NodeStmtFor {
     NodeScope* scope;
 };
 
+struct NodeStmtForeach {
+    Token var_name;
+    NodeExpr* expr;
+    NodeScope* scope;
+};
+
 struct NodeStmt {
 	std::variant<NodeStmtExit*, NodeStmtLet*,
 				NodeScope*, NodeStmtIf*,
@@ -889,7 +895,7 @@ struct NodeStmt {
 				NodeStmtMtCall*, NodeStmtConst*,
 				NodeStmtTypedef*,NodeStmtImpl*,
 				NodeStmtRaise*, NodeStmtTry*,
-				NodeStmtFor*> var;
+				NodeStmtFor*, NodeStmtForeach*> var;
 };
 
 struct NodeProg {
@@ -2961,7 +2967,7 @@ public:
             auto stmt_for = m_allocator.emplace<NodeStmtFor>();
             
             if (peek().value().type != TokenType_t::semi) {
-                if (auto init = parse_stmt(true)) { // true = ждем ;
+                if (auto init = parse_stmt(true)) {
                     stmt_for->init = init.value();
                 } else {
                     error_expected("statement in for-init");
@@ -3003,6 +3009,40 @@ public:
             auto stmt = m_allocator.emplace<NodeStmt>(stmt_for);
             return stmt;
 		}
+
+		if (try_consume(TokenType_t::foreach_)) {
+            try_consume_err(TokenType_t::open_paren);
+
+            try_consume_err(TokenType_t::let);
+            
+            Token var_tok = try_consume_err(TokenType_t::ident);
+            
+            try_consume_err(TokenType_t::double_dot);
+            
+            NodeExpr* expr = nullptr;
+            if (auto e = parse_expr()) {
+                expr = e.value();
+            } else {
+                error_expected("container expression");
+            }
+            
+            try_consume_err(TokenType_t::close_paren);
+            
+            NodeScope* scope = nullptr;
+            if (auto s = parse_scope()) {
+                scope = s.value();
+            } else {
+                error_expected("scope");
+            }
+            
+            auto stmt_foreach = m_allocator.emplace<NodeStmtForeach>();
+            stmt_foreach->var_name = var_tok;
+            stmt_foreach->expr = expr;
+            stmt_foreach->scope = scope;
+            
+            auto stmt = m_allocator.emplace<NodeStmt>(stmt_foreach);
+            return stmt;
+        }
 
 		if (auto lvalue = parse_expr(0, true)) {
             if (!peek().has_value()) {

@@ -557,6 +557,80 @@ public:
         return true;
     }
 
+    NodeExpr* make_ident_expr(std::string name) {
+        auto* term = m_allocator.emplace<NodeTermIdent>();
+        term->ident = {TokenType_t::ident, 0, 0, name, "", std::nullopt}; 
+        auto* t = m_allocator.emplace<NodeTerm>(); t->var = term;
+        auto* e = m_allocator.emplace<NodeExpr>(); e->var = t;
+        return e;
+    }
+
+    NodeExpr* make_neq_expr(NodeExpr* lhs, NodeExpr* rhs, Token def) {
+        auto* nq = m_allocator.emplace<NodeBinExprNotEq>();
+        nq->lhs = lhs;
+        nq->rhs = rhs;
+        auto* be = m_allocator.emplace<NodeBinExpr>();
+        be->def = def;
+        be->var = nq;
+        auto* e = m_allocator.emplace<NodeExpr>(); e->var = be;
+        return e;
+    }
+
+    NodeExpr* make_int_lit(int val) {
+        auto* term = m_allocator.emplace<NodeTermIntLit>();
+        term->int_lit = {TokenType_t::int_lit, 0, 0, std::to_string(val), "", std::nullopt};
+        auto* t = m_allocator.emplace<NodeTerm>(); t->var = term;
+        auto* e = m_allocator.emplace<NodeExpr>(); e->var = t;
+        return e;
+    }
+
+    NodeExpr* make_method_call(NodeExpr* obj, std::string method, std::vector<NodeExpr*> args, Token def) {
+        auto* call = m_allocator.emplace<NodeTermCall>();
+        call->def = def;
+        call->name = method;
+        if (!args.empty()) {
+            auto* bargs = m_allocator.emplace<NodeBinExprArgs>();
+            bargs->args = args;
+            auto* be = m_allocator.emplace<NodeBinExpr>(); be->var = bargs;
+            auto* ae = m_allocator.emplace<NodeExpr>(); ae->var = be;
+            call->args = ae;
+        } else {
+            call->args = std::nullopt;
+        }
+        
+        auto* t_call = m_allocator.emplace<NodeTerm>(); t_call->var = call;
+        auto* e_rhs = m_allocator.emplace<NodeExpr>(); e_rhs->var = t_call;
+        
+        auto* dot = m_allocator.emplace<NodeBinExprDot>();
+        dot->lhs = obj;
+        dot->rhs = e_rhs;
+        
+        auto* b_dot = m_allocator.emplace<NodeBinExpr>();
+        b_dot->def = def;
+        b_dot->var = dot;
+        
+        auto* e = m_allocator.emplace<NodeExpr>(); e->var = b_dot;
+        return e;
+    }
+    
+    NodeExpr* make_deref_expr(NodeExpr* expr, Token def) {
+        auto* unref = m_allocator.emplace<NodeTermUnref>();
+        unref->def = def;
+        unref->expr = expr;
+        auto* t = m_allocator.emplace<NodeTerm>(); t->var = unref;
+        auto* e = m_allocator.emplace<NodeExpr>(); e->var = t;
+        return e;
+    }
+    
+    NodeStmt* make_inc_stmt(NodeExpr* lvalue, NodeExpr* expr, Token def) {
+        auto* inc = m_allocator.emplace<NodeStmtIncBy>();
+        inc->def = def;
+        inc->lvalue = lvalue;
+        inc->expr = expr;
+        auto* s = m_allocator.emplace<NodeStmt>(); s->var = inc;
+        return s;
+    }
+
     DataType type_of_dot(const NodeBinExprDot* dot, const Token& def) {
         DataType otype = type_of_expr(dot->lhs);
 
@@ -1315,6 +1389,9 @@ public:
 
             void operator()(const NodeTermUnref* term_unref) const {
                 DataType tp = gen.type_of_expr(term_unref->expr);
+                if (!tp.root().link && tp.root().ptrlvl == 0 && !tp.is_object() && tp.root().getsimpletype() != SimpleDataType::ptr) {
+                    gen.GeneratorError(term_unref->def, "can't dereference not-reference or pointer type `" + tp.to_string() + "`");
+                }
                 if (tp.is_object() && !tp.root().link && tp.root().ptrlvl == 0) {
                     if (lvalue) {
                         NodeTermMtCall deref;
@@ -4243,6 +4320,66 @@ AFTER_GEN:
                 
                 gen.m_builder.jmp(gen.label(start_label));
                 
+                gen.m_builder.label(end_label);
+                
+                gen.m_breaks.pop_back();
+                gen.m_break_scopes.pop_back();
+                
+                gen.end_scope();
+            }
+            void operator()(const NodeStmtForeach* stmt_foreach) const
+            {
+                size_t body_size = gen.collect_alligns(stmt_foreach->scope);
+                gen.begin_scope(static_cast<int>(4 + body_size));
+                
+                std::string cont_name = "__foreach_cont_" + std::to_string(gen.CTX_IOTA++);
+                gen.create_var(cont_name, stmt_foreach->expr, stmt_foreach->var_name, std::nullopt);
+                
+                NodeTermIdent cont_ident; 
+                cont_ident.ident = {TokenType_t::ident, 0, 0, cont_name, "", std::nullopt};
+                NodeTerm cont_term; cont_term.var = &cont_ident;
+                NodeExpr cont_expr; cont_expr.var = &cont_term;
+                
+                auto* call_begin_node = gen.make_method_call(&cont_expr, "begin", {}, stmt_foreach->var_name);
+                std::string it_name = "__foreach_it_" + std::to_string(gen.CTX_IOTA++);
+                gen.create_var(it_name, call_begin_node, stmt_foreach->var_name, std::nullopt);
+                
+                auto* call_end_node = gen.make_method_call(&cont_expr, "end", {}, stmt_foreach->var_name);
+                std::string end_name = "__foreach_end_" + std::to_string(gen.CTX_IOTA++);
+                gen.create_var(end_name, call_end_node, stmt_foreach->var_name, std::nullopt);
+                
+                auto start_label = gen.create_label();
+                auto end_label   = gen.create_label();
+                gen.m_breaks.push_back(end_label);
+                gen.m_break_scopes.push_back(4 + body_size);
+                
+                gen.m_builder.label(start_label);
+                
+                auto* it_expr  = gen.make_ident_expr(it_name);
+                auto* end_expr = gen.make_ident_expr(end_name);
+                auto* neq_expr = gen.make_neq_expr(it_expr, end_expr, stmt_foreach->var_name);
+                
+                gen.gen_expr(neq_expr);
+                gen.pop_reg(Reg::EAX);
+                gen.m_builder.emit(IRInstr(IROp::Test, gen.reg(Reg::EAX), gen.reg(Reg::EAX)));
+                gen.m_builder.jz(gen.label(end_label));
+                
+                auto* it_expr_deref = gen.make_ident_expr(it_name);
+                auto* deref_expr = gen.make_deref_expr(it_expr_deref, stmt_foreach->var_name);
+                
+                std::string user_var_name = stmt_foreach->var_name.value.value();
+                gen.create_var(user_var_name, deref_expr, stmt_foreach->var_name, std::nullopt);
+                
+                for(const auto& st : stmt_foreach->scope->stmts) {
+                    gen.gen_stmt(st);
+                }
+                
+                auto* it_expr_inc = gen.make_ident_expr(it_name);
+                auto* one_expr = gen.make_int_lit(1);
+                auto* inc_stmt = gen.make_inc_stmt(it_expr_inc, one_expr, stmt_foreach->var_name);
+                gen.gen_stmt(inc_stmt);
+                
+                gen.m_builder.jmp(gen.label(start_label));
                 gen.m_builder.label(end_label);
                 
                 gen.m_breaks.pop_back();

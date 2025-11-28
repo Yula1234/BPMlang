@@ -37,7 +37,7 @@ contexts:
     # strings in YAML. When using single quoted strings, only single quotes
     # need to be escaped: this is done by using two single quotes next to each
     # other.
-    - match: '\b(try|catch|raise|__expr_stmt|__popfromstack|__empty_stmt|__pushonstack|__disable_rvalue__|typeid|typeid_of|static_assert|reset|iota|break|if|for|elif|else|let|while|return|include|buffer|cextern|asm|delete)\b'
+    - match: '\b(try|catch|raise|__expr_stmt|__popfromstack|__empty_stmt|__pushonstack|__disable_rvalue__|typeid|typeid_of|static_assert|reset|iota|break|if|foreach|for|elif|else|let|while|return|include|buffer|cextern|asm|delete)\b'
       scope: keyword.control.hl
 
     - match: '\#'

@@ -94,6 +94,7 @@ enum class TokenType_t {
     _catch,
     __drvalue,
     for_,
+    foreach_,
 };
 
 std::vector<std::string>* split_string(const std::string& str, const std::string& delimiter) {
@@ -202,6 +203,7 @@ const __map<TokenType_t, std::string> map_tok2str {
     {TokenType_t::_catch, "`catch`"},
     {TokenType_t::__drvalue, "`__disable_rvalue__`"},
     {TokenType_t::for_, "`for`"},
+    {TokenType_t::foreach_, "`foreach`"},
 };
 
 std::string tok_to_string(const TokenType_t type)
@@ -519,6 +521,10 @@ public:
                 }
                 else if (buf == "__disable_rvalue__") {
                     tokens->push_back({ .type = TokenType_t::__drvalue, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
+                    buf.clear();
+                }
+                else if (buf == "foreach") {
+                    tokens->push_back({ .type = TokenType_t::foreach_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
                     buf.clear();
                 }
                 else if (buf == "for") {
