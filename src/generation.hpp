@@ -668,12 +668,6 @@ public:
     }
 
     DataType type_of_expr(const NodeExpr* expr) {
-        if (m_temps.empty()) {
-            if (expr->cached_type.has_value()) {
-                return expr->cached_type.value();
-            }
-        }
-
         DataType res = __type_of_expr(expr);
         substitute_template(res);
         res = canonical_type(res);
@@ -4991,6 +4985,7 @@ private:
                 }
                 DataType actual = it->second;
 
+                DataType required_iface = c.iface_type;
                 substitute_template_wct(required_iface, temps);
                 
                 ensure_implements_interface(actual, required_iface, def);

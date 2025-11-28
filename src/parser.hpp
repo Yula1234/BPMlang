@@ -2378,9 +2378,21 @@ public:
 		    if(peek().has_value() && peek().value().type != TokenType_t::string_lit) {
 		        error_expected("file path string");
 		    }
-		    std::string fname = consume().value.value() + ".bpm";
+		    
+		    std::string raw_fname = consume().value.value();
+		    std::string fname = raw_fname + ".bpm";
+		    
+		    std::filesystem::path current_source_file = inc.value().file;
+		    std::filesystem::path current_dir = current_source_file.parent_path();
+		    
+		    std::string relative_path = (current_dir / fname).string();
+
 		    std::string path = "";
-		    if(file_exists(fname)) {
+		    
+		    if (file_exists(relative_path)) {
+		        path = std::filesystem::canonical(relative_path).string();
+		    }
+		    else if(file_exists(fname)) {
 		        path = std::filesystem::canonical(fname).string();
 		    }
 		    else if(file_exists("lib/" + fname)) {
@@ -2390,12 +2402,18 @@ public:
 		        path = std::filesystem::canonical(basepath + "/" + fname).string();
 		    }
 		    else {
-		        ParsingError("file not found at `include` - `" + fname + "`");
+		        ParsingError("file not found at `include` - `" + fname + "`\n" +
+		                     "Searched in:\n" + 
+		                     "  " + relative_path + "\n" +
+		                     "  " + fname + "\n" +
+		                     "  lib/" + fname);
 		    }
+
 		    m_preprocessor_stmt = true;
 		    if(m_includes.find(path) != m_includes.end()) {
 		        return {};
 		    }
+		    
 		    std::string contents;
 		    {
 		        std::stringstream contents_stream;
@@ -2404,8 +2422,9 @@ public:
 		        contents = contents_stream.str();
 		        input.close();
 		    }
+            
 		    Tokenizer nlexer(std::move(contents));
-		    auto result = nlexer.tokenize(fname);
+		    auto result = nlexer.tokenize(path);
 		    m_includes.insert(path);
 
 		    Token include_tok = inc.value();
