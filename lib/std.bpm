@@ -167,7 +167,6 @@ interface __StdPrintable {
     proc m_fprint(self, int fd);
 }
 
-
 namespace std {
 	proc fprintf(int fd, char* format_str) -> void
 	[nosizedargs] {
@@ -241,7 +240,14 @@ namespace std {
 		store32(cast(ptr, __dst), __gsrc);
 	}
 
-	proc equal<T>(T lhs, T rhs) -> int {
+	proc equal(char* lhs, char* rhs) -> int {
+		return streq(lhs, rhs);
+	}
+	proc equal(int lhs, int rhs) -> int {
+		return lhs == rhs;
+	}
+
+	proc equal<T: __StdEquatable>(T lhs, T rhs) -> int {
 		return lhs == rhs;
 	}
 

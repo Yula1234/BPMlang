@@ -9,6 +9,15 @@ struct MapEntry<K, V> {
     value: V
 }
 
+impl MapEntry<K, V> [new] {
+    proc new<K, V>(K key, V val) -> MapEntry<K, V> {
+        return MapEntry<K, V>(key, val);
+    }
+    proc m_equal(MapEntry<K, V> self, MapEntry<K, V> other) -> int {
+        return (std::equal(self.key, other.key)) && (std::equal(self.value, other.value));
+    }
+}
+
 struct MapIterator<K, V> {
     _map:        ptr,
     _bucket_idx: int,
