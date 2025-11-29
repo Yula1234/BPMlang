@@ -89,7 +89,7 @@ contexts:
       scope: support.variable.bpm
 
   types:
-    - match: \b(int|char|void|ptr|any|ProcPtr|FILE)\b
+    - match: \b(int|char|void|ptr|any|ProcPtr)\b
       scope: storage.type.primitive.bpm
     - match: \b(virtual|override)\b
       scope: storage.modifier.bpm

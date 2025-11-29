@@ -3195,7 +3195,7 @@ AFTER_GEN:
                 if (!override) {
                     if (gen.in_namespace()) {
                         const auto& search = gen.m_cur_namespace->procs.find(stmt_proc->name);
-                        if (search != gen.m_cur_namespace->procs.end()) {
+                        if (search != gen.m_cur_namespace->procs.end() && !(search->second.prototype)) {
                             Procedure& npc = search->second;
 
                             auto same_sig = [&](Procedure& p) -> bool {
