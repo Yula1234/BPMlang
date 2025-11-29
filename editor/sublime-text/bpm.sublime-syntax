@@ -1,170 +1,127 @@
 %YAML 1.2
 ---
-# See http://www.sublimetext.com/docs/syntax.html
+name: BPMlang
 file_extensions:
-  - ec
+  - bpm
+scope: source.bpm
+
 variables:
-  identifier: '[A-Za-z_][A-Za-z_0-9]*'
-scope: source.hl
+  identifier: '[A-Za-z_][A-Za-z0-9_]*'
+
 contexts:
   main:
-    # Strings begin and end with quotes, and use backslashes as an escape
-    # character
+    - include: comments
+    - include: strings
+    - include: attributes
+    - include: decls
+    - include: keywords
+    - include: types
+    - include: constants
+    - include: function-call
+    - include: operators
+    - include: punctuation
+
+  decls:
+    - match: \b(proc)\s+({{identifier}})
+      captures:
+        1: storage.type.function.bpm
+        2: entity.name.function.bpm
+    - match: \b(struct)\s+({{identifier}})
+      captures:
+        1: storage.type.struct.bpm
+        2: entity.name.struct.bpm
+    - match: \b(interface)\s+({{identifier}})
+      captures:
+        1: storage.type.interface.bpm
+        2: entity.name.interface.bpm
+    - match: \b(enum)\s+({{identifier}})
+      captures:
+        1: storage.type.enum.bpm
+        2: entity.name.enum.bpm
+    - match: \b(namespace)\s+({{identifier}})
+      captures:
+        1: storage.type.namespace.bpm
+        2: entity.name.namespace.bpm
+    - match: \b(impl)\s+({{identifier}})
+      captures:
+        1: storage.type.impl.bpm
+        2: entity.name.class.bpm
+
+  comments:
+    - match: //
+      scope: comment.line.double-slash.bpm
+      push:
+        - match: $
+          pop: true
+    - match: /\*
+      scope: comment.block.bpm
+      push:
+        - match: \*/
+          scope: comment.block.bpm
+          pop: true
+
+  strings:
     - match: '"'
-      scope: punctuation.definition.string.begin.hl
-      push: double_quoted_string
-
+      scope: punctuation.definition.string.begin.bpm
+      push:
+        - meta_scope: string.quoted.double.bpm
+        - match: '\\.'
+          scope: constant.character.escape.bpm
+        - match: '"'
+          scope: punctuation.definition.string.end.bpm
+          pop: true
     - match: "'"
-      scope: punctuation.definition.char.begin.hl
-      push: double_quoted_char
-
-    # Comments begin with a '//' and finish at the end of the line
-    - match: '//'
-      scope: punctuation.definition.comment.hl
-      push: line_comment
-
-    - match: '\;'
-      scope: punctuation.separator.hl
-
-    - match: '\-\>'
-      scope: punctuation.separator.hl
-
-    - match: '\.'
-      scope: punctuation.separator.hl
-
-    # Keywords are if, else for and while.
-    # Note that blackslashes don't need to be escaped within single quoted
-    # strings in YAML. When using single quoted strings, only single quotes
-    # need to be escaped: this is done by using two single quotes next to each
-    # other.
-    - match: '\b(try|catch|raise|__expr_stmt|__popfromstack|__empty_stmt|__pushonstack|__disable_rvalue__|typeid|typeid_of|static_assert|reset|iota|break|if|foreach|for|elif|else|let|while|return|include|buffer|cextern|asm|delete)\b'
-      scope: keyword.control.hl
-
-    - match: '\#'
-      scope: keyword.control.hl
-
-    - match: '\b(dump_all_chunks|memfree|memalloc|new|__stdmove|__stdcopy_v|ct_type|ct_not|is_same_t|is_object_t|stdmove|stdcopy|foreach_dynarray|foreach_str|strcpy|streq|writeln|read_file|fgetc|fileno|fclose|fopen|getcf|openf|closef|EOF|nth_argv|__exception|crash|__seg_crash_mess|__seg_crash|cmemcpy|write|memset|memcopy|fprintf|sprintf|store32_any|foreach_range|__local_st|__get_as|__get|neg|rd16_as|rd32_as|EXIT_FAILURE|EXIT_SUCCESS|NEWLINE|input_string|input_number|scanf|format_print|format_fprint|format_fprint_frame|nth_arg_as|nth_arg_int|free|malloc|putu|fputu|putuwnl|fputuwnl|putc|fputc|stou|__FILE__|__COL__|__LINE__|utos|fabs|puts|fputs|assert|exit|printf|print|rd8|rd16|rd32|store8|store16|store32|memcpy|strlen)\b'
-      scope: support.function.magic.hl
-
-    - match: '\b(all_cast|object_cast|simple_cast|cast_to|__oninit|char|any|int|ptr|void|cast|constexpr)\b'
-      scope: storage.type.hl
-
-    - match: '\b(self|NOT_IMPLEMENTED|null|nostdargs|noprolog|nosizedargs|true|false|cimport)\b'
-      scope: constant.language.hl
-
-    - match: '\/\*'
+      scope: punctuation.definition.string.begin.bpm
       push:
-        - match: '\*\/'
-          pop: true
-        - meta_scope: comment.block
-
-    # Numbers
-    - match: '\b(-)?[0-9.]+\b'
-      scope: constant.numeric.hl
-
-    - match: '\*|\/|\-|\+|\=|\>|\<|and|not|\||\&|\!|\%'
-      scope: keyword.operator.hl
-
-    - match: '\bproc\b'
-      scope: keyword.control.hl
-      push:
-        - match: '[A-Za-z_0-9]+'
-          scope: entity.name.function.hl
-          pop: true
-        - match: '[A-Za-z_0-9]'
-          scope: entity.name.function.hl
+        - meta_scope: string.quoted.single.bpm
+        - match: '\\.'
+          scope: constant.character.escape.bpm
+        - match: "'"
+          scope: punctuation.definition.string.end.bpm
           pop: true
 
-    - match: '\bdefine\b'
-      scope: keyword.control.hl
-      push:
-        - match: '[A-Za-z_0-9]+'
-          scope: entity.name.macro.hl
-          pop: true
-        - match: '[A-Za-z_0-9]'
-          scope: entity.name.macro.hl
-          pop: true
+  keywords:
+    - match: \b(if|elif|else|while|for|foreach|in|break|continue|return|exit|raise|try|catch)\b
+      scope: keyword.control.bpm
+    - match: \b(let|const|typedef)\b
+      scope: storage.type.bpm
+    - match: \b(cast|sizeof|typeid|include|import|asm|static_assert|oninit|delete)\b
+      scope: keyword.other.bpm
+    - match: \b(__LINE__|__FILE__|__COL__)\b
+      scope: support.variable.bpm
 
-    - match: '\bnamespace\b'
-      scope: keyword.control.hl
-      push:
-        - match: '[A-Za-z_0-9]+'
-          scope: entity.name.macro.hl
-          pop: true
-        - match: '[A-Za-z_0-9]'
-          scope: entity.name.macro.hl
-          pop: true
+  types:
+    - match: \b(int|char|void|ptr|any|string|vector|map|deque|ProcPtr|FILE)\b
+      scope: storage.type.primitive.bpm
+    - match: \b(virtual|override)\b
+      scope: storage.modifier.bpm
 
-    - match: '\bconst\b'
-      scope: storage.type.hl
-      push:
-        - match: '[A-Za-z_0-9]+'
-          scope: entity.name.macro.hl
-          pop: true
-        - match: '[A-Za-z_0-9]'
-          scope: entity.name.macro.hl
-          pop: true
+  constants:
+    - match: \b(true|false|null|iota|reset)\b
+      scope: constant.language.bpm
+    - match: \b[0-9]+\b
+      scope: constant.numeric.integer.bpm
+    - match: \b0x[0-9A-Fa-f]+\b
+      scope: constant.numeric.hex.bpm
 
-    - match: '\bstruct\b'
-      scope: storage.type.hl
-      push:
-        - match: '[A-Za-z_0-9]+'
-          scope: entity.name.struct.hl
-          pop: true
-        - match: '[A-Za-z_0-9]'
-          scope: entity.name.struct.hl
-          pop: true
+  function-call:
+    - match: ({{identifier}})\s*(?=\()
+      scope: variable.function.bpm
 
-    - match: '\binferface\b'
-      scope: storage.type.hl
-      push:
-        - match: '[A-Za-z_0-9]+'
-          scope: entity.name.struct.hl
-          pop: true
-        - match: '[A-Za-z_0-9]'
-          scope: entity.name.struct.hl
-          pop: true
+  operators:
+    - match: (->|::|\.|,|;)
+      scope: punctuation.separator.bpm
+    - match: (=|\+|-|\*|/|%|==|!=|<|>|<=|>=|&&|\|\||!|<<|>>|\+=|-=)
+      scope: keyword.operator.bpm
 
-    - match: '\benum\b'
-      scope: storage.type.hl
-      push:
-        - match: '[A-Za-z_0-9]+'
-          scope: entity.name.struct.hl
-          pop: true
-        - match: '[A-Za-z_0-9]'
-          scope: entity.name.struct.hl
-          pop: true
+  attributes:
+    - match: \[\s*(cimport|new|nostdargs|noprolog)\s*\]
+      scope: meta.attribute.bpm support.function.attribute.bpm
 
-    - match: '\bimpl\b'
-      scope: keyword.control.hl
-      push:
-        - match: '[A-Za-z_0-9]+'
-          scope: entity.name.struct.hl
-          pop: true
-        - match: '[A-Za-z_0-9]'
-          scope: entity.name.struct.hl
-          pop: true
-
-    - match: '\b({{identifier}})\s*(?=\()'
-      scope: variable.function.hl
-
-  double_quoted_string:
-    - meta_scope: string.quoted.double.hl
-    - match: '\\.'
-      scope: constant.character.escape.hl
-    - match: '"'
-      scope: punctuation.definition.string.end.hl
-      pop: true
-
-  double_quoted_char:
-    - meta_scope: string.quoted.double.hl
-    - match: '\\.'
-      scope: constant.character.escape.hl
-    - match: "'"
-      scope: punctuation.definition.string.end.hl
-      pop: true
-
-  line_comment:
-    - meta_scope: comment.line.hl
-    - match: $
-      pop: true
+  punctuation:
+    - match: \{|\}
+      scope: punctuation.section.block.bpm
+    - match: \(|\)
+      scope: punctuation.section.parens.bpm
+    - match: \[|\]
+      scope: punctuation.section.brackets.bpm
