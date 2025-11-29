@@ -217,31 +217,48 @@ std::string tok_to_string(const TokenType_t type)
 
 inline std::optional<int> bin_prec(const TokenType_t type)
 {
-    int prec_IOTA = 0;
     switch (type) {
-    case TokenType_t::double_ampersand:
+    // ||
     case TokenType_t::double_stick:
-        return prec_IOTA++;
+        return 0;
+
+    // &&
+    case TokenType_t::double_ampersand:
+        return 1;
+
+    // != ==
     case TokenType_t::eqeq:
     case TokenType_t::_not_eq:
+        return 2;
+
+    // < >
     case TokenType_t::less:
     case TokenType_t::above:
-        return prec_IOTA++;
-    case TokenType_t::minus:
-    case TokenType_t::plus:
+        return 3;
+
+    // << >>
     case TokenType_t::shift_left:
     case TokenType_t::shift_right:
-        return prec_IOTA++;
-    case TokenType_t::fslash:
+        return 4;
+
+    // + -
+    case TokenType_t::plus:
+    case TokenType_t::minus:
+        return 5;
+
+    // * / %
     case TokenType_t::star:
+    case TokenType_t::fslash:
     case TokenType_t::mod:
-        return prec_IOTA++;
+        return 6;
+
+    // .
     case TokenType_t::dot:
-        return prec_IOTA++;
+        return 10000; 
+
     default:
         return {};
     }
-    return {};
 }
 
 struct Token {
