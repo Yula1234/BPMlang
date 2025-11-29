@@ -91,7 +91,7 @@ contexts:
       scope: support.variable.bpm
 
   types:
-    - match: \b(int|char|void|ptr|any|string|vector|map|deque|ProcPtr|FILE)\b
+    - match: \b(int|char|void|ptr|any|ProcPtr|FILE)\b
       scope: storage.type.primitive.bpm
     - match: \b(virtual|override)\b
       scope: storage.modifier.bpm
