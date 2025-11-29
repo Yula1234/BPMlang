@@ -3,12 +3,39 @@ const TOKEN_KIND_ID     = iota;
 const TOKEN_KIND_OPAREN = iota;
 const TOKEN_KIND_CPAREN = iota;
 const TOKEN_KIND_OCURLY = iota;
-const TOKEN_KIND_CCURLY = reset;
+const TOKEN_KIND_CCURLY = iota;
+const TOKEN_KIND_EOF    = reset;
+
+proc tok_to_string(int kind) -> string {
+    if(kind == TOKEN_KIND_PROC) {
+        return string::new("`proc`");
+    }
+    elif(kind == TOKEN_KIND_ID) {
+        return string::new("`identifier`");
+    }
+    elif(kind == TOKEN_KIND_OPAREN) {
+        return string::new("`(`");
+    }
+    elif(kind == TOKEN_KIND_CPAREN) {
+        return string::new("`)`");
+    }
+    elif(kind == TOKEN_KIND_OCURLY) {
+        return string::new("`{`");
+    }
+    elif(kind == TOKEN_KIND_CCURLY) {
+        return string::new("`}`");
+    }
+    elif(kind == TOKEN_KIND_EOF) {
+        return string::new("<eof>");
+    }
+    assert(false, "unreachable");
+}
 
 struct Token {
-    kind:  int,      // one of TOKEN_KIND_*
-    start: int,      // index in line
-    len:   int,      // lexem length
+    kind:  int,
+    line:  int,
+    col:   int,
+    file:  string,
     value: char*
 }
 
@@ -37,10 +64,12 @@ impl Token {
 	proc m_fprint(Token self, int fd) {
 		std::fprint(fd, "Token(kind=");
 		std::fprint(fd, self.kind_to_str());
-		std::fprint(fd, ", start=");
-		std::fprint(fd, self.start);
-		std::fprint(fd, ", len=");
-		std::fprint(fd, self.len);
+        std::fprint(fd, ", line=");
+        std::fprint(fd, self.line);
+        std::fprint(fd, ", col=");
+        std::fprint(fd, self.col);
+        std::fprint(fd, ", file=");
+        std::fprint(fd, self.file);
 		std::fprint(fd, ", value=");
 		std::fprint(fd, self.value);
 		std::fprint(fd, ")");
@@ -49,7 +78,10 @@ impl Token {
 
 struct Lexer {
     m_src:  string,
-    m_pos:  int
+    m_pos:  int,
+    m_col: int,
+    m_line: int,
+    m_filename: string
 }
 
 proc is_alpha(int c) -> int {
@@ -68,8 +100,8 @@ proc is_alnum(int c) -> int {
 
 impl Lexer {
 
-    proc new(string src) -> Lexer {
-        return Lexer(src, 0);
+    proc new(string src, string filename) -> Lexer {
+        return Lexer(src, 0, 1, 1, filename);
     }
 
     proc eof(Lexer self) -> int {
@@ -84,13 +116,14 @@ impl Lexer {
     proc advance(Lexer self) -> void {
         if (not(self.eof())) {
             self.m_pos += 1;
+            self.m_col += 1;
         }
     }
 
     proc skip_spaces(Lexer self) -> void {
         while (not(self.eof())) {
             let c = self.current_char();
-            if ((c == ' ') || (c == '\t') || (c == '\n')) {
+            if ((c == ' ') || (c == '\t')) {
                 self.advance();
             } else {
                 break;
@@ -98,7 +131,6 @@ impl Lexer {
         }
     }
 
-    // Считывание идентификатора/ключевого слова
     proc read_ident(Lexer self) -> Token {
         let start = self.m_pos;
         while (not(self.eof()) && is_alnum(self.current_char())) {
@@ -107,7 +139,6 @@ impl Lexer {
 
         let length = self.m_pos - start;
 
-        // Вытащим подстроку для сравнения со "proc"
         let buf = string::new("");
         buf.extend(length + 1);
         let i = 0;
@@ -118,58 +149,58 @@ impl Lexer {
         store8(buf.m_data + length, 0);
 
         if (string::m_equal(buf, "proc")) {
-            // Ключевое слово proc
-            return Token(TOKEN_KIND_PROC, start, length, "");
+            return Token(TOKEN_KIND_PROC, self.m_line, self.m_col - length, self.m_filename, "");
         }
 
-        // Просто идентификатор
-        return Token(TOKEN_KIND_ID, start, length, buf.m_data);
+        return Token(TOKEN_KIND_ID, self.m_line, self.m_col - length, self.m_filename, buf.m_data);
     }
 
-    // Вернуть следующий токен, либо TOKEN_KIND_ID с len=0 как маркер EOF
     proc next_token(Lexer self) -> Token {
         self.skip_spaces();
         if (self.eof()) {
-            return Token(TOKEN_KIND_ID, self.m_pos, 0, "");
+            return Token(TOKEN_KIND_EOF, self.m_line, self.m_col - 1, self.m_filename, "");
         }
 
         let c = self.current_char();
 
-        // Скобки и фигурные скобки – одиночные токены
+        if (c == '\n') {
+            self.m_line += 1;
+            self.m_col = 1;
+            self.advance();
+            return self.next_token();
+        }
         if (c == '(') {
             let start = self.m_pos;
             self.advance();
-            return Token(TOKEN_KIND_OPAREN, start, 1, "");
+            return Token(TOKEN_KIND_OPAREN, self.m_line, self.m_col - 1, self.m_filename, "");
         }
         if (c == ')') {
             let start = self.m_pos;
             self.advance();
-            return Token(TOKEN_KIND_CPAREN, start, 1, "");
+            return Token(TOKEN_KIND_CPAREN, self.m_line, self.m_col - 1, self.m_filename, "");
         }
         if (c == '{') {
             let start = self.m_pos;
             self.advance();
-            return Token(TOKEN_KIND_OCURLY, start, 1, "");
+            return Token(TOKEN_KIND_OCURLY, self.m_line, self.m_col - 1, self.m_filename, "");
         }
         if (c == '}') {
             let start = self.m_pos;
             self.advance();
-            return Token(TOKEN_KIND_CCURLY, start, 1, "");
+            return Token(TOKEN_KIND_CCURLY, self.m_line, self.m_col - 1, self.m_filename, "");
         }
 
-        // Идентификатор или ключевое слово
         if (is_alpha(c)) {
             return self.read_ident();
         }
 
-        // Если встретили что-то неожиданное – можно выбросить исключение или вернуть токен-сентинел
-        raise std::exception("unexpected character in lexer");
+        raise std::exception("unexpected character");
     }
     proc lex(Lexer self) -> vector<Token> {
     	let res = vector::new<Token>();
     	while (not(self.eof())) {
         	let tok = self.next_token();
-        	if (tok.len == 0) break; // EOF
+        	if (tok.kind == TOKEN_KIND_EOF) break; // EOF
         	res.push(tok);
     	}
     	return res;

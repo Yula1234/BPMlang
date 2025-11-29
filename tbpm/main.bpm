@@ -3,28 +3,39 @@ include "fsys"
 include "std_string"
 include "vector"
 include "lexer"
+include "parser"
 
 proc main(int argc, char** argv) -> int {
-    let filename = std::nth_argv(argv, 1);
+    //if (argc < 2) {
+    //    std::print("ERROR: No input file provided.\n");
+    //    exit(EXIT_FAILURE);
+    //}
+
+    let filename = std::string("input.bpm"); // std::nth_argv(argv, 1);
     let file: FILE;
+
     try {
-        file.__assign(FILE::open(filename, "r"));
+        file.__assign(FILE::open(filename.m_data, "r"));
     } catch(e : FsysException) {
         if (e.FCAUSE == FERROR_FAILED_OPEN) {
             printf("ERROR: file %s doesn't exists\n", filename);
             exit(EXIT_FAILURE);
         }
     }
+
     let src = file.read_to_string();
     file.close();
-    let lx  = Lexer::new(src);
+
+    let lx  = Lexer::new(src, filename);
     let tokens = lx.lex();
-    let it = tokens.begin();
-    while (it != tokens.end()) {
-    	std::print(*it);
-    	std::print("\n");
-    	it += 1;
+
+    foreach(let tok : tokens) {
+        std::print(tok);
+        std::print("\n");
     }
+
+    let parser = Parser::new(tokens);
+    let prog = parser.parse_prog();
 
     return 0;
 }

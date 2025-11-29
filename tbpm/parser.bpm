@@ -1,0 +1,85 @@
+
+enum NODE_STMT_KIND {
+	KIND_PROC
+}
+
+struct NodeStmt {
+	kind: int,
+	var: ptr
+}
+
+struct NodeStmtProc {
+	name: string,
+	def: Token
+}
+
+struct NodeScope {
+	stmts: vector<NodeStmt>
+}
+
+struct NodeProg {
+	stmts: vector<NodeStmt>
+}
+
+struct Parser {
+	m_tokens: vector<Token>,
+	m_index: int
+}
+
+impl Parser {
+	proc new(vector<Token> tokens) -> Parser {
+		return Parser(tokens, 0);
+	}
+
+	proc peek_has_value(Parser self, int offset) -> int {
+		if (self.m_index + offset > self.m_tokens.size() - 1) { return false; }
+		return true;
+	}
+	proc peek(Parser self, int offset) -> Token = return self.m_tokens.at(self.m_index + offset);
+	proc peek_has_value(Parser self) -> int = return self.peek_has_value(0);
+	proc peek(Parser self) -> Token = return self.peek(0);
+
+	proc consume(Parser self) -> Token {
+		let t = self.peek();
+		self.m_index += 1;
+		return t;
+	}
+
+	proc DiagnosticMessage(Parser self, Token tok, char* header, string msg, int col_inc) {
+		printf("%s:%d:%d: %s: %s\n", tok.file.m_data, tok.line, tok.col, header, msg.m_data);
+	}
+
+	proc ParsingError(Parser self, string msg, int pos)
+	{
+		printf("%s\n", msg.m_data);
+	    if (self.peek_has_value(pos)) {
+	        self.DiagnosticMessage(self.peek(pos), "error", msg, 0);
+	    } elif(self.peek_has_value()) {
+	        self.DiagnosticMessage(self.peek(), "error", msg, 0);
+	    } else {
+	        let fake = Token(TOKEN_KIND_ID, 0, 0, std::string("<eof>"), "");
+	        self.DiagnosticMessage(fake, "error", msg, 0);
+	    }
+	    exit(EXIT_FAILURE);
+	}
+
+	proc error_expected(Parser self, string msg) {
+		let boffs = 0;
+		if (self.m_index > 0) {
+			boffs = neg(1);
+		}
+		if(self.peek_has_value()) {
+			self.ParsingError(std::string("excepted ") + msg + std::string(" but got ") + tok_to_string(self.peek().kind), boffs);
+		} else {
+			self.ParsingError(std::string("excepted ") + msg + std::string(" but got nothing"), boffs);
+		}
+		exit(EXIT_FAILURE);
+	}
+
+	proc try_consume_err(Parser self, int tok_kind) {}
+
+	proc parse_prog(Parser self) -> NodeProg {
+		let prog = NodeProg(vector::new<NodeStmt>());
+		return prog;
+	}
+}
