@@ -54,7 +54,13 @@ __oninit { __pushonstack(typeid(__SigSegvException)); asm "pop edx"; asm "mov dw
 namespace std { proc exception(char* mess_) -> exception = return exception(mess_, 0, 0); }
 interface __ObjectTypeI {}
 interface __SimpleTypeI {}
-interface __PointerTypeI {})";
+interface __PointerTypeI {}
+interface __StdAddable<T> { proc m_add(self, T other) -> T; }
+interface __StdSubstractable<T> { proc m_sub(self, T other) -> T; }
+interface __StdMultipliable<T> { proc m_mul(self, T other) -> T; }
+interface __StdDivisible<T> { proc m_div(self, T other) -> T; }
+interface __StdEquatable<T> { proc m_equal(self, T other) -> int; }
+interface __StdAssignable<T> { proc m_assign(self, T other) -> void; })";
 }
 
 template<typename T>
@@ -1774,10 +1780,10 @@ public:
                 DataType oneT = gen.type_of_expr(sub->lhs);
                 DataType twoT = gen.type_of_expr(sub->rhs);
                 if (oneT.root().is_object) {
-                    NodeTermNmCall sb;
+                    NodeTermMtCall sb;
                     sb.def = base->def;
-                    sb.nm = "std";
-                    sb.name = "sub";
+                    sb.mt = sub->lhs;
+                    sb.name = "m_sub";
                     std::vector<NodeExpr*> args;
                     args.push_back(sub->lhs);
                     args.push_back(sub->rhs);
@@ -1790,7 +1796,9 @@ public:
                     gen.gen_expr(&asexpr);
                     return;
                 }
-                if (oneT != twoT && !(oneT.root() == BaseDataTypePtr && twoT.root() == BaseDataTypeInt)) {
+                if (oneT != twoT &&
+                    !(oneT.root() == BaseDataTypePtr && twoT.root() == BaseDataTypeInt) &&
+                    !(oneT.root().ptrlvl != 0ULL && twoT.root() == BaseDataTypeInt)) {
                     gen.GeneratorError(base->def, "can't use operator - for 2 diffirent types " + oneT.to_string() + " and " + twoT.to_string() + ".");
                 }
                 gen.gen_expr(sub->rhs);
@@ -1823,8 +1831,9 @@ public:
                 }
                 if (oneT != twoT &&
                     !(oneT.root() == BaseDataTypePtr && twoT.root() == BaseDataTypeInt) &&
-                    !(oneT.root().ptrlvl != 0ULL && twoT.root() == BaseDataTypeInt))
+                    !(oneT.root().ptrlvl != 0ULL && twoT.root() == BaseDataTypeInt)) {
                     gen.GeneratorError(base->def, "can't use operator + for 2 diffirent types " + oneT.to_string() + " and " + twoT.to_string() + ".");
+                }
                 gen.gen_expr(add->rhs);
                 gen.gen_expr(add->lhs);
                 gen.pop_reg(Reg::EAX);
