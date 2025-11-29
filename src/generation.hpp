@@ -5490,7 +5490,7 @@ private:
     inline std::string create_label() noexcept
     {
         std::stringstream ss;
-        ss << "L" << (*m_label_count)++;
+        ss << ".L" << (*m_label_count)++;
         return ss.str();
     }
 

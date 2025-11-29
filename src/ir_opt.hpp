@@ -18,7 +18,7 @@ struct FunctionInfo {
 
 inline bool is_function_label_name(const std::string& name) {
     if (name.empty()) return false;
-    if (name[0] == 'L') return false; 
+    if (name[0] == '.') return false; 
     if (name.size() >= 4) {
         const std::string suffix = "@ret";
         if (name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0)
