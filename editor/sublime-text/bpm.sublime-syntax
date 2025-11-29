@@ -95,7 +95,7 @@ contexts:
       scope: storage.modifier.bpm
 
   constants:
-    - match: \b(true|false|null|iota|reset)\b
+    - match: \b(true|false|null|iota|reset|self)\b
       scope: constant.language.bpm
     - match: \b[0-9]+\b
       scope: constant.numeric.integer.bpm
