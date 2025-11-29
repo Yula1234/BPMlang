@@ -685,6 +685,10 @@ public:
                             buf.erase(buf.begin()+i);
                             buf[i] = '\n';
                         }
+                        else if(buf[i+1] == 't') {
+                            buf.erase(buf.begin()+i);
+                            buf[i] = '\t';
+                        }
                         else if(buf[i+1] == '"') {
                             buf.erase(buf.begin()+i);
                             buf[i] = '"';
