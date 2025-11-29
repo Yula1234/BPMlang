@@ -4245,10 +4245,15 @@ AFTER_GEN:
 
             void operator()(const NodeStmtConst* stmt_const) const
             {
-                gen.last_scope_cns()[stmt_const->name] = {
-                    .name  = stmt_const->name,
-                    .value = gen.eval(stmt_const->expr, stmt_const->def)
-                };
+                if (gen.m_cur_namespace != NULL) {
+                    gen.m_cur_namespace->consts[stmt_const->name] = gen.eval(stmt_const->expr, stmt_const->def);
+                }
+                else {
+                    gen.last_scope_cns()[stmt_const->name] = {
+                        .name  = stmt_const->name,
+                        .value = gen.eval(stmt_const->expr, stmt_const->def)
+                    };
+                }
             }
 
             void operator()(const NodeStmtTypedef* stmt_tdef) const
