@@ -297,6 +297,7 @@ public:
 
     struct Namespace {
         __map<std::string, Procedure> procs;
+        __map<std::string, int> consts;
         std::string name;
         Token       def;
     };
@@ -317,14 +318,7 @@ public:
         }
 
         int execute_expr(const NodeExpr* expr) {
-            if (std::holds_alternative<NodeTerm*>(expr->var)) {
-                auto term = std::get<NodeTerm*>(expr->var);
-                if (std::holds_alternative<NodeTermIntLit*>(term->var)) {
-                    return std::stoul(std::get<NodeTermIntLit*>(term->var)->int_lit.value.value());
-                }
-            }
-            gen.GeneratorError(where, "procedure is not constant-evaluatable.");
-            return 0;
+            return gen.eval(expr, where);
         }
 
         void execute_stmt(const NodeStmt* stmt) {
@@ -546,7 +540,6 @@ public:
     bool is_base_of(const DataType& base, const DataType& derived) {
         if (!base.is_object() || !derived.is_object()) return false;
         
-        // Если типы равны - это не наследование, но совместимость
         if (base == derived) return true;
         
         std::optional<Struct> st_opt = struct_lookup(derived.getobjectname());
@@ -556,19 +549,12 @@ public:
         
         DataType parent = st_opt.value().parent_type.value();
         
-        // Подстановка шаблонов, если derived шаблонный
-        // Но у нас derived - это конкретный тип (инстанс).
-        // Значит, parent уже должен быть конкретным (если мы его правильно сохранили/подставили при создании).
-        // Стоп. Struct хранит parent как он написан в определении (Parent<T>).
-        
-        // Нам нужно инстанцировать parent тип, используя аргументы derived.
         if (st_opt.value().temp) {
             std::vector<DataType> targs = get_template_args(derived);
             __map<std::string, DataType> temps = compute_temps(st_opt.value().temps, targs);
             substitute_template_wct(parent, temps);
         }
         
-        // Рекурсивно проверяем
         if (parent == base) return true;
         return is_base_of(base, parent);
     }
@@ -1048,6 +1034,9 @@ public:
                     return tp;
                 }
                 GeneratorError(std::get<NodeTermIdent*>(term->var)->ident, "unkown word `" + std::get<NodeTermIdent*>(term->var)->ident.value.value() + "`");
+            }
+            if (std::holds_alternative<NodeTermNmIdent*>(term->var)) {
+                return BaseDataTypeInt; // TODO: introduce enum type
             }
         }
         if (holds_alternative<NodeBinExpr*>(expr->var)) {
@@ -1762,6 +1751,24 @@ public:
                 NodeTerm term;
                 term.var = &nmcall;
                 gen.gen_term(&term);
+            }
+            void operator()(const NodeTermNmIdent* nm_ident) const {
+                std::optional<Namespace*> nms = gen.namespace_lookup(nm_ident->nm);
+                if (!nms.has_value()) {
+                    gen.GeneratorError(nm_ident->def, "unkown namespace `" + nm_ident->nm + "`");
+                }
+                
+                Namespace* ns = nms.value();
+                auto it = ns->consts.find(nm_ident->name);
+                
+                if (it != ns->consts.end()) {
+                    gen.push_imm(it->second);
+                    return;
+                }
+
+                // TODO: global variables in namespaces
+                
+                gen.GeneratorError(nm_ident->def, "unkown member `" + nm_ident->name + "` in namespace `" + nm_ident->nm + "`");
             }
         };
 
@@ -2789,6 +2796,15 @@ AFTER_GEN:
                 std::optional<Constant> cns = const_lookup(cname);
                 if (cns.has_value()) return cns.value().value;
             }
+            if (std::holds_alternative<NodeTermNmIdent*>(nterm->var)) {
+                NodeTermNmIdent* nm = std::get<NodeTermNmIdent*>(nterm->var);
+                std::optional<Namespace*> nms = namespace_lookup(nm->nm);
+                if (nms.has_value()) {
+                    auto it = nms.value()->consts.find(nm->name);
+                    if (it != nms.value()->consts.end()) return it->second;
+                }
+                GeneratorError(nm->def, "unkown constant");
+            }
             if (std::holds_alternative<NodeTermCall*>(nterm->var)) {
                 NodeTermCall* call = std::get<NodeTermCall*>(nterm->var);
                 if (auto vl = __eval_ctcall(call, def)) return vl.value();
@@ -2838,6 +2854,7 @@ AFTER_GEN:
                 return eval(nor->lhs, def) || eval(nor->rhs, def);
             }
         }
+        GeneratorError(def, "the expression cannot be evaluated at compile time.");
         return result;
     }
 
@@ -4461,6 +4478,34 @@ AFTER_GEN:
                 gen.m_break_scopes.pop_back();
                 
                 gen.end_scope();
+            }
+            void operator()(const NodeStmtEnum* stmt_enum) const
+            {
+                std::string ns_name = stmt_enum->name;
+                Namespace* nm;
+                
+                auto it = gen.m_namespaces.find(ns_name);
+                if (it == gen.m_namespaces.end()) {
+                    nm = gen.m_allocator.emplace<Namespace>();
+                    nm->name = ns_name;
+                    nm->def = stmt_enum->def;
+                    nm->procs = {};
+                    nm->consts = {}; 
+                    gen.m_namespaces[ns_name] = nm;
+                } else {
+                    nm = it->second;
+                }
+                
+                for (const auto& p : stmt_enum->members) {
+                    if (nm->consts.find(p.first) != nm->consts.end()) {
+                        gen.GeneratorError(stmt_enum->def, "constant `" + p.first + "` already defined in enum/namespace `" + ns_name + "`");
+                    }
+                    nm->consts[p.first] = p.second;
+                }
+                
+                if (gen.struct_lookup(ns_name).has_value() == false) {
+                    // TODO: define enum type
+                }
             }
         };
 

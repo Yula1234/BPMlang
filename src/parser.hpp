@@ -531,6 +531,12 @@ struct NodeTermMtCall {
 	__stdvec<DataType> targs;
 };
 
+struct NodeTermNmIdent {
+    Token def;
+    std::string nm;
+    std::string name;
+};
+
 struct NodeBinExprAdd {
 	NodeExpr* lhs;
 	NodeExpr* rhs;
@@ -611,7 +617,7 @@ struct NodeBinExpr {
 };
 
 struct NodeTerm {
-	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*, NodeTermPop*, NodeTermCastTo*, NodeTermCtEval*, NodeTermNmCall*, NodeTermCtMdefined*, NodeTermUnref*, NodeTermMtCall*, NodeTermDrvalue*> var;
+	std::variant<NodeTermIntLit*, NodeTermStrLit*, NodeTermIdent*, NodeTermParen*, NodeTermCall*, NodeTermRd*, NodeTermAmpersand*, NodeTermCast*, NodeTermSizeof*, NodeTermTypeid*, NodeTermLine*, NodeTermCol*, NodeTermFile*, NodeTermType*, NodeTermExprStmt*, NodeTermPop*, NodeTermCastTo*, NodeTermCtEval*, NodeTermNmCall*, NodeTermCtMdefined*, NodeTermUnref*, NodeTermMtCall*, NodeTermDrvalue*, NodeTermNmIdent*> var;
 };
 
 struct NodeExpr {
@@ -878,6 +884,12 @@ struct NodeStmtForeach {
     NodeScope* scope;
 };
 
+struct NodeStmtEnum {
+    Token def;
+    std::string name;
+    std::vector<std::pair<std::string, int>> members;
+};
+
 struct NodeStmt {
 	std::variant<NodeStmtExit*, NodeStmtLet*,
 				NodeScope*, NodeStmtIf*,
@@ -896,7 +908,8 @@ struct NodeStmt {
 				NodeStmtMtCall*, NodeStmtConst*,
 				NodeStmtTypedef*,NodeStmtImpl*,
 				NodeStmtRaise*, NodeStmtTry*,
-				NodeStmtFor*, NodeStmtForeach*> var;
+				NodeStmtFor*, NodeStmtForeach*,
+				NodeStmtEnum*> var;
 };
 
 struct NodeProg {
@@ -1707,13 +1720,6 @@ public:
                 segments.push_back(segTok.value.value());
             }
 
-            if (!peek().has_value() ||
-                (peek().value().type != TokenType_t::less &&
-                 peek().value().type != TokenType_t::open_paren))
-            {
-                ParsingError("excepted `(` or `<` after qualified name");
-            }
-
             if (segments.size() < 2) {
                 ParsingError("invalid qualified name");
             }
@@ -1727,34 +1733,47 @@ public:
                 nsName += segments[i];
             }
 
-            auto expr_call = m_allocator.emplace<NodeTermNmCall>();
-            expr_call->def  = first;
-            expr_call->nm   = nsName;  
-            expr_call->name = funcName;
+            if (peek().has_value() && 
+               (peek().value().type == TokenType_t::less || peek().value().type == TokenType_t::open_paren))
+            {
+                auto expr_call = m_allocator.emplace<NodeTermNmCall>();
+                expr_call->def  = first;
+                expr_call->nm   = nsName;  
+                expr_call->name = funcName;
 
-            if (peek().has_value() && peek().value().type == TokenType_t::less) {
-                consume();
-                while (peek().has_value() && peek().value().type != TokenType_t::above) {
-                    DataType dt = parse_type();
-                    expr_call->targs.push_back(dt);
-                    if (peek().has_value() && peek().value().type != TokenType_t::above) {
-                        try_consume_err(TokenType_t::comma);
+                if (peek().has_value() && peek().value().type == TokenType_t::less) {
+                    consume();
+                    while (peek().has_value() && peek().value().type != TokenType_t::above) {
+                        DataType dt = parse_type();
+                        expr_call->targs.push_back(dt);
+                        if (peek().has_value() && peek().value().type != TokenType_t::above) {
+                            try_consume_err(TokenType_t::comma);
+                        }
                     }
+                    try_consume_err(TokenType_t::above);
                 }
-                try_consume_err(TokenType_t::above);
-            }
 
-            try_consume_err(TokenType_t::open_paren);
-            if (peek().has_value() && peek().value().type == TokenType_t::close_paren) {
-                expr_call->args = std::nullopt;
-            } else {
-                std::pair<NodeExpr*, size_t> pargs = parse_args();
-                expr_call->args = pargs.first;
-            }
-            try_consume_err(TokenType_t::close_paren);
+                try_consume_err(TokenType_t::open_paren);
+                if (peek().has_value() && peek().value().type == TokenType_t::close_paren) {
+                    expr_call->args = std::nullopt;
+                } else {
+                    std::pair<NodeExpr*, size_t> pargs = parse_args();
+                    expr_call->args = pargs.first;
+                }
+                try_consume_err(TokenType_t::close_paren);
 
-            auto stmt = m_allocator.emplace<NodeTerm>(expr_call);
-            return stmt;
+                auto stmt = m_allocator.emplace<NodeTerm>(expr_call);
+                return stmt;
+            } 
+            else {
+                auto term_nm = m_allocator.emplace<NodeTermNmIdent>();
+                term_nm->def = first;
+                term_nm->nm = nsName;
+                term_nm->name = funcName;
+                
+                auto term = m_allocator.emplace<NodeTerm>(term_nm);
+                return term;
+            }
         }
 		if(auto ident = try_consume(TokenType_t::ident)) {
 			std::string tname = ident.value().value.value();
@@ -3050,6 +3069,38 @@ public:
             auto stmt = m_allocator.emplace<NodeStmt>(stmt_foreach);
             return stmt;
         }
+
+        if (auto _enum = try_consume(TokenType_t::enum_)) {
+            auto stmt_enum = m_allocator.emplace<NodeStmtEnum>();
+            stmt_enum->def = _enum.value();
+            stmt_enum->name = try_consume_err(TokenType_t::ident).value.value();
+            
+            try_consume_err(TokenType_t::open_curly);
+            
+            int counter = 0;
+            while(peek().has_value() && peek().value().type != TokenType_t::close_curly) {
+                std::string member_name = try_consume_err(TokenType_t::ident).value.value();
+                int value = counter;
+                
+                if (peek().has_value() && peek().value().type == TokenType_t::eq) {
+                    consume();
+                    Token val_tok = try_consume_err(TokenType_t::int_lit);
+                    value = std::stol(val_tok.value.value());
+                    counter = value; 
+                }
+                
+                stmt_enum->members.push_back({member_name, value});
+                counter++;
+                
+                if (peek().has_value() && peek().value().type != TokenType_t::close_curly) {
+                    try_consume_err(TokenType_t::comma);
+                }
+            }
+            
+            try_consume_err(TokenType_t::close_curly);
+			auto stmt = m_allocator.emplace<NodeStmt>(stmt_enum);
+			return stmt;
+		}
 
 		if (auto lvalue = parse_expr(0, true)) {
             if (!peek().has_value()) {

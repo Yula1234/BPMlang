@@ -46,7 +46,7 @@ contexts:
     - match: '\b(dump_all_chunks|memfree|memalloc|new|__stdmove|__stdcopy_v|ct_type|ct_not|is_same_t|is_object_t|stdmove|stdcopy|foreach_dynarray|foreach_str|strcpy|streq|writeln|read_file|fgetc|fileno|fclose|fopen|getcf|openf|closef|EOF|nth_argv|__exception|crash|__seg_crash_mess|__seg_crash|cmemcpy|write|memset|memcopy|fprintf|sprintf|store32_any|foreach_range|__local_st|__get_as|__get|neg|rd16_as|rd32_as|EXIT_FAILURE|EXIT_SUCCESS|NEWLINE|input_string|input_number|scanf|format_print|format_fprint|format_fprint_frame|nth_arg_as|nth_arg_int|free|malloc|putu|fputu|putuwnl|fputuwnl|putc|fputc|stou|__FILE__|__COL__|__LINE__|utos|fabs|puts|fputs|assert|exit|printf|print|rd8|rd16|rd32|store8|store16|store32|memcpy|strlen)\b'
       scope: support.function.magic.hl
 
-    - match: '\b(all_cast|object_cast|simple_cast|cast_to|__oninit|interface|char|any|int|ptr|void|cast)\b'
+    - match: '\b(all_cast|object_cast|simple_cast|cast_to|__oninit|char|any|int|ptr|void|cast|constexpr)\b'
       scope: storage.type.hl
 
     - match: '\b(self|NOT_IMPLEMENTED|null|nostdargs|noprolog|nosizedargs|true|false|cimport)\b'
@@ -106,6 +106,26 @@ contexts:
           pop: true
 
     - match: '\bstruct\b'
+      scope: storage.type.hl
+      push:
+        - match: '[A-Za-z_0-9]+'
+          scope: entity.name.struct.hl
+          pop: true
+        - match: '[A-Za-z_0-9]'
+          scope: entity.name.struct.hl
+          pop: true
+
+    - match: '\binferface\b'
+      scope: storage.type.hl
+      push:
+        - match: '[A-Za-z_0-9]+'
+          scope: entity.name.struct.hl
+          pop: true
+        - match: '[A-Za-z_0-9]'
+          scope: entity.name.struct.hl
+          pop: true
+
+    - match: '\benum\b'
       scope: storage.type.hl
       push:
         - match: '[A-Za-z_0-9]+'

@@ -95,6 +95,7 @@ enum class TokenType_t {
     __drvalue,
     for_,
     foreach_,
+    enum_,
 };
 
 std::vector<std::string>* split_string(const std::string& str, const std::string& delimiter) {
@@ -204,6 +205,7 @@ const __map<TokenType_t, std::string> map_tok2str {
     {TokenType_t::__drvalue, "`__disable_rvalue__`"},
     {TokenType_t::for_, "`for`"},
     {TokenType_t::foreach_, "`foreach`"},
+    {TokenType_t::enum_, "`enum`"},
 };
 
 std::string tok_to_string(const TokenType_t type)
@@ -529,6 +531,10 @@ public:
                 }
                 else if (buf == "for") {
                     tokens->push_back({ .type = TokenType_t::for_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
+                    buf.clear();
+                }
+                else if (buf == "enum") {
+                    tokens->push_back({ .type = TokenType_t::enum_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
                     buf.clear();
                 }
                 else {
