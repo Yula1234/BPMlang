@@ -48,17 +48,15 @@ contexts:
         2: entity.name.class.bpm
 
   comments:
-    - match: //
+    - match: //.*$
       scope: comment.line.double-slash.bpm
-      push:
-        - match: $
-          pop: true
     - match: /\*
       scope: comment.block.bpm
       push:
         - match: \*/
-          scope: comment.block.bpm
           pop: true
+        - match: .
+          scope: comment.block.bpm
 
   strings:
     - match: '"'
