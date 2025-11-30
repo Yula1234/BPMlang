@@ -109,7 +109,7 @@ contexts:
   operators:
     - match: (->|::|\.|,|;)
       scope: punctuation.separator.bpm
-    - match: (=|\+|-|\*|/|%|==|!=|<|>|<=|>=|&&|\|\||!|<<|>>|\+=|-=)
+    - match: (=|\+|-|\*|/|%|==|!=|<|>|<=|>=|&|\|\||!|<<|>>|\+=|-=)
       scope: keyword.operator.bpm
 
   attributes:
