@@ -11,7 +11,7 @@ proc main(int argc, char** argv) -> int {
     //    exit(EXIT_FAILURE);
     //}
 
-    let filename = std::string("input.bpm"); // std::nth_argv(argv, 1);
+    let filename = string::new("input.bpm"); // std::nth_argv(argv, 1);
     let file: FILE;
 
     try {
@@ -28,11 +28,6 @@ proc main(int argc, char** argv) -> int {
 
     let lx  = Lexer::new(src, filename);
     let tokens = lx.lex();
-
-    foreach(let tok : tokens) {
-        std::print(tok);
-        std::print("\n");
-    }
 
     let parser = Parser::new(tokens);
     let prog = parser.parse_prog();

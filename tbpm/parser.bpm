@@ -1,6 +1,45 @@
 
 enum NODE_STMT_KIND {
-	KIND_PROC
+	PROC,
+	LET
+}
+
+enum NODE_EXPR_KIND {
+	TERM,
+	BIN_EXPR
+}
+
+enum NODE_BIN_EXPR_KIND {
+	ADD
+}
+
+enum NODE_TERM_KIND {
+	INT_LIT
+}
+
+struct NodeTermIntLit {
+	int_lit: Token
+}
+
+struct NodeTerm {
+	kind: int,
+	var: ptr
+}
+
+struct NodeBinExprAdd {
+	lhs: NodeExpr,
+	rhs: NodeExpr
+}
+
+struct NodeBinExpr {
+	kind: int,
+	var: ptr,
+	def: Token
+}
+
+struct NodeExpr {
+	kind:int,
+	var: ptr
 }
 
 struct NodeStmt {
@@ -8,13 +47,31 @@ struct NodeStmt {
 	var: ptr
 }
 
+impl NodeExpr {
+	proc m_assign(NodeExpr self, NodeExpr other) {
+		self.kind = other.kind;
+		self.var = other.var;
+	}
+}
+
 struct NodeStmtProc {
 	name: string,
-	def: Token
+	def: Token,
+	scope: NodeScope
+}
+
+struct NodeStmtLet {
+	name: string,
+	def: Token,
+	expr: Optional<NodeExpr>
 }
 
 struct NodeScope {
 	stmts: vector<NodeStmt>
+}
+
+impl NodeScope {
+	proc m_assign(NodeScope self, NodeScope other) = self.stmts = std::move(other.stmts);
 }
 
 struct NodeProg {
@@ -23,13 +80,12 @@ struct NodeProg {
 
 struct Parser {
 	m_tokens: vector<Token>,
-	m_index: int
+	m_index: int,
+	m_preprocessor_stmt: int
 }
 
 impl Parser {
-	proc new(vector<Token> tokens) -> Parser {
-		return Parser(tokens, 0);
-	}
+	proc new(vector<Token> tokens) -> Parser = return Parser(tokens, 0, false);
 
 	proc peek_has_value(Parser self, int offset) -> int {
 		if (self.m_index + offset > self.m_tokens.size() - 1) { return false; }
@@ -57,7 +113,7 @@ impl Parser {
 	    } elif(self.peek_has_value()) {
 	        self.DiagnosticMessage(self.peek(), "error", msg, 0);
 	    } else {
-	        let fake = Token(TOKEN_KIND_ID, 0, 0, std::string("<eof>"), "");
+	        let fake = Token(TOKEN_KIND::ID, 0, 0, std::string("<eof>"), "");
 	        self.DiagnosticMessage(fake, "error", msg, 0);
 	    }
 	    exit(EXIT_FAILURE);
@@ -76,10 +132,160 @@ impl Parser {
 		exit(EXIT_FAILURE);
 	}
 
-	proc try_consume_err(Parser self, int tok_kind) {}
+	proc try_consume_err(Parser self, int tok_kind) -> Token {
+		if(self.peek_has_value() && self.peek().kind == tok_kind) {
+			return self.consume();
+		}
+		self.error_expected(tok_to_string(tok_kind));
+	}
+
+	proc try_consume(Parser self, int tok_kind) -> Optional<Token> {
+		if(self.peek_has_value() && self.peek().kind == tok_kind) {
+			return Optional::new(self.consume());
+		}
+		return Optional::new<Token>();
+	}
+
+	proc parse_stmt(Parser self, int except_semi) -> Optional<NodeStmt>;
+	proc parse_stmt(Parser self) -> Optional<NodeStmt>;
+
+	proc parse_scope(Parser self) -> Optional<NodeScope> {
+		if(not(self.try_consume(TOKEN_KIND::OCURLY).has_value())) {
+			return Optional::new<NodeScope>();
+		}
+		let scope = NodeScope(vector::new<NodeStmt>());
+		while(true) {
+			let stmt = self.parse_stmt();
+			if(self.m_preprocessor_stmt) {
+				self.m_preprocessor_stmt = false;
+			} else {
+				if(not(stmt.has_value())) {
+					break;
+				}
+				scope.stmts.push(stmt.value());
+			}
+		}
+		self.try_consume_err(TOKEN_KIND::CCURLY);
+		return Optional::new(scope);
+	}
+
+	proc parse_term(Parser self) -> Optional<NodeTerm> {
+		if(self.peek_has_value() && self.peek().kind == TOKEN_KIND::INT_LIT) {
+			let int_lit = self.consume();
+			let term_int_lit = NodeTermIntLit(int_lit);
+			let as_term = NodeTerm(NODE_TERM_KIND::INT_LIT, cast(ptr, term_int_lit));
+			return Optional::new(as_term);
+		}
+		return Optional::new<NodeTerm>();
+	}
+
+	proc parse_expr(Parser self, int min_prec) -> Optional<NodeExpr> {
+		let term_lhs = self.parse_term();
+
+		if(not(term_lhs.has_value())) {
+			return Optional::new<NodeExpr>();
+		}
+
+		let expr_lhs = NodeExpr(NODE_EXPR_KIND::TERM, cast(ptr, term_lhs));
+
+		while(true) {
+			if(not(self.peek_has_value())) {
+				break;
+			}
+			let curr_tok = self.peek();
+			let prec = get_bin_prec(curr_tok.kind);
+			if(not(prec.has_value()) || prec.value() < min_prec) {
+				break;
+			}
+			let ctok = self.consume();
+			let next_min_prec = prec.value() + 1;
+
+			let expr_rhs = self.parse_expr(next_min_prec);
+			if(not(expr_rhs.has_value())) {
+				self.error_expected(string::new("expression"));
+			}
+
+			let expr = NodeBinExpr(0, null(), Token::make_fake());
+			let expr_lhs2 = NodeExpr(0, null());
+
+			expr_lhs2.var = expr_lhs.var;
+			expr_lhs2.kind = expr_lhs.kind;
+
+			if(ctok.kind == TOKEN_KIND::PLUS) {
+				let add = NodeBinExprAdd(expr_lhs2, expr_rhs.value());
+				expr.def = ctok;
+				expr.kind = NODE_BIN_EXPR_KIND::ADD;
+				expr.var = cast(ptr, add);
+			} else {
+				assert(false, "unreachable");
+			}
+			expr_lhs.kind = NODE_EXPR_KIND::BIN_EXPR;
+			expr_lhs.var = cast(ptr, expr);
+		}
+		return Optional::new(expr_lhs);
+	}
+
+	proc parse_expr(Parser self) -> Optional<NodeExpr> {
+		return self.parse_expr(0);
+	}
+
+	proc parse_stmt(Parser self, int except_semi) -> Optional<NodeStmt> {
+		if(not(self.peek_has_value())) {
+			return Optional::new<NodeStmt>();
+		}
+		if(self.peek_has_value() && self.peek().kind == TOKEN_KIND::PROC) {
+			let stmt_proc = NodeStmtProc(string::new(""), Token::make_fake(), NodeScope(vector::new<NodeStmt>()));
+			stmt_proc.def = self.consume();
+			let identif = self.try_consume_err(TOKEN_KIND::ID);
+			stmt_proc.name = identif.value;
+			self.try_consume_err(TOKEN_KIND::OPAREN);
+			self.try_consume_err(TOKEN_KIND::CPAREN);
+			let scope = self.parse_scope();
+			if(scope.has_value()) {
+				stmt_proc.scope = scope.value();
+			} else {
+				self.ParsingError(string::new("after proc name except `{` and `}` after body"), neg(1));
+			}
+			let stmt = NodeStmt(NODE_STMT_KIND::PROC, cast(ptr, stmt_proc));
+			return Optional::new(stmt);
+		}
+		if(self.peek_has_value() && self.peek().kind == TOKEN_KIND::LET) {
+			let stmt_let = NodeStmtLet(string::new(""), Token::make_fake(), Optional::new<NodeExpr>());
+			self.consume();
+			stmt_let.def = self.try_consume_err(TOKEN_KIND::ID);
+			stmt_let.name = string::new(stmt_let.def.value);
+			self.try_consume_err(TOKEN_KIND::EQ);
+			let expr = self.parse_expr();
+			if(expr.has_value()) {
+				stmt_let.expr = expr;
+			} else {
+				self.error_expected(string::new("expression"));
+			}
+			self.try_consume_err(TOKEN_KIND::SEMI);
+			let stmt = NodeStmt(NODE_STMT_KIND::LET, cast(ptr, stmt_let));
+			return Optional::new(stmt);
+		}
+		return Optional::new<NodeStmt>();
+	}
+
+	proc parse_stmt(Parser self) -> Optional<NodeStmt> {
+		return self.parse_stmt(true);
+	}
 
 	proc parse_prog(Parser self) -> NodeProg {
 		let prog = NodeProg(vector::new<NodeStmt>());
+		while (self.peek_has_value()) {
+			let stmt = self.parse_stmt();
+			if(stmt.has_value()) {
+				prog.stmts.push(stmt.value());
+			} else {
+				if(self.m_preprocessor_stmt) {
+					self.m_preprocessor_stmt = false;
+				} else {
+					self.error_expected(std::string("statement"));
+				}
+			}
+		}
 		return prog;
 	}
 }

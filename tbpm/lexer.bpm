@@ -1,31 +1,75 @@
-const TOKEN_KIND_PROC   = iota;
-const TOKEN_KIND_ID     = iota;
-const TOKEN_KIND_OPAREN = iota;
-const TOKEN_KIND_CPAREN = iota;
-const TOKEN_KIND_OCURLY = iota;
-const TOKEN_KIND_CCURLY = iota;
-const TOKEN_KIND_EOF    = reset;
+enum TOKEN_KIND {
+    PROC,    
+    ID,      
+    OPAREN,  
+    CPAREN,  
+    OCURLY,  
+    CCURLY,  
+    LET,     
+    EQ,      
+    INT_LIT, 
+    SEMI,
+    PLUS,
+    EOF,     
+    COUNT,
+}
+
+struct Optional<T> {
+    m_value: ptr,
+    m_has_value: int
+}
+
+impl Optional<T> [new] {
+    proc new<T>() -> Optional<T> = return Optional<T>(null(), 0);
+    proc new<T>(T value) -> Optional<T> = return Optional<T>(cast(ptr, value), 1);
+    proc has_value(Optional<T> self) -> int = return self.m_has_value;
+    proc value(Optional<T> self) -> T {
+        if(not(self.m_has_value)) {
+            raise std::exception("null optional value access");
+        }
+        return cast(T, self.m_value);
+    }
+    proc m_assign(Optional<T> self, Optional<T> other) {
+        self.m_value = other.m_value;
+        self.m_has_value = other.m_has_value;
+    }
+}
 
 proc tok_to_string(int kind) -> string {
-    if(kind == TOKEN_KIND_PROC) {
+    if(kind == TOKEN_KIND::PROC) {
         return string::new("`proc`");
     }
-    elif(kind == TOKEN_KIND_ID) {
+    elif(kind == TOKEN_KIND::ID) {
         return string::new("`identifier`");
     }
-    elif(kind == TOKEN_KIND_OPAREN) {
+    elif(kind == TOKEN_KIND::OPAREN) {
         return string::new("`(`");
     }
-    elif(kind == TOKEN_KIND_CPAREN) {
+    elif(kind == TOKEN_KIND::CPAREN) {
         return string::new("`)`");
     }
-    elif(kind == TOKEN_KIND_OCURLY) {
+    elif(kind == TOKEN_KIND::OCURLY) {
         return string::new("`{`");
     }
-    elif(kind == TOKEN_KIND_CCURLY) {
+    elif(kind == TOKEN_KIND::CCURLY) {
         return string::new("`}`");
     }
-    elif(kind == TOKEN_KIND_EOF) {
+    elif(kind == TOKEN_KIND::LET) {
+        return string::new("`let`");
+    }
+    elif(kind == TOKEN_KIND::EQ) {
+        return string::new("`=`");
+    }
+    elif(kind == TOKEN_KIND::INT_LIT) {
+        return string::new("`int literal`");
+    }
+    elif(kind == TOKEN_KIND::SEMI) {
+        return string::new("`;`");
+    }
+    elif(kind == TOKEN_KIND::EOF) {
+        return string::new("<eof>");
+    }
+    elif(kind == TOKEN_KIND::PLUS) {
         return string::new("<eof>");
     }
     assert(false, "unreachable");
@@ -40,26 +84,9 @@ struct Token {
 }
 
 impl Token {
-	proc kind_to_str(Token self) -> char* {
-		if (self.kind == TOKEN_KIND_PROC) {
-			return "proc";
-		}
-		elif (self.kind == TOKEN_KIND_ID) {
-			return "id";
-		}
-		elif (self.kind == TOKEN_KIND_OPAREN) {
-			return "(";
-		}
-		elif (self.kind == TOKEN_KIND_CPAREN) {
-			return ")";
-		}
-		elif (self.kind == TOKEN_KIND_OCURLY) {
-			return "{";
-		}
-		elif (self.kind == TOKEN_KIND_CCURLY) {
-			return "}";
-		}
-		assert(false, "unreachable");
+    proc make_fake() -> Token = return Token(TOKEN_KIND::EOF, 0, 0, string::new(""), "");
+	proc kind_to_str(Token self) -> string {
+		return tok_to_string(self.kind);
 	}
 	proc m_fprint(Token self, int fd) {
 		std::fprint(fd, "Token(kind=");
@@ -74,6 +101,20 @@ impl Token {
 		std::fprint(fd, self.value);
 		std::fprint(fd, ")");
 	}
+    proc m_assign(Token self, Token other) {
+        self.kind = other.kind;
+        self.line = other.line;
+        self.col = other.col;
+        self.file = other.file.clone();
+        self.value = other.value;
+    }
+}
+
+proc get_bin_prec(int tok_kind) -> Optional<int> {
+    if(tok_kind == TOKEN_KIND::PLUS) {
+        return Optional::new(5);
+    }
+    return Optional::new<int>();
 }
 
 struct Lexer {
@@ -101,7 +142,7 @@ proc is_alnum(int c) -> int {
 impl Lexer {
 
     proc new(string src, string filename) -> Lexer {
-        return Lexer(src, 0, 1, 1, filename);
+        return Lexer(src, 0, 1, 1, filename.clone());
     }
 
     proc eof(Lexer self) -> int {
@@ -149,16 +190,19 @@ impl Lexer {
         store8(buf.m_data + length, 0);
 
         if (string::m_equal(buf, "proc")) {
-            return Token(TOKEN_KIND_PROC, self.m_line, self.m_col - length, self.m_filename, "");
+            return Token(TOKEN_KIND::PROC, self.m_line, self.m_col - length, self.m_filename.clone(), "");
+        }
+        elif (string::m_equal(buf, "let")) {
+            return Token(TOKEN_KIND::LET, self.m_line, self.m_col - length, self.m_filename.clone(), "");
         }
 
-        return Token(TOKEN_KIND_ID, self.m_line, self.m_col - length, self.m_filename, buf.m_data);
+        return Token(TOKEN_KIND::ID, self.m_line, self.m_col - length, self.m_filename.clone(), buf.m_data);
     }
 
     proc next_token(Lexer self) -> Token {
         self.skip_spaces();
         if (self.eof()) {
-            return Token(TOKEN_KIND_EOF, self.m_line, self.m_col - 1, self.m_filename, "");
+            return Token(TOKEN_KIND::EOF, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
         }
 
         let c = self.current_char();
@@ -169,25 +213,43 @@ impl Lexer {
             self.advance();
             return self.next_token();
         }
-        if (c == '(') {
-            let start = self.m_pos;
+        if (c == '=') {
             self.advance();
-            return Token(TOKEN_KIND_OPAREN, self.m_line, self.m_col - 1, self.m_filename, "");
+            return Token(TOKEN_KIND::EQ, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
+        }
+        if (c == '(') {
+            self.advance();
+            return Token(TOKEN_KIND::OPAREN, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
         }
         if (c == ')') {
-            let start = self.m_pos;
             self.advance();
-            return Token(TOKEN_KIND_CPAREN, self.m_line, self.m_col - 1, self.m_filename, "");
+            return Token(TOKEN_KIND::CPAREN, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
         }
         if (c == '{') {
-            let start = self.m_pos;
             self.advance();
-            return Token(TOKEN_KIND_OCURLY, self.m_line, self.m_col - 1, self.m_filename, "");
+            return Token(TOKEN_KIND::OCURLY, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
         }
         if (c == '}') {
-            let start = self.m_pos;
             self.advance();
-            return Token(TOKEN_KIND_CCURLY, self.m_line, self.m_col - 1, self.m_filename, "");
+            return Token(TOKEN_KIND::CCURLY, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
+        }
+        if (c == ';') {
+            self.advance();
+            return Token(TOKEN_KIND::SEMI, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
+        }
+        if (c == '+') {
+            self.advance();
+            return Token(TOKEN_KIND::PLUS, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
+        }
+        if (is_digit(c)) {
+            let buf = string::new("");
+            buf.push_back(c);
+            self.advance();
+            while(self.current_char() != 0 && is_digit(self.current_char())) {
+                buf.push_back(self.current_char());
+                self.advance();
+            }
+            return Token(TOKEN_KIND::INT_LIT, self.m_line, self.m_col - buf.size(), self.m_filename.clone(), buf.m_data);
         }
 
         if (is_alpha(c)) {
@@ -200,7 +262,7 @@ impl Lexer {
     	let res = vector::new<Token>();
     	while (not(self.eof())) {
         	let tok = self.next_token();
-        	if (tok.kind == TOKEN_KIND_EOF) break; // EOF
+        	if (tok.kind == TOKEN_KIND::EOF) break; // EOF
         	res.push(tok);
     	}
     	return res;
