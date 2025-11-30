@@ -60,7 +60,8 @@ interface __StdSubstractable<T> { proc m_sub(self, T other) -> T; }
 interface __StdMultipliable<T> { proc m_mul(self, T other) -> T; }
 interface __StdDivisible<T> { proc m_div(self, T other) -> T; }
 interface __StdEquatable<T> { proc m_equal(self, T other) -> int; }
-interface __StdAssignable<T> { proc m_assign(self, T other) -> void; })";
+interface __StdAssignable<T> { proc m_assign(self, T other) -> void; }
+proc memcpy(ptr __src, ptr __dst, int __size) -> void;)";
 }
 
 template<typename T>
@@ -3589,6 +3590,32 @@ AFTER_GEN:
                             gen.reg(Reg::ECX)
                         );
                         return;
+                    }
+
+                    std::string objnm = ltype.getobjectname();
+                    std::optional<Namespace*> _nms = gen.namespace_lookup(objnm);
+                    // TODON
+                    bool can_assign = true;
+                    if(!_nms.has_value()) {
+                        std::optional<Struct> __stc = gen.struct_lookup(objnm);
+                        if(!__stc.has_value()) {
+                            gen.GeneratorError(stmt_assign->def, "unkown type `" + ltype.to_string() + "`");
+                        }
+                        can_assign = false;
+                    }
+
+                    if(_nms.has_value()) {
+                        Namespace* cnm = _nms.value();
+                        auto search = cnm->procs.find("m_assign");
+                        if(search == cnm->procs.end()) can_assign = false;
+                        Procedure& assign_proc = search->second;
+                        if(assign_proc.params.size() < 2) {
+                            can_assign = false;
+                        }
+                    }
+
+                    if(!can_assign) {
+                        gen.GeneratorError(stmt_assign->def, "can't assign type `" + vtype.to_string() + "` to `" + ltype.to_string() + "` missing method " + objnm + "::m_assign(" + ltype.to_string() + ", " + ltype.to_string() + ").");
                     }
 
                     NodeStmtMtCall call;
