@@ -1586,7 +1586,7 @@ public:
             }
 
             void operator()(NodeTermCall* term_call) const {
-                const std::string name = term_call->def.value.value();
+                const std::string name = term_call->name;
                 std::optional<Var> var = gen.var_lookup(name);
                 if (var.has_value() && 
                     var.value().type.root().is_simple() &&
@@ -3075,6 +3075,7 @@ AFTER_GEN:
             Procedure cur_c = candidates[i];
             __map<std::string, DataType> temps;
             if (cur_c.templates != NULL && targs.empty()) {
+                assert(args.has_value());
                 auto res = try_derive_templates_no_err(targs, cur_c.params, def, cur_c.templates, __getargs(args.value()), cur_c);
                 if (!res.second) {
                     continue;
@@ -3091,15 +3092,19 @@ AFTER_GEN:
             if (cur_c.templates != NULL) {
                 substitute_template_params(temps, cur_c.params);
             }
+            assert(args.has_value());
             if (__try_typecheck_call(__getargs(args.value()), cur_c)) {
                 *ptr_to_proc = candidates[i];
                 return;
             }
         }
-        std::vector<NodeExpr*> args_v = __getargs(args.value());
-        std::vector<DataType>  arg_types;
-        for (auto* e : args_v) arg_types.push_back(canonical_type(type_of_expr(e)));
-        std::string args_s = format_type_list(arg_types);
+        std::string args_s = "";
+        if(args.has_value()) {
+            std::vector<NodeExpr*> args_v = __getargs(args.value());
+            std::vector<DataType>  arg_types;
+            for (auto* e : args_v) arg_types.push_back(canonical_type(type_of_expr(e)));
+            args_s = format_type_list(arg_types);
+        }
         DiagnosticMessage(def, "error", "no match candidate for call procedure " + proc->name + "(" + args_s + ").", 0);
         std::string args_s1;
         for (int i = 0; i < static_cast<int>(proc->params.size()); ++i) {
@@ -3776,7 +3781,7 @@ AFTER_GEN:
 
             void operator()(NodeStmtCall* stmt_call) const
             {
-                const std::string name = stmt_call->def.value.value();
+                const std::string name = stmt_call->name;
                 Procedure proc = gen.__proc_get(stmt_call->name, stmt_call->def);
                 if (!proc.overrides.empty())
                     gen.resolve_overrides_tp(&proc, stmt_call->args, stmt_call->def, stmt_call->targs);
