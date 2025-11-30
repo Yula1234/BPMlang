@@ -809,7 +809,7 @@ public:
                 consume();
             }
             else {
-                std::cerr << "Invalid token" << std::endl;
+                std::cerr << "Invalid token " << peek().value() << "." << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
