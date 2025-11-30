@@ -98,8 +98,14 @@ impl vector<T> [new] {
 		store32(self.m_data + (index * 4), value);
 		self.m_size += 1;
 	}
-	proc get(vector<T> self, int index) -> T {
+	proc m_index(vector<T> self, int index) -> T {
 		return cast(T, rd32(self.m_data + (index * 4)));
+	}
+	proc m_index_ref(vector<T> self, int index) -> T& {
+		return cast(T&, self.m_data + (index * 4));
+	}
+	proc get(vector<T> self, int index) -> T {
+		return self[index];
 	}
 	proc at(vector<T> self, int index) -> T {
 		if(self.m_size < (index + 1)) raise std::exception("index > m_size");
