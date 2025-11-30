@@ -252,6 +252,10 @@ inline std::optional<int> bin_prec(const TokenType_t type)
     case TokenType_t::mod:
         return 6;
 
+    // []
+    case TokenType_t::open_bracket:
+        return 100; 
+
     // .
     case TokenType_t::dot:
         return 10000; 

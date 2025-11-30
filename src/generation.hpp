@@ -1264,6 +1264,24 @@ public:
                 NodeBinExprDot* dot = std::get<NodeBinExprDot*>(binex->var);
                 return type_of_dot(dot, binex->def);
             }
+            if (std::holds_alternative<NodeBinExprIndex*>(binex->var)) {
+                NodeBinExprIndex* idx = std::get<NodeBinExprIndex*>(binex->var);
+                NodeTermMtCall call;
+                call.def = binex->def;
+                call.mt = idx->lhs;
+                call.name = "m_index";
+                std::vector<NodeExpr*> args_list;
+                args_list.push_back(idx->lhs);
+                args_list.push_back(idx->rhs);
+                NodeBinExprArgs bargs;
+                bargs.args = args_list;
+                NodeBinExpr be; be.var = &bargs;
+                NodeExpr ae; ae.var = &be;
+                call.args = &ae;
+                NodeTerm t; t.var = &call;
+                NodeExpr e; e.var = &t;
+                return type_of_expr(&e);
+            }
         }
         assert(false);
     }
@@ -2372,6 +2390,29 @@ public:
                 for (int i = static_cast<int>(args->args.size()) - 1; i > -1; --i) {
                     gen.gen_expr(args->args[i]);
                 }
+            }
+            void operator()(const NodeBinExprIndex* idx) const {
+                NodeTermMtCall call;
+                call.def = base->def;
+                call.mt = idx->lhs;
+                if (lvalue) {
+                    call.name = "m_index_ref";
+                } else {
+                    call.name = "m_index";
+                }
+                
+                std::vector<NodeExpr*> args_list;
+                args_list.push_back(idx->lhs);
+                args_list.push_back(idx->rhs);
+                NodeBinExprArgs bargs; bargs.args = args_list;
+                NodeBinExpr be; be.var = &bargs;
+                NodeExpr ae; ae.var = &be;
+                
+                call.args = &ae;
+                
+                NodeTerm t; t.var = &call;
+                
+                gen.gen_term(&t);
             }
         };
 

@@ -611,9 +611,14 @@ struct NodeBinExprDot {
 	NodeExpr* rhs; // field (must be a NodeTermIdent*)
 };
 
+struct NodeBinExprIndex {
+    NodeExpr* lhs; // massive
+    NodeExpr* rhs; // index
+};
+
 struct NodeBinExpr {
 	Token def;
-	std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*, NodeBinExprMod*, NodeBinExprDot*, NodeBinExprAnd*, NodeBinExprOr*, NodeBinExprShl*, NodeBinExprShr*> var;
+	std::variant<NodeBinExprAdd*, NodeBinExprMulti*, NodeBinExprSub*, NodeBinExprDiv*, NodeBinExprEqEq*, NodeBinExprLess*, NodeBinExprAbove*, NodeBinExprArgs*, NodeBinExprNotEq*, NodeBinExprMod*, NodeBinExprDot*, NodeBinExprAnd*, NodeBinExprOr*, NodeBinExprShl*, NodeBinExprShr*, NodeBinExprIndex*> var;
 };
 
 struct NodeTerm {
@@ -1920,6 +1925,19 @@ public:
 				}
 				continue;
 			}
+			else if(type == TokenType_t::open_bracket) {
+                if (!expr_rhs.has_value()) {
+                	error_expected("expression");
+                }
+                try_consume_err(TokenType_t::close_bracket);
+                auto idx_node = m_allocator.emplace<NodeBinExprIndex>();
+                idx_node->lhs = expr_lhs2;
+                idx_node->rhs = expr_rhs.value();
+                expr->def = ctok;
+                expr->var = idx_node;
+                expr_lhs->var = expr;
+                continue;
+            }
 			else if(type == TokenType_t::plus) {
 				auto add = m_allocator.emplace<NodeBinExprAdd>(expr_lhs2, expr_rhs.value());
 				expr->def = ctok;
