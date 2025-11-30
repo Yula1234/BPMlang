@@ -54,8 +54,6 @@ proc memalloc(int SizeToAlloc) -> ptr;
 proc memfree(ptr Pointer) -> void;
 proc dump_all_chunks() -> void;
 
-proc memcpy(ptr src, ptr dst, int size) -> void;
-
 cextern "memcmp";
 proc memcmp(ptr ptr1, ptr ptr2, int num) -> int;
 
