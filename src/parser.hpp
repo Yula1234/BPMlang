@@ -1109,7 +1109,9 @@ public:
 
 	    auto print_header_line = [&](const Token& t, const std::string& kind_, const std::string& message) {
 	        reset_color();
+	        __white_console();
 	        std::cout << t.file << ":" << t.line << ":" << t.col << ": ";
+	        reset_color();
 	        set_color_for_kind(kind_);
 	        std::cout << kind_ << ": ";
 	        reset_color();
@@ -1139,7 +1141,7 @@ public:
 		        std::cout << " ";
 		    }
 
-		    set_color_for_kind("error");
+		    set_color_for_kind(kind);
 		    std::cout << "^\n";
 		    reset_color();
 		};
@@ -2478,18 +2480,6 @@ public:
 		    Tokenizer nlexer(std::move(contents));
 		    auto result = nlexer.tokenize(path);
 		    m_includes.insert(path);
-
-		    Token include_tok = inc.value();
-		    for (Token& t : *result.tokens) {
-		        if (t.expand.has_value()) {
-		            Token* prev = t.expand.value();
-		            Token* inc_copy = m_allocator.emplace<Token>(include_tok);
-		            inc_copy->expand = prev;
-		            t.expand = inc_copy;
-		        } else {
-		            t.expand = m_allocator.emplace<Token>(include_tok);
-		        }
-		    }
 
 		    m_tokens.insert(m_tokens.begin() + m_index, result.tokens->begin(), result.tokens->end());
 		    m_lines[result.tokens->operator[](0).file] = std::move(*(result.lines));
