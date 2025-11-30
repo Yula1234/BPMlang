@@ -21,6 +21,7 @@ namespace std {
     	while(rd8(src)) {
     		std::cpchr(dest, src);
     	}
+    	store8(dest, 0);
     	return rdest;
 	}
 }
