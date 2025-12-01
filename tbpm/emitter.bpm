@@ -9,6 +9,7 @@ impl NasmEmitter {
 	}
 
 	proc emit_op(NasmEmitter self, IROp op) {
+		buffer tmpbf(512);
 		if(op.kind == IR_OP_KIND::PROC_DEF) {
 			assert(op.operand.kind == IR_OPERAND_KIND::LABEL, "unreachable");
 			let lbl = cast(string, op.operand.var);
@@ -28,7 +29,7 @@ impl NasmEmitter {
 			self.out += "    push ebp\n    mov ebp, esp\n    sub esp, ";
 			let salloc = cast(int, op.operand.var);
 			if(salloc > 0) {
-				self.out += std::itos(std::alloc<char>(12), salloc);
+				self.out += std::itos(&tmpbf, salloc);
 			}
 			self.out += "\n";
 			return;
@@ -39,24 +40,24 @@ impl NasmEmitter {
 			let ebp_plus = 8 + (index * 4);
 			let ebp_minus = 4 + (index * 4);
 			self.out += "    mov edx, dword [ebp+";
-			self.out += std::itos(std::alloc<char>(12), ebp_plus);
+			self.out += std::itos(&tmpbf, ebp_plus);
 			self.out += "]\n";
 			self.out += "    mov dword [ebp-";
-			self.out += std::itos(std::alloc<char>(12), ebp_minus);
+			self.out += std::itos(&tmpbf, ebp_minus);
 			self.out +=  "], edx\n";
 			return;
 		}
 		if(op.kind == IR_OP_KIND::LOAD_CONST) {
 			assert(op.operand.kind == IR_OPERAND_KIND::IMM, "unreachable");
 			self.out += "    push ";
-			self.out += std::itos(std::alloc<char>(12), cast(int, op.operand.var));
+			self.out += std::itos(&tmpbf, cast(int, op.operand.var));
 			self.out += "\n";
 			return;
 		}
 		if(op.kind == IR_OP_KIND::LOAD_LOCAL) {
 			assert(op.operand.kind == IR_OPERAND_KIND::IMM, "unreachable");
 			self.out += "    push dword [ebp-";
-			self.out += std::itos(std::alloc<char>(12), cast(int, op.operand.var));
+			self.out += std::itos(&tmpbf, cast(int, op.operand.var));
 			self.out += "]\n";
 			return;
 		}
@@ -79,7 +80,7 @@ impl NasmEmitter {
 		if(op.kind == IR_OP_KIND::STORE_LOCAL) {
 			assert(op.operand.kind == IR_OPERAND_KIND::IMM, "unreachable");
 			self.out += "    pop ebx\n    mov dword [ebp-";
-			self.out += std::itos(std::alloc<char>(12), cast(int, op.operand.var));
+			self.out += std::itos(&tmpbf, cast(int, op.operand.var));
 			self.out += "], ebx\n";
 			return;
 		}
