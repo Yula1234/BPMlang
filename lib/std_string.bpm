@@ -85,13 +85,13 @@ namespace string {
 			self.extend(__sz + 1);
 		}
 		memcpy(self.m_data, _cstr, __sz + 1);
+		self.m_size = __sz;
 		return self;
 	}
 	proc m_assign(string self, string other) -> string {
 		if(self.m_cap < other.m_size) { self.extend(other.m_size + 1); }
 		memcpy(self.m_data, other.m_data, other.m_size + 1);
 		self.m_size = other.m_size;
-		self.m_cap = other.m_cap;
 		return self;
 	}
 	proc m_assign(string& self, string&& other) -> string {
