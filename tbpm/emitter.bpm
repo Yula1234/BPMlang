@@ -26,9 +26,10 @@ impl NasmEmitter {
 		}
 		if(op.kind == IR_OP_KIND::PROC_START) {
 			assert(op.operand.kind == IR_OPERAND_KIND::IMM, "unreachable");
-			self.out += "    push ebp\n    mov ebp, esp\n    sub esp, ";
+			self.out += "    push ebp\n    mov ebp, esp";
 			let salloc = cast(int, op.operand.var);
 			if(salloc > 0) {
+				self.out += "\n    sub esp, ";
 				self.out += std::itos(&tmpbf, salloc);
 			}
 			self.out += "\n";
@@ -84,6 +85,26 @@ impl NasmEmitter {
 			self.out += "], ebx\n";
 			return;
 		}
+		if(op.kind == IR_OP_KIND::LOAD_REG) {
+			assert(op.operand.kind == IR_OPERAND_KIND::REG, "unreachable");
+			self.out += string::new("    push ") + cast(Reg, op.operand.var).to_string() + "\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::CALL) {
+			assert(op.operand.kind == IR_OPERAND_KIND::LABEL, "unreachable");
+			self.out += string::new("    call ") + cast(string, op.operand.var) + "\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::DEALLOC_STACK) {
+			assert(op.operand.kind == IR_OPERAND_KIND::IMM, "unreachable");
+			self.out += string::new("    add esp, ") + std::itos(&tmpbf, cast(int, op.operand.var)) + "\n";
+			return;
+		}
+		std::print("\nunhandled op = ");
+		std::print(op);
+		std::print(" ");
+		std::print(op.operand);
+		std::print("\n");
 		assert(false, "unreachable");
 	}
 

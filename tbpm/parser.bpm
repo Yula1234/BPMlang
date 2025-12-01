@@ -92,6 +92,8 @@ impl Parser {
 
 	proc parse_stmt(Parser self, int except_semi) -> Optional<NodeStmt>;
 	proc parse_stmt(Parser self) -> Optional<NodeStmt>;
+	proc parse_expr(Parser self, int min_prec) -> Optional<NodeExpr>;
+	proc parse_expr(Parser self) -> Optional<NodeExpr>;
 
 	proc parse_scope(Parser self) -> Optional<NodeScope> {
 		if(not(self.try_consume(TOKEN_KIND::OCURLY).has_value())) {
@@ -120,11 +122,35 @@ impl Parser {
 			let as_term = NodeTerm(NODE_TERM_KIND::INT_LIT, cast(ptr, term_int_lit));
 			return Optional::new(as_term);
 		}
-		if(self.peek_has_value() && self.peek().kind == TOKEN_KIND::ID) {
-			let id_def = self.consume();
-			let term_ident = NodeTermIdent(id_def, string::new(id_def.value), null());
-			let as_term = NodeTerm(NODE_TERM_KIND::IDENT, cast(ptr, term_ident));
-			return Optional::new(as_term);
+		if (self.peek_has_value() && self.peek().kind == TOKEN_KIND::ID) {
+		    let id_def = self.consume();
+		    
+		    if (self.peek_has_value() && self.peek().kind == TOKEN_KIND::OPAREN) {
+		        self.consume();
+		        let args = vector::new<NodeExpr>();
+		        if (self.peek_has_value() && self.peek().kind != TOKEN_KIND::CPAREN) {
+		            while (true) {
+		                let arg_expr = self.parse_expr();
+		                if (not(arg_expr.has_value())) { self.error_expected(string::new("expression")); }
+		                args.push(arg_expr.value());
+		                
+		                if (self.peek().kind == TOKEN_KIND::COMMA) {
+		                    self.consume();
+		                } else {
+		                    break;
+		                }
+		            }
+		        }
+		        self.try_consume_err(TOKEN_KIND::CPAREN);
+		        
+		        let call = NodeTermCall(string::new(id_def.value), args, id_def, null());
+		        let as_term = NodeTerm(NODE_TERM_KIND::CALL, cast(ptr, call));
+		        return Optional::new(as_term);
+		    }
+		    
+		    let term_ident = NodeTermIdent(id_def, string::new(id_def.value), null());
+		    let as_term = NodeTerm(NODE_TERM_KIND::IDENT, cast(ptr, term_ident));
+		    return Optional::new(as_term);
 		}
 		return Optional::new<NodeTerm>();
 	}
@@ -220,12 +246,14 @@ impl Parser {
 			if(self.try_consume(TOKEN_KIND::DOUBLE_DOT).has_value()) {
 				stmt_let.type = Optional::new(self.parse_type());
 			}
-			self.try_consume_err(TOKEN_KIND::EQ);
-			let expr = self.parse_expr();
-			if(expr.has_value()) {
-				stmt_let.expr = expr;
-			} else {
-				self.error_expected(string::new("expression"));
+			if(self.peek_has_value() && self.peek().kind != TOKEN_KIND::SEMI) {
+				self.try_consume_err(TOKEN_KIND::EQ);
+				let expr = self.parse_expr();
+				if(expr.has_value()) {
+					stmt_let.expr = expr;
+				} else {
+					self.error_expected(string::new("expression"));
+				}
 			}
 			if(except_semi) {
 				self.try_consume_err(TOKEN_KIND::SEMI);
@@ -240,6 +268,16 @@ impl Parser {
 				self.try_consume_err(TOKEN_KIND::SEMI);
 			}
 			let stmt = NodeStmt(NODE_STMT_KIND::RETURN, cast(ptr, stmt_return));
+			return Optional::new(stmt);
+		}
+		let nexpr = self.parse_expr();
+		if(nexpr.has_value()) {
+			let cexpr = nexpr.value();
+			let stmt_expr = NodeStmtExpr(cexpr);
+			let stmt = NodeStmt(NODE_STMT_KIND::EXPR, cast(ptr, stmt_expr));
+			if(except_semi) {
+				self.try_consume_err(TOKEN_KIND::SEMI);
+			}
 			return Optional::new(stmt);
 		}
 		return Optional::new<NodeStmt>();

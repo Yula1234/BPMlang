@@ -1,5 +1,5 @@
 enum NODE_STMT_KIND {
-	PROC, LET, RETURN
+	PROC, LET, RETURN, EXPR
 }
 
 enum NODE_EXPR_KIND {
@@ -11,7 +11,7 @@ enum NODE_BIN_EXPR_KIND {
 }
 
 enum NODE_TERM_KIND {
-	INT_LIT, IDENT
+	INT_LIT, IDENT, CALL
 }
 
 
@@ -26,6 +26,13 @@ struct NodeTermIdent {
 	def: Token,
 	name: string,
 	resolved_symbol: ptr
+}
+
+struct NodeTermCall {
+    name: string,
+    args: vector<NodeExpr>,
+    def: Token,
+    resolved_symbol: ptr
 }
 
 struct NodeTerm {
@@ -91,6 +98,10 @@ struct NodeStmtReturn {
 	def: Token,
 	expr: Optional<NodeExpr>,
 	loc: string
+}
+
+struct NodeStmtExpr {
+	expr: NodeExpr
 }
 
 struct NodeScope {

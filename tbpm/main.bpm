@@ -49,8 +49,17 @@ proc main(int argc, char** argv) -> int {
     let irgen = IRGenerator::new(prog, sema);
     let irprog = irgen.gen_prog();
 
+    //foreach(let inst : irprog.insts) {
+    //    std::print(inst);
+    //    std::print(" ");
+    //    std::print(inst.operand);
+    //    std::print("\n");
+    //}
+
+    let out = string::new("");
+
     let emitter = NasmEmitter::new(irprog);
-    let out = emitter.emit_program();
+    out = emitter.emit_program();
 
     let ofile = FILE::open("output.asm", "w");
     fputs(ofile.desc, out.m_data);

@@ -1,20 +1,29 @@
+enum SYMBOL_KIND {
+	VAR, PROC
+}
 
+struct SymbolVar {
+	offset: int,
+	is_global: int,
+	type: DataType
+}
+
+struct SymbolProc {
+	rettype: DataType,
+	params: vector<pair<string, DataType>>
+}
 
 struct SymbolInfo {
     name: string,
-    type: DataType,
-    offset: int, // [ebp-offset]
-    is_global: int,
-    is_function: int
+    kind: int,
+    var: ptr
 }
 
 impl SymbolInfo {
 	proc m_assign(SymbolInfo self, SymbolInfo other) {
 		self.name = other.name.clone();
-		self.type = other.type;
-		self.offset = other.offset;
-		self.is_global = other.is_global;
-		self.is_global = other.is_function;
+		self.kind = other.kind;
+		self.var = other.var;
 	}
 }
 
@@ -65,13 +74,21 @@ impl SemanticContext {
 		return SemanticContext(prog, SymbolTable::new(), prs, null());
 	}
 
-	proc register_local(SemanticContext self, string name, DataType type) -> SymbolInfo {
+	proc register_variable(SemanticContext self, string name, DataType type, int is_global) -> SymbolInfo {
 		assert(self.cur_proc != null(), "unreachable");
-		let sym = SymbolInfo(name, type, cast(NodeStmtProc, self.cur_proc).stack_allign + 4, false, false);
+		let soffs = cast(NodeStmtProc, self.cur_proc).stack_allign + 4;
+		let sym = SymbolInfo(name, SYMBOL_KIND::VAR, 
+			cast(ptr, SymbolVar(
+				soffs, is_global, type
+			))
+		);
 		self.symbol_table.put(name, sym);
 		cast(NodeStmtProc, self.cur_proc).stack_allign += 4;
 		return sym;
 	}
+
+	proc analyze_expr(SemanticContext self, NodeExpr expr) -> DataType;
+
 
 	proc analyze_term(SemanticContext self, NodeTerm term) -> DataType {
 		if(term.kind == NODE_TERM_KIND::INT_LIT) {
@@ -85,11 +102,56 @@ impl SemanticContext {
 				exit(EXIT_FAILURE);
 			}
 			as_ident.resolved_symbol = cast(ptr, sym.value());
-			return sym.value().type;
+			if(sym.value().kind == SYMBOL_KIND::VAR) {
+				return cast(SymbolVar, sym.value().var).type;
+			} else {
+				self.prs.DiagnosticMessage(as_ident.def, "error", string::new("can't use non-variable symbol in expression `") + as_ident.name + "`", 0);
+				exit(EXIT_FAILURE);
+			}
+		}
+		if (term.kind == NODE_TERM_KIND::CALL) {
+			let call = cast(NodeTermCall, term.var);
+			let sym_opt = self.symbol_table.lookup(call.name);
+				    
+			if (not(sym_opt.has_value())) {
+			    self.prs.DiagnosticMessage(call.def, "error", string::new("unknown procedure `") + call.name + "`", 0);
+			    exit(EXIT_FAILURE);
+			}
+				    
+			let sym = sym_opt.value();
+			if (not(sym.kind == SYMBOL_KIND::PROC)) {
+			    self.prs.DiagnosticMessage(call.def, "error", string::new("symbol '") + call.name + "' is not a procedure", 0);
+			    exit(EXIT_FAILURE);
+			}
+
+			call.resolved_symbol = cast(ptr, sym);
+
+			let sym_proc = cast(SymbolProc, sym.var);
+
+			foreach(let arg : call.args) {
+				self.analyze_expr(arg);
+			}
+
+			if(call.args.size() != sym_proc.params.size()) {
+				buffer __err(256);
+				sprintf(&__err, "precedure `%s` excepts %d argument(s) but got %d", call.name.m_data, sym_proc.params.size(), call.args.size());
+				self.prs.DiagnosticMessage(call.def, "error", string::new(&__err), 0);
+			    exit(EXIT_FAILURE);
+			}
+			for(let i = 0;i < call.args.size();i += 1) {
+				let atype = self.analyze_expr(call.args[i]);
+				if(not(atype.equals(sym_proc.params[i].second))) {
+					buffer __err(256);
+					sprintf(&__err, "precedure `%s` excepts type `%s` at %d argument but got `%s`", call.name.m_data, sym_proc.params[i].second.to_string().m_data, i, atype.to_string().m_data);
+					self.prs.DiagnosticMessage(call.def, "error", string::new(&__err), 0);
+			    	exit(EXIT_FAILURE);
+				}
+			}
+				    
+			return sym_proc.rettype; 
 		}
 		assert(false, "unreachable");
 	}
-	proc analyze_expr(SemanticContext self, NodeExpr expr) -> DataType;
 
 
 	proc analyze_bin_expr(SemanticContext self, NodeBinExpr bin_expr) -> DataType {
@@ -130,14 +192,22 @@ impl SemanticContext {
 		if(stmt.kind == NODE_STMT_KIND::PROC) {
 			let as_proc = cast(NodeStmtProc, stmt.var);
 			self.cur_proc = cast(ptr, as_proc);
-			self.symbol_table.put(as_proc.name, SymbolInfo(as_proc.name, as_proc.rettype, 0, true, true));
+			self.symbol_table.put(as_proc.name, SymbolInfo(
+				as_proc.name,
+				SYMBOL_KIND::PROC,
+				cast(ptr, SymbolProc(
+					as_proc.rettype,
+					as_proc.params
+				))
+			));
 			self.symbol_table.enter_scope();
 			foreach(let pr : as_proc.params) {
-				self.register_local(pr.first, pr.second);
+				self.register_variable(pr.first, pr.second, false);
 			}
 			self.analyze_scope(as_proc.scope);
 			self.symbol_table.exit_scope();
 			self.cur_proc = null();
+			return;
 		}
 		if(stmt.kind == NODE_STMT_KIND::LET) {
 			let as_let = cast(NodeStmtLet, stmt.var);
@@ -162,8 +232,9 @@ impl SemanticContext {
 				_final_tp = _opext;
 			}
 			assert(_final_tp.has_value(), "unreachable");
-			let sym = self.register_local(as_let.name, _final_tp.value());
+			let sym = cast(SymbolVar, self.register_variable(as_let.name, _final_tp.value(), false).var);
 			as_let.stack_loc = sym.offset;
+			return;
 		}
 		if(stmt.kind == NODE_STMT_KIND::RETURN) {
 			let as_return = cast(NodeStmtReturn, stmt.var);
@@ -189,7 +260,14 @@ impl SemanticContext {
 			}
 			as_return.loc = "__";
 			as_return.loc += cproc.name + "@ret";
+			return;
 		}
+		if(stmt.kind == NODE_STMT_KIND::EXPR) {
+			let as_expr = cast(NodeStmtExpr, stmt.var);
+			self.analyze_expr(as_expr.expr);
+			return;
+		}
+		assert(false, "unreachable");
 	}
 
 	proc analyze_scope(SemanticContext self, NodeScope scope) {
