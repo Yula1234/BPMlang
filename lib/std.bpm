@@ -237,7 +237,7 @@ namespace std {
 		return lhs == rhs;
 	}
 
-	proc equal<T: __StdEquatable>(T lhs, T rhs) -> int {
+	proc equal<T: __StdEquatable<T>>(T lhs, T rhs) -> int {
 		return lhs == rhs;
 	}
 
