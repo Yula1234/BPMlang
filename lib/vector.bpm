@@ -115,6 +115,12 @@ impl vector<T> [new] {
 		self.m_size -= 1;
 		return self.get(self.m_size);
 	}
+	proc m_assign(vector<T> self, vector<T> other) -> void {
+		memcpy(cast(ptr, vector::new<T>()), cast(ptr, self), 12);
+		foreach(let el : other) {
+			self.push(el);
+		}
+	}
 	proc m_assign(vector<T>& self, vector<T>&& other) -> void {
 		std::__container_move(other, cast(vector<T>&&, self));
 	}
