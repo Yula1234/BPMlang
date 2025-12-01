@@ -1,0 +1,107 @@
+
+struct IRGenerator {
+	m_prog: NodeProg,
+	m_builder: IRBuilder,
+	m_program: IRProgram,
+	m_sema: SemanticContext
+}
+
+impl IRGenerator {
+	proc new(NodeProg prog, SemanticContext _sema) -> IRGenerator {
+		let __tmp = IRGenerator(prog, IRBuilder::new(), IRProgram(vector::new<IROp>()), _sema);
+		__tmp.m_builder.set_program(__tmp.m_program);
+		return __tmp;
+	}
+	proc gen_stmt(IRGenerator self, NodeStmt stmt);
+	proc gen_expr(IRGenerator self, NodeExpr expr);
+
+
+	proc gen_term(IRGenerator self, NodeTerm term) {
+		if(term.kind == NODE_TERM_KIND::INT_LIT) {
+			let as_int_lit = cast(NodeTermIntLit, term.var);
+			self.m_builder.load_const(as_int_lit.literal);
+			return;
+		}
+		if(term.kind == NODE_TERM_KIND::IDENT) {
+			let as_ident = cast(NodeTermIdent, term.var);
+			assert(as_ident.resolved_symbol != null(), "unreachable");
+			self.m_builder.load_local(cast(SymbolInfo, as_ident.resolved_symbol).offset);
+			return;
+		}
+		assert(false, "unreachable");
+	}
+
+	proc gen_bin_expr(IRGenerator self, NodeBinExpr bin_expr) {
+		if(bin_expr.kind == NODE_BIN_EXPR_KIND::ADD) {
+			let as_add = cast(NodeBinExprAdd, bin_expr.var);
+			self.gen_expr(as_add.rhs);
+			self.gen_expr(as_add.lhs);
+			self.m_builder.add();
+			return;
+		}
+		assert(false, "unreachable");
+	}
+
+	proc gen_expr(IRGenerator self, NodeExpr expr) {
+		if(expr.kind == NODE_EXPR_KIND::TERM) {
+			let as_term = cast(NodeTerm, expr.var);
+			self.gen_term(as_term);
+			return;
+		}
+		if(expr.kind == NODE_EXPR_KIND::BIN_EXPR) {
+			let as_bin_expr = cast(NodeBinExpr, expr.var);
+			self.gen_bin_expr(as_bin_expr);
+			return;
+		}
+		assert(false, "unreachable");
+	}
+
+	proc gen_scope(IRGenerator self, NodeScope scope) {
+		foreach(let stmt : scope.stmts) {
+			self.gen_stmt(stmt);
+		}
+	}
+
+	proc gen_stmt(IRGenerator self, NodeStmt stmt) {
+		if(stmt.kind == NODE_STMT_KIND::PROC) {
+			let as_proc = cast(NodeStmtProc, stmt.var);
+			self.m_builder.proc_def(as_proc.name);
+			self.m_builder.proc_start(as_proc.stack_allign);
+			let arg_i = 0;
+			foreach(let pr : as_proc.params) {
+				self.m_builder.load_arg(arg_i);
+				arg_i += 1;
+			}
+			self.gen_scope(as_proc.scope);
+			self.m_builder.proc_end(as_proc.name);
+			return;
+		}
+		if(stmt.kind == NODE_STMT_KIND::RETURN) {
+			let as_return = cast(NodeStmtReturn, stmt.var);
+			if(as_return.expr.has_value()) {
+				self.gen_expr(as_return.expr.value());
+				self.m_builder.return_value(as_return.loc);
+			} else {
+				self.m_builder.return_void(as_return.loc);
+			}
+			return;
+		}
+		if(stmt.kind == NODE_STMT_KIND::LET) {
+			let as_let = cast(NodeStmtLet, stmt.var);
+			if(as_let.expr.has_value()) {
+				assert(as_let.stack_loc != 0, "unreachable");
+				self.gen_expr(as_let.expr.value());
+				self.m_builder.store_local(as_let.stack_loc);
+			}
+			return;
+		}
+		assert(false, "unreachable");
+	}
+
+	proc gen_prog(IRGenerator self) -> IRProgram {
+		foreach(let stmt : self.m_prog.stmts) {
+			self.gen_stmt(stmt);
+		}
+		return self.m_program;
+	}
+}

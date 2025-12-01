@@ -1,0 +1,106 @@
+enum NODE_STMT_KIND {
+	PROC, LET, RETURN
+}
+
+enum NODE_EXPR_KIND {
+	TERM, BIN_EXPR
+}
+
+enum NODE_BIN_EXPR_KIND {
+	ADD
+}
+
+enum NODE_TERM_KIND {
+	INT_LIT, IDENT
+}
+
+
+
+
+struct NodeTermIntLit {
+	int_lit: Token,
+	literal: int
+}
+
+struct NodeTermIdent {
+	def: Token,
+	name: string,
+	resolved_symbol: ptr
+}
+
+struct NodeTerm {
+	kind: int,
+	var: ptr
+}
+
+
+
+
+struct NodeBinExprAdd {
+	lhs: NodeExpr,
+	rhs: NodeExpr
+}
+
+struct NodeBinExpr {
+	kind: int,
+	var: ptr,
+	def: Token
+}
+
+
+
+
+struct NodeExpr {
+	kind: int,
+	var: ptr,
+	cached_type: ptr
+}
+
+
+
+struct NodeStmt {
+	kind: int,
+	var: ptr
+}
+
+impl NodeExpr {
+	proc m_assign(NodeExpr self, NodeExpr other) {
+		self.kind = other.kind;
+		self.var = other.var;
+	}
+}
+
+struct NodeStmtProc {
+	name: string,
+	def: Token,
+	scope: NodeScope,
+	rettype: DataType,
+	params: vector<pair<string, DataType>>,
+	stack_allign: int
+}
+
+struct NodeStmtLet {
+	name: string,
+	def: Token,
+	type: Optional<DataType>,
+	expr: Optional<NodeExpr>,
+	stack_loc: int
+}
+
+struct NodeStmtReturn {
+	def: Token,
+	expr: Optional<NodeExpr>,
+	loc: string
+}
+
+struct NodeScope {
+	stmts: vector<NodeStmt>
+}
+
+impl NodeScope {
+	proc m_assign(NodeScope self, NodeScope other) = self.stmts = other.stmts;
+}
+
+struct NodeProg {
+	stmts: vector<NodeStmt>
+}

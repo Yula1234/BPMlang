@@ -1,0 +1,208 @@
+
+
+struct SymbolInfo {
+    name: string,
+    type: DataType,
+    offset: int, // [ebp-offset]
+    is_global: int,
+    is_function: int
+}
+
+impl SymbolInfo {
+	proc m_assign(SymbolInfo self, SymbolInfo other) {
+		self.name = other.name.clone();
+		self.type = other.type;
+		self.offset = other.offset;
+		self.is_global = other.is_global;
+		self.is_global = other.is_function;
+	}
+}
+
+struct Scope {
+    symbols: map<string, SymbolInfo>,
+}
+
+struct SymbolTable {
+    scopes: deque<Scope>
+}
+
+impl SymbolTable {
+	proc new() -> SymbolTable {
+		return SymbolTable(deque::new<Scope>());
+	}
+    proc enter_scope(SymbolTable self) {
+    	self.scopes.push_front(Scope(map::new<string, SymbolInfo>()));
+    }
+    proc exit_scope(SymbolTable self) {
+    	assert(not(self.scopes.empty()), "unreachable");
+    	let _ = self.scopes.pop_front();
+    }
+    proc put(SymbolTable self, string name, SymbolInfo info) {
+    	self.scopes.front().symbols.put(name, info);
+    }
+    proc lookup(SymbolTable self, string name) -> Optional<SymbolInfo> {
+    	assert(not(self.scopes.empty()), "unreachable");
+        foreach(let current : self.scopes) {
+            if (current.symbols.has(name)) {
+                let info = current.symbols.get(name);
+                return Optional::new(info);
+            }
+        }
+        
+        return Optional::new<SymbolInfo>();
+    }
+}
+
+struct SemanticContext {
+	prog: NodeProg,
+	symbol_table: SymbolTable,
+	prs: Parser,
+	cur_proc: ptr
+}
+
+impl SemanticContext {
+	proc new(NodeProg prog, Parser prs) -> SemanticContext {
+		return SemanticContext(prog, SymbolTable::new(), prs, null());
+	}
+
+	proc register_local(SemanticContext self, string name, DataType type) -> SymbolInfo {
+		assert(self.cur_proc != null(), "unreachable");
+		let sym = SymbolInfo(name, type, cast(NodeStmtProc, self.cur_proc).stack_allign + 4, false, false);
+		self.symbol_table.put(name, sym);
+		cast(NodeStmtProc, self.cur_proc).stack_allign += 4;
+		return sym;
+	}
+
+	proc analyze_term(SemanticContext self, NodeTerm term) -> DataType {
+		if(term.kind == NODE_TERM_KIND::INT_LIT) {
+			return DataType::new_primitive(PRIM_KIND::INT);
+		}
+		if(term.kind == NODE_TERM_KIND::IDENT) {
+			let as_ident = cast(NodeTermIdent, term.var);
+			let sym = self.symbol_table.lookup(as_ident.name);
+			if(not(sym.has_value())) {
+				self.prs.DiagnosticMessage(as_ident.def, "error", string::new("unkown symbol `") + as_ident.name + "`", 0);
+				exit(EXIT_FAILURE);
+			}
+			as_ident.resolved_symbol = cast(ptr, sym.value());
+			return sym.value().type;
+		}
+		assert(false, "unreachable");
+	}
+	proc analyze_expr(SemanticContext self, NodeExpr expr) -> DataType;
+
+
+	proc analyze_bin_expr(SemanticContext self, NodeBinExpr bin_expr) -> DataType {
+		if(bin_expr.kind == NODE_BIN_EXPR_KIND::ADD) {
+			let as_add = cast(NodeBinExprAdd, bin_expr.var);
+			let type_lhs = self.analyze_expr(as_add.lhs);
+			let type_rhs = self.analyze_expr(as_add.rhs);
+			if(not(type_lhs.equals(type_rhs))) {
+				self.prs.DiagnosticMessage(bin_expr.def, "error", string::new(" + type mismatch"), 0);
+				exit(EXIT_FAILURE);
+			}
+			return type_lhs;
+		}
+		assert(false, "unreachable");
+	}
+
+	proc analyze_expr(SemanticContext self, NodeExpr expr) -> DataType {
+		if(expr.cached_type != null()) {
+			return cast(DataType, expr.cached_type);
+		}
+		if(expr.kind == NODE_EXPR_KIND::TERM) {
+			let as_term = cast(NodeTerm, expr.var);
+			let tp = self.analyze_term(as_term);
+			expr.cached_type = cast(ptr, tp);
+			return tp;
+		}
+		if(expr.kind == NODE_EXPR_KIND::BIN_EXPR) {
+			let as_bin = cast(NodeBinExpr, expr.var);
+			let tp = self.analyze_bin_expr(as_bin);
+			expr.cached_type = cast(ptr, tp);
+			return tp;
+		}
+		assert(false, "unreachable");
+	}
+	proc analyze_scope(SemanticContext self, NodeScope scope);
+
+	proc analyze_stmt(SemanticContext self, NodeStmt stmt) {
+		if(stmt.kind == NODE_STMT_KIND::PROC) {
+			let as_proc = cast(NodeStmtProc, stmt.var);
+			self.cur_proc = cast(ptr, as_proc);
+			self.symbol_table.put(as_proc.name, SymbolInfo(as_proc.name, as_proc.rettype, 0, true, true));
+			self.symbol_table.enter_scope();
+			foreach(let pr : as_proc.params) {
+				self.register_local(pr.first, pr.second);
+			}
+			self.analyze_scope(as_proc.scope);
+			self.symbol_table.exit_scope();
+			self.cur_proc = null();
+		}
+		if(stmt.kind == NODE_STMT_KIND::LET) {
+			let as_let = cast(NodeStmtLet, stmt.var);
+			let _opt = as_let.type;
+			let _opext = Optional::new<DataType>();
+			if(self.cur_proc == null()) {
+				self.prs.DiagnosticMessage(as_let.def, "error", string::new("can't define global variable yet"), 0);
+				exit(EXIT_FAILURE);
+			}
+			if(as_let.expr.has_value()) {
+				_opext = Optional::new(self.analyze_expr(as_let.expr.value()));
+			}
+			if(_opt.has_value() && _opext.has_value() && not(_opt.value().equals(_opext.value()))) {
+				self.prs.DiagnosticMessage(as_let.def, "error", string::new("type mismatch"), 0);
+				exit(EXIT_FAILURE);
+			}
+			let _final_tp = Optional::new<DataType>();
+			if(_opt.has_value()) {
+				_final_tp = _opt;
+			}
+			elif(_opext.has_value()) {
+				_final_tp = _opext;
+			}
+			assert(_final_tp.has_value(), "unreachable");
+			let sym = self.register_local(as_let.name, _final_tp.value());
+			as_let.stack_loc = sym.offset;
+		}
+		if(stmt.kind == NODE_STMT_KIND::RETURN) {
+			let as_return = cast(NodeStmtReturn, stmt.var);
+			if(self.cur_proc == null()) {
+				self.prs.DiagnosticMessage(as_return.def, "error", string::new("return without procedure"), 0);
+				exit(EXIT_FAILURE);
+			}
+			let cproc = cast(NodeStmtProc, self.cur_proc);
+			if(not(cproc.rettype.equals(DataType::new_primitive(PRIM_KIND::VOID))) && not(as_return.expr.has_value())) {
+				self.prs.DiagnosticMessage(as_return.def, "error", string::new("return without value from non-void procedure"), 0);
+				exit(EXIT_FAILURE);
+			}
+			elif(cproc.rettype.equals(DataType::new_primitive(PRIM_KIND::VOID)) && as_return.expr.has_value()) {
+				self.prs.DiagnosticMessage(as_return.def, "error", string::new("return with value from void procedure"), 0);
+				exit(EXIT_FAILURE);
+			}
+			if(as_return.expr.has_value()) {
+				let rt = self.analyze_expr(as_return.expr.value());
+				if(not(cproc.rettype.equals(rt))) {
+					self.prs.DiagnosticMessage(as_return.def, "error", string::new("type mismatch at return"), 0);
+					exit(EXIT_FAILURE);
+				}
+			}
+			as_return.loc = "__";
+			as_return.loc += cproc.name + "@ret";
+		}
+	}
+
+	proc analyze_scope(SemanticContext self, NodeScope scope) {
+		foreach(let st : scope.stmts) {
+			self.analyze_stmt(st);
+		}
+	}
+
+	proc analyze(SemanticContext self) {
+		self.symbol_table.enter_scope();
+		foreach(let stmt : self.prog.stmts) {
+			self.analyze_stmt(stmt);
+		}
+		// self.symbol_table.exit_scope(); global scope can't be deleted
+	}
+}

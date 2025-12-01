@@ -10,7 +10,15 @@ enum TOKEN_KIND {
     INT_LIT, 
     SEMI,
     PLUS,
-    EOF,     
+    EOF,
+    INT_TYPE,
+    VOID_TYPE,
+    CHAR_TYPE,
+    ANY_TYPE,
+    DOUBLE_DOT,
+    COMMA,
+    ARROW,
+    RETURN,
     COUNT,
 }
 
@@ -66,10 +74,34 @@ proc tok_to_string(int kind) -> string {
     elif(kind == TOKEN_KIND::SEMI) {
         return string::new("`;`");
     }
-    elif(kind == TOKEN_KIND::EOF) {
-        return string::new("<eof>");
+    elif(kind == TOKEN_KIND::INT_TYPE) {
+        return string::new("`int`");
+    }
+    elif(kind == TOKEN_KIND::CHAR_TYPE) {
+        return string::new("`char`");
+    }
+    elif(kind == TOKEN_KIND::VOID_TYPE) {
+        return string::new("`void`");
+    }
+    elif(kind == TOKEN_KIND::ANY_TYPE) {
+        return string::new("`any`");
+    }
+    elif(kind == TOKEN_KIND::DOUBLE_DOT) {
+        return string::new("`:`");
+    }
+    elif(kind == TOKEN_KIND::COMMA) {
+        return string::new("`,`");
     }
     elif(kind == TOKEN_KIND::PLUS) {
+        return string::new("`+`");
+    }
+    elif(kind == TOKEN_KIND::ARROW) {
+        return string::new("`->`");
+    }
+    elif(kind == TOKEN_KIND::RETURN) {
+        return string::new("`return`");
+    }
+    elif(kind == TOKEN_KIND::EOF) {
         return string::new("<eof>");
     }
     assert(false, "unreachable");
@@ -88,6 +120,12 @@ impl Token {
 	proc kind_to_str(Token self) -> string {
 		return tok_to_string(self.kind);
 	}
+    proc is_type_token(Token self) -> int {
+        return (self.kind == TOKEN_KIND::INT_TYPE ||
+                self.kind == TOKEN_KIND::CHAR_TYPE ||
+                self.kind == TOKEN_KIND::VOID_TYPE ||
+                self.kind == TOKEN_KIND::ANY_TYPE);
+    }
 	proc m_fprint(Token self, int fd) {
 		std::fprint(fd, "Token(kind=");
 		std::fprint(fd, self.kind_to_str());
@@ -154,6 +192,13 @@ impl Lexer {
         return string::at(self.m_src, self.m_pos);
     }
 
+    proc lookahead(Lexer self) -> int {
+        if(not(self.m_pos + 1 < self.m_src.m_size)) {
+            return 0;
+        }
+        return string::at(self.m_src, self.m_pos + 1);
+    }
+
     proc advance(Lexer self) -> void {
         if (not(self.eof())) {
             self.m_pos += 1;
@@ -195,6 +240,21 @@ impl Lexer {
         elif (string::m_equal(buf, "let")) {
             return Token(TOKEN_KIND::LET, self.m_line, self.m_col - length, self.m_filename.clone(), "");
         }
+        elif (string::m_equal(buf, "int")) {
+            return Token(TOKEN_KIND::INT_TYPE, self.m_line, self.m_col - length, self.m_filename.clone(), "");
+        }
+        elif (string::m_equal(buf, "void")) {
+            return Token(TOKEN_KIND::VOID_TYPE, self.m_line, self.m_col - length, self.m_filename.clone(), "");
+        }
+        elif (string::m_equal(buf, "char")) {
+            return Token(TOKEN_KIND::CHAR_TYPE, self.m_line, self.m_col - length, self.m_filename.clone(), "");
+        }
+        elif (string::m_equal(buf, "any")) {
+            return Token(TOKEN_KIND::ANY_TYPE, self.m_line, self.m_col - length, self.m_filename.clone(), "");
+        }
+        elif (string::m_equal(buf, "return")) {
+            return Token(TOKEN_KIND::RETURN, self.m_line, self.m_col - length, self.m_filename.clone(), "");
+        }
 
         return Token(TOKEN_KIND::ID, self.m_line, self.m_col - length, self.m_filename.clone(), buf.m_data);
     }
@@ -212,6 +272,11 @@ impl Lexer {
             self.m_col = 1;
             self.advance();
             return self.next_token();
+        }
+        if (c == '-' && self.lookahead() && self.lookahead() == '>') {
+            self.advance();
+            self.advance();
+            return Token(TOKEN_KIND::ARROW, self.m_line, self.m_col - 2, self.m_filename.clone(), "");
         }
         if (c == '=') {
             self.advance();
@@ -236,6 +301,14 @@ impl Lexer {
         if (c == ';') {
             self.advance();
             return Token(TOKEN_KIND::SEMI, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
+        }
+        if (c == ':') {
+            self.advance();
+            return Token(TOKEN_KIND::DOUBLE_DOT, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
+        }
+        if (c == ',') {
+            self.advance();
+            return Token(TOKEN_KIND::COMMA, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
         }
         if (c == '+') {
             self.advance();

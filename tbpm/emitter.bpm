@@ -1,0 +1,97 @@
+struct NasmEmitter {
+	program: IRProgram,
+	out: string
+}
+
+impl NasmEmitter {
+	proc new(IRProgram prog) -> NasmEmitter {
+		return NasmEmitter(prog, string::new(""));
+	}
+
+	proc emit_op(NasmEmitter self, IROp op) {
+		if(op.kind == IR_OP_KIND::PROC_DEF) {
+			assert(op.operand.kind == IR_OPERAND_KIND::LABEL, "unreachable");
+			let lbl = cast(string, op.operand.var);
+			self.out += lbl + ":\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::PROC_END) {
+			assert(op.operand.kind == IR_OPERAND_KIND::LABEL, "unreachable");
+			let lbl = cast(string, op.operand.var);
+			self.out += "__";
+			self.out += lbl + "@ret:\n";
+			self.out += "    leave\n    ret\n\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::PROC_START) {
+			assert(op.operand.kind == IR_OPERAND_KIND::IMM, "unreachable");
+			self.out += "    push ebp\n    mov ebp, esp\n    sub esp, ";
+			let salloc = cast(int, op.operand.var);
+			if(salloc > 0) {
+				self.out += std::itos(std::alloc<char>(12), salloc);
+			}
+			self.out += "\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::LOAD_ARG) {
+			assert(op.operand.kind == IR_OPERAND_KIND::IMM, "unreachable");
+			let index = cast(int, op.operand.var);
+			let ebp_plus = 8 + (index * 4);
+			let ebp_minus = 4 + (index * 4);
+			self.out += "    mov edx, dword [ebp+";
+			self.out += std::itos(std::alloc<char>(12), ebp_plus);
+			self.out += "]\n";
+			self.out += "    mov dword [ebp-";
+			self.out += std::itos(std::alloc<char>(12), ebp_minus);
+			self.out +=  "], edx\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::LOAD_CONST) {
+			assert(op.operand.kind == IR_OPERAND_KIND::IMM, "unreachable");
+			self.out += "    push ";
+			self.out += std::itos(std::alloc<char>(12), cast(int, op.operand.var));
+			self.out += "\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::LOAD_LOCAL) {
+			assert(op.operand.kind == IR_OPERAND_KIND::IMM, "unreachable");
+			self.out += "    push dword [ebp-";
+			self.out += std::itos(std::alloc<char>(12), cast(int, op.operand.var));
+			self.out += "]\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::ADD) {
+			self.out += "    pop ecx\n    pop edx\n    add edx, ecx\n    push edx\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::RETURN_VALUE) {
+			assert(op.operand.kind == IR_OPERAND_KIND::LABEL, "unreachable");
+			self.out += "    pop eax\n    jmp ";
+			self.out += cast(string, op.operand.var) + "\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::RETURN_VOID) {
+			assert(op.operand.kind == IR_OPERAND_KIND::LABEL, "unreachable");
+			self.out += "    jmp ";
+			self.out += cast(string, op.operand.var) + "\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::STORE_LOCAL) {
+			assert(op.operand.kind == IR_OPERAND_KIND::IMM, "unreachable");
+			self.out += "    pop ebx\n    mov dword [ebp-";
+			self.out += std::itos(std::alloc<char>(12), cast(int, op.operand.var));
+			self.out += "], ebx\n";
+			return;
+		}
+		assert(false, "unreachable");
+	}
+
+	proc emit_program(NasmEmitter self) -> string {
+		self.out.extend(self.program.insts.size() * 4);
+		self.out += "section .text\n\nglobal main\n\n";
+		foreach(let op : self.program.insts) {
+			self.emit_op(op);
+		}
+		return self.out;
+	}
+}

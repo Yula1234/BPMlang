@@ -1,0 +1,129 @@
+
+
+enum TYPE_KIND {
+    PRIMITIVE, STRUCT, PTR, PROC_PTR
+}
+
+enum PRIM_KIND {
+    INT, CHAR, VOID, ANY
+}
+
+struct DataType {
+    kind: int,
+    
+    _prim_kind: int,   
+    _name:      string,
+    
+    _inner:     ptr,
+    _generics:  vector<DataType>
+}
+
+impl DataType {
+    proc new_primitive(int pk) -> DataType {
+        return DataType(TYPE_KIND::PRIMITIVE, pk, string::new(""), null(), vector::new<DataType>());
+    }
+    proc new_ptr(DataType inner) -> DataType {
+        return DataType(TYPE_KIND::PTR, 0, string::new(""), cast(ptr, inner), vector::new<DataType>());
+    }
+    proc new_struct(string name, vector<DataType> generics) -> DataType {
+        return DataType(TYPE_KIND::STRUCT, 0, name, null(), generics);
+    }
+    proc new_proc_ptr(string name, vector<DataType> generics) -> DataType {
+    	return DataType(TYPE_KIND::PROC_PTR, 0, name, null(), generics);
+    }
+
+    proc get_inner(DataType self) -> DataType {
+        if (self.kind != TYPE_KIND::PTR) {
+            raise std::exception("called DataType::get_inner() for non a pointer type");
+        }
+        return cast(DataType, self._inner);
+    }
+
+    proc equals(DataType self, DataType other) -> int {
+        if (cast(ptr, self) == cast(ptr, other)) { return true; }
+        
+        if (self.kind != other.kind) { return false; }
+
+        if (self.kind == TYPE_KIND::PRIMITIVE) {
+            return self._prim_kind == other._prim_kind;
+        }
+        elif (self.kind == TYPE_KIND::PTR) {
+            return self.get_inner().equals(other.get_inner());
+        }
+        elif (self.kind == TYPE_KIND::STRUCT) {
+            if (not(string::m_equal(self._name, other._name))) { return false; }
+            if (self._generics.size() != other._generics.size()) { return false; }
+            
+            let i = 0;
+            while (i < self._generics.size()) {
+                let t1 = self._generics.at(i);
+                let t2 = other._generics.at(i);
+                if (not(t1.equals(t2))) { return false; }
+                i += 1;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    proc to_string(DataType self) -> string {
+        if (self.kind == TYPE_KIND::PRIMITIVE) {
+            if (self._prim_kind == PRIM_KIND::INT) { return string::new("int"); }
+            if (self._prim_kind == PRIM_KIND::VOID) { return string::new("void"); }
+            if (self._prim_kind == PRIM_KIND::CHAR) { return string::new("char"); }
+            if (self._prim_kind == PRIM_KIND::ANY) { return string::new("any"); }
+            raise std::exception("unreachable");
+        }
+        elif (self.kind == TYPE_KIND::PTR) {
+            return self.get_inner().to_string() + "*";
+        }
+        elif (self.kind == TYPE_KIND::STRUCT) {
+            let s = self._name.clone();
+            if (self._generics.size() > 0) {
+                s += "<";
+                let i = 0;
+                while (i < self._generics.size()) {
+                    s += self._generics.at(i).to_string();
+                    if (i < self._generics.size() - 1) { s += ","; }
+                    i += 1;
+                }
+                s += ">";
+            }
+            return s;
+        }
+        elif (self.kind == TYPE_KIND::PROC_PTR) {
+        	let s = string::new("ProcPtr");
+            if (self._generics.size() > 0) {
+                s += "<";
+                let i = 0;
+                while (i < self._generics.size()) {
+                    s += self._generics.at(i).to_string();
+                    if (i < self._generics.size() - 1) { s += ","; }
+                    i += 1;
+                }
+                s += ">";
+            }
+            return s;
+        }
+        raise std::exception("unreachable");
+    }
+    proc m_assign(DataType self, DataType other) {
+    	self.kind = other.kind;
+    	self._prim_kind = other._prim_kind;
+    	self._name = other._name.clone();
+    	self._inner = other._inner;
+    	self._generics = other._generics;
+    }
+}
+
+let DATA_TYPE_INT: DataType;
+let DATA_TYPE_CHAR: DataType;
+let DATA_TYPE_VOID: DataType;
+let DATA_TYPE_ANY: DataType;
+
+__oninit {
+	store32(cast(ptr, &DATA_TYPE_INT), DataType::new_primitive(PRIM_KIND::INT));
+	store32(cast(ptr, &DATA_TYPE_CHAR), DataType::new_primitive(PRIM_KIND::CHAR));
+	store32(cast(ptr, &DATA_TYPE_VOID), DataType::new_primitive(PRIM_KIND::VOID));
+	store32(cast(ptr, &DATA_TYPE_ANY), DataType::new_primitive(PRIM_KIND::ANY));
+}

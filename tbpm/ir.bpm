@@ -1,0 +1,114 @@
+
+enum REGISTERS {
+	EAX, EBX, ECX, EDX, EBP, ESP
+}
+
+struct Reg {
+	kind: int
+}
+
+impl Reg {
+	proc to_string(Reg self) -> string {
+		if(self.kind == REGISTERS::EAX) {
+			return string::new("eax");
+		}
+		if(self.kind == REGISTERS::EBX) {
+			return string::new("ebx");
+		}
+		if(self.kind == REGISTERS::ECX) {
+			return string::new("ecx");
+		}
+		if(self.kind == REGISTERS::EDX) {
+			return string::new("edx");
+		}
+		if(self.kind == REGISTERS::EBP) {
+			return string::new("ebp");
+		}
+		if(self.kind == REGISTERS::ESP) {
+			return string::new("esp");
+		}
+		assert(false, "unreachable");
+	}
+}
+
+enum IR_OPERAND_KIND {
+	LABEL, IMM, REG, NULL
+}
+
+enum IR_OP_KIND {
+	PROC_DEF, PROC_END, PROC_START, LOAD_ARG,
+	LOAD_CONST, LOAD_LOCAL, ADD, RETURN_VOID,
+	RETURN_VALUE, STORE_LOCAL
+}
+
+struct IROperand {
+	kind: int,
+	var: any
+}
+
+impl IROperand {
+	proc new() -> IROperand {
+		return IROperand(IR_OPERAND_KIND::NULL, 0);
+	}
+	proc new(int i) -> IROperand {
+		return IROperand(IR_OPERAND_KIND::IMM, i);
+	}
+	proc new(string lbl) -> IROperand {
+		return IROperand(IR_OPERAND_KIND::LABEL, lbl);
+	}
+	proc new(Reg r) -> IROperand {
+		return IROperand(IR_OPERAND_KIND::REG, r);
+	}
+}
+
+struct IROp {
+	kind: int,
+	operand: IROperand
+}
+
+struct IRProgram {
+	insts: vector<IROp>
+}
+
+struct IRBuilder {
+	program: IRProgram
+}
+
+impl IRBuilder {
+	proc new() -> IRBuilder {
+		return IRBuilder();
+	}
+	proc set_program(IRBuilder self, IRProgram prog) {
+		store32(cast(ptr, &(self.program)), prog);
+	}
+	proc proc_def(IRBuilder self, string symbol) {
+		self.program.insts.push(IROp(IR_OP_KIND::PROC_DEF, IROperand::new(symbol)));
+	}
+	proc proc_end(IRBuilder self, string symbol) {
+		self.program.insts.push(IROp(IR_OP_KIND::PROC_END, IROperand::new(symbol)));
+	}
+	proc proc_start(IRBuilder self, int allocs) {
+		self.program.insts.push(IROp(IR_OP_KIND::PROC_START, IROperand::new(allocs)));
+	}
+	proc load_arg(IRBuilder self, int index) {
+		self.program.insts.push(IROp(IR_OP_KIND::LOAD_ARG, IROperand::new(index)));
+	}
+	proc load_const(IRBuilder self, int _const) {
+		self.program.insts.push(IROp(IR_OP_KIND::LOAD_CONST, IROperand::new(_const)));
+	}
+	proc load_local(IRBuilder self, int offs) {
+		self.program.insts.push(IROp(IR_OP_KIND::LOAD_LOCAL, IROperand::new(offs)));
+	}
+	proc add(IRBuilder self) {
+		self.program.insts.push(IROp(IR_OP_KIND::ADD, IROperand::new()));
+	}
+	proc return_void(IRBuilder self, string symbol) {
+		self.program.insts.push(IROp(IR_OP_KIND::RETURN_VOID, IROperand::new(symbol)));
+	}
+	proc return_value(IRBuilder self, string symbol) {
+		self.program.insts.push(IROp(IR_OP_KIND::RETURN_VALUE, IROperand::new(symbol)));
+	}
+	proc store_local(IRBuilder self, int offs) {
+		self.program.insts.push(IROp(IR_OP_KIND::STORE_LOCAL, IROperand::new(offs)));
+	}
+}

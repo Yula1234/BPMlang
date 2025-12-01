@@ -1,9 +1,19 @@
 include "std"
 include "fsys"
 include "std_string"
+include "hash_map"
 include "vector"
+include "deque"
 include "lexer"
+include "datatype"
+include "ast"
 include "parser"
+include "sema"
+include "ir"
+include "codegen"
+include "emitter"
+
+proc system(char* cmd) -> int [cimport];
 
 proc main(int argc, char** argv) -> int {
     //if (argc < 2) {
@@ -32,5 +42,22 @@ proc main(int argc, char** argv) -> int {
     let parser = Parser::new(tokens);
     let prog = parser.parse_prog();
 
-    return 0;
+    let sema = SemanticContext::new(prog, parser);
+
+    sema.analyze();
+
+    let irgen = IRGenerator::new(prog, sema);
+    let irprog = irgen.gen_prog();
+
+    let emitter = NasmEmitter::new(irprog);
+    let out = emitter.emit_program();
+
+    let ofile = FILE::open("output.asm", "w");
+    fputs(ofile.desc, out.m_data);
+    ofile.close();
+    
+    system("nasm --gprefix _ -fwin32 output.asm -o output.o");
+    system("gcc -o output.exe output.o -m32");
+
+    return EXIT_SUCCESS;
 }
