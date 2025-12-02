@@ -1003,15 +1003,116 @@ struct Macro {
 	bool is_pure;
 };
 
+struct TokenStream {
+    std::vector<Token> tokens;
+    size_t index = 0;
+};
+
+class TokenStreamCursor {
+public:
+    TokenStreamCursor() = default;
+
+    void init_main(const std::vector<Token>& toks) {
+        m_stack.clear();
+        TokenStream s;
+        s.tokens = toks; 
+        s.index  = 0;
+        m_stack.push_back(std::move(s));
+    }
+
+    void push_stream(std::vector<Token>&& toks) {
+        TokenStream s;
+        s.tokens = std::move(toks);
+        s.index  = 0;
+        m_stack.push_back(std::move(s));
+    }
+
+    bool eof() const {
+        for (int i = static_cast<int>(m_stack.size()) - 1; i >= 0; --i) {
+            const auto& s = m_stack[static_cast<size_t>(i)];
+            if (s.index < s.tokens.size())
+                return false;
+        }
+        return true;
+    }
+
+    std::optional<Token> peek(int offset = 0) const {
+        if (m_stack.empty()) return std::nullopt;
+
+        int off = offset;
+        for (int i = static_cast<int>(m_stack.size()) - 1; i >= 0; --i) {
+            const auto& s = m_stack[static_cast<size_t>(i)];
+            size_t avail = s.tokens.size() - s.index;
+            if (off < static_cast<int>(avail)) {
+                return s.tokens[s.index + static_cast<size_t>(off)];
+            }
+            off -= static_cast<int>(avail);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Token> consume_opt() {
+        while (!m_stack.empty()) {
+            auto& s = m_stack.back();
+            if (s.index < s.tokens.size()) {
+                return s.tokens[s.index++];
+            }
+            m_stack.pop_back();
+        }
+        return std::nullopt;
+    }
+
+    Token consume() {
+        auto t = consume_opt();
+        if (!t.has_value()) {
+            Token fake;
+            fake.type = TokenType_t::ident;
+            fake.line = 0;
+            fake.col  = 0;
+            fake.file = "<eof>";
+            return fake;
+        }
+        return t.value();
+    }
+
+    std::optional<Token> try_consume(TokenType_t tt) {
+        auto t = peek();
+        if (t.has_value() && t->type == tt) {
+            return consume();
+        }
+        return std::nullopt;
+    }
+
+    void split_shift_right_token() {
+        if (m_stack.empty()) return;
+        TokenStream& s = m_stack.back();
+        if (s.index >= s.tokens.size()) return;
+
+        Token& tok = s.tokens[s.index];
+        if (tok.type != TokenType_t::shift_right) return;
+
+        tok.type  = TokenType_t::above;
+        tok.value = ">";
+
+        Token next_tok = tok;
+        next_tok.col += 1;
+        s.tokens.insert(s.tokens.begin() + static_cast<std::ptrdiff_t>(s.index + 1),
+                        next_tok);
+    }
+
+private:
+    std::vector<TokenStream> m_stack;
+};
+
 class Parser {
 public:
 
 	explicit Parser(std::vector<Token> tokens, std::vector<std::string> lines)
-		: m_allocator(1024 * 1024 * 48) // 48 mb
-		, m_tokens(std::move(tokens))
-	{
-		m_lines[m_tokens[0].file] = std::move(lines);
-	}
+        : m_allocator(1024 * 1024 * 48)
+    {
+        m_tok_cursor.init_main(tokens);
+        m_lines[tokens[0].file] = std::move(lines);
+    }
 
 	std::optional<Macro> macro_lookup(const std::string& name) const noexcept {
 		const auto& search = m_macroses.find(name);
@@ -1322,35 +1423,37 @@ public:
 		return std::nullopt;
 	}
 
-	void expand_macro(Macro& _macro, std::vector<std::vector<Token>*>* __args, Token& __at) {
-		if(_macro.args.size() != __args->size()) {
-			if(!(_macro.args.size() == 0ULL && __args->size() == 1ULL)) {
-				ParsingError("macro `" + _macro.name + "` except " + std::to_string(_macro.args.size()) + " args, but got " + std::to_string(__args->size()));
-			}
-		}
-		if(_macro.body.size() == 0ULL) {
-			return;
-		}
-		std::vector<Token> body = _macro.body;
-		for(int i = 0;i < static_cast<int>(body.size());++i) {
-			body[i].line = __at.line;
-			body[i].col = __at.col;
-			body[i].file = __at.file;
-			if(__at.expand.has_value()) {
-				if(body[i].expand.has_value()) {
-					__at.expand.value()->expand = body[i].expand;
-				}
-				body[i].expand = __at.expand;
-			}
-			if(body[i].type == TokenType_t::ident) {
-				std::optional<size_t> __arg = __macro_arg_pos(_macro, body[i].value.value());
-				if(__arg.has_value()) {
-					body.erase(body.begin() + i);
-					body.insert(body.begin() + i, __args->operator[](__arg.value())->begin(), __args->operator[](__arg.value())->end());
-				}
-			}
-		}
-		m_tokens.insert(m_tokens.begin() + m_index, body.begin(), body.end());
+	void expand_macro(Macro& _macro,
+                          std::vector<std::vector<Token>*>* __args,
+                          Token& __at)
+	{
+	    std::vector<Token> expanded;
+	    expanded.reserve(_macro.body.size() + 8);
+
+	    for (Token tok : _macro.body) {
+	        tok.line = __at.line;
+	        tok.col  = __at.col;
+	        tok.file = __at.file;
+
+	        if (__at.expand.has_value()) {
+	            if (tok.expand.has_value())
+	                __at.expand.value()->expand = tok.expand;
+	            tok.expand = __at.expand;
+	        }
+
+	        if (tok.type == TokenType_t::ident && tok.value.has_value()) {
+	            if (auto pos = __macro_arg_pos(_macro, tok.value.value())) {
+	                auto* arg_tokens = __args->operator[](*pos);
+	                expanded.insert(expanded.end(),
+	                                arg_tokens->begin(),
+	                                arg_tokens->end());
+	                continue;
+	            }
+	        }
+	        expanded.push_back(tok);
+	    }
+
+	    m_tok_cursor.push_stream(std::move(expanded));
 	}
 
 	void __expand_str(NodeTermStrLit* str) {
@@ -1360,12 +1463,9 @@ public:
 	}
 
 	void check_split_shr() {
-        if(peek().has_value() && peek().value().type == TokenType_t::shift_right) {
-            m_tokens[m_index].type = TokenType_t::above;
-            m_tokens[m_index].value = ">";
-            Token next_tok = m_tokens[m_index];
-            next_tok.col++;
-            m_tokens.insert(m_tokens.begin() + m_index + 1, next_tok);
+        auto t = peek();
+        if (t.has_value() && t->type == TokenType_t::shift_right) {
+            m_tok_cursor.split_shift_right_token();
         }
     }
 
@@ -2428,46 +2528,30 @@ public:
 			return stmt;
 		}
 
-		if(auto inc = try_consume(TokenType_t::_include)) {
-		    if(peek().has_value() && peek().value().type != TokenType_t::string_lit) {
-		        error_expected("file path string");
-		    }
-		    
-		    std::string raw_fname = consume().value.value();
+		if (auto inc = try_consume(TokenType_t::_include)) {
+		    Token str_tok = try_consume_err(TokenType_t::string_lit);
+		    std::string raw_fname = str_tok.value.value();
 		    std::string fname = raw_fname + ".bpm";
-		    
-		    std::filesystem::path current_source_file = inc.value().file;
-		    std::filesystem::path current_dir = current_source_file.parent_path();
-		    
-		    std::string relative_path = (current_dir / fname).string();
 
-		    std::string path = "";
-		    
-		    if (file_exists(relative_path)) {
-		        path = std::filesystem::canonical(relative_path).string();
-		    }
-		    else if(file_exists(fname)) {
-		        path = std::filesystem::canonical(fname).string();
-		    }
-		    else if(file_exists("lib/" + fname)) {
+		    std::filesystem::path current_source_file = inc->file;
+		    std::filesystem::path current_dir = current_source_file.parent_path();
+		    std::string relative_path = (current_dir / fname).string();
+		    std::string path;
+
+		    if (file_exists(relative_path)) path = std::filesystem::canonical(relative_path).string();
+		    else if (file_exists(fname))    path = std::filesystem::canonical(fname).string();
+		    else if (file_exists("lib/" + fname))
 		        path = std::filesystem::canonical("lib/" + fname).string();
-		    }
-		    else if(__slashinpath && file_exists(basepath + "/" + fname)) {
+		    else if (__slashinpath && file_exists(basepath + "/" + fname))
 		        path = std::filesystem::canonical(basepath + "/" + fname).string();
-		    }
-		    else {
-		        ParsingError("file not found at `include` - `" + fname + "`\n" +
-		                     "Searched in:\n" + 
-		                     "  " + relative_path + "\n" +
-		                     "  " + fname + "\n" +
-		                     "  lib/" + fname);
-		    }
+		    else
+		        ParsingError("file not found at `include` - `" + fname + "`");
 
 		    m_preprocessor_stmt = true;
-		    if(m_includes.find(path) != m_includes.end()) {
+		    if (m_includes.find(path) != m_includes.end()) {
 		        return {};
 		    }
-		    
+
 		    std::string contents;
 		    {
 		        std::stringstream contents_stream;
@@ -2476,13 +2560,15 @@ public:
 		        contents = contents_stream.str();
 		        input.close();
 		    }
-            
+
 		    Tokenizer nlexer(std::move(contents));
 		    auto result = nlexer.tokenize(path);
 		    m_includes.insert(path);
 
-		    m_tokens.insert(m_tokens.begin() + m_index, result.tokens->begin(), result.tokens->end());
-		    m_lines[result.tokens->operator[](0).file] = std::move(*(result.lines));
+		    m_lines[result.tokens->operator[](0).file] = std::move(*result.lines);
+
+		    m_tok_cursor.push_stream(std::move(*result.tokens));
+
 		    return {};
 		}
 
@@ -3272,40 +3358,36 @@ public:
 	ArenaAllocator m_allocator;
 
 private:
-	[[nodiscard]] std::optional<Token> peek(const int offset = 0) const
-	{
-		if (m_index + offset >= m_tokens.size()) {
-			return {};
-		}
-		return m_tokens.at(m_index + offset);
-	}
+	TokenStreamCursor m_tok_cursor;
 
-	Token consume()
-	{
-		return m_tokens.at(m_index++);
-	}
+    [[ nodiscard ]] std::optional<Token> peek(const int offset = 0) const {
+        return m_tok_cursor.peek(offset);
+    }
 
-	Token try_consume_err(const TokenType_t type)
-	{
-		if (peek().has_value() && peek().value().type == type) {
-			return consume();
-		}
-		error_expected(tok_to_string(type));
-		return {};
-	}
+    Token consume() {
+        return m_tok_cursor.consume();
+    }
 
-	std::optional<Token> try_consume(const TokenType_t type)
-	{
-		if (peek().has_value() && peek().value().type == type) {
-			return consume();
-		}
-		return {};
-	}
+    std::optional<Token> try_consume(const TokenType_t type) {
+        auto t = m_tok_cursor.peek();
+        if (t.has_value() && t->type == type) {
+            return m_tok_cursor.consume();
+        }
+        return std::nullopt;
+    }
 
-	std::vector<Token>	   m_tokens;
+    Token try_consume_err(const TokenType_t type) {
+        auto t = m_tok_cursor.peek();
+        if (t.has_value() && t->type == type) {
+            return m_tok_cursor.consume();
+        }
+        error_expected(tok_to_string(type));
+        Token fake;
+        return fake;
+    }
+
 	__stdset<std::string> m_includes;
 	__map<std::string, Macro> m_macroses;
 	bool m_preprocessor_stmt = false;
-	size_t m_index = 0ULL;
 	size_t CTX_IOTA = 0ULL;
 };
