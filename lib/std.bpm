@@ -1,7 +1,7 @@
 include "core"
 include "string"
 
-proc fabs(int value) -> int {
+proc _fabs(int value) -> int {
 	if(0 > value)
 	{ return (value) - (value) + (value); }
 	else
@@ -159,7 +159,7 @@ namespace std {
     	    hash = ((hash << 5) + hash) + rd8(str + i);
     	    i += 1;
     	}
-    	return fabs(hash);
+    	return _fabs(hash);
 	}
 }
 

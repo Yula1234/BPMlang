@@ -34,14 +34,14 @@ impl __DoubleFreeException { proc what(__DoubleFreeException self) -> char* {
         asm "push eax";
         let __fst = __popfromstack();
         return cast(char*, __fst); } }
-__oninit { __pushonstack(typeid(__DoubleFreeException)); asm "pop edx"; asm "mov dword [__BpmDoubleExceptionTypeId], edx"; }
+__oninit { __pushonstack(typeid(__DoubleFreeException)); asm "pop edx"; asm "mov dword [___BpmDoubleExceptionTypeId], edx"; }
 struct __RecursionException { __bstub: int, __bstub1: int, __bstub2: int }
 impl __RecursionException { proc what(__RecursionException self) -> char* {
         asm "call __bpm_recursion_exception_what";
         asm "push eax";
         let __fst = __popfromstack();
         return cast(char*, __fst); } }
-__oninit { __pushonstack(typeid(__RecursionException)); asm "pop edx"; asm "mov dword [__BpmRecursionExceptionTypeId], edx"; }
+__oninit { __pushonstack(typeid(__RecursionException)); asm "pop edx"; asm "mov dword [___BpmRecursionExceptionTypeId], edx"; }
 struct __SigSegvException { __addr: int, __bstub1: int, __bstub2: int }
 impl __SigSegvException { proc what(__SigSegvException self) -> char* {
         __pushonstack(self.__addr);
@@ -50,7 +50,7 @@ impl __SigSegvException { proc what(__SigSegvException self) -> char* {
         asm "push eax";
         let __fst = __popfromstack();
         return cast(char*, __fst); } }
-__oninit { __pushonstack(typeid(__SigSegvException)); asm "pop edx"; asm "mov dword [__BpmSigSegvExceptionTypeId], edx"; }
+__oninit { __pushonstack(typeid(__SigSegvException)); asm "pop edx"; asm "mov dword [___BpmSigSegvExceptionTypeId], edx"; }
 namespace std { proc exception(char* mess_) -> exception = return exception(mess_, 0, 0); }
 interface __ObjectTypeI {}
 interface __SimpleTypeI {}
@@ -3174,7 +3174,7 @@ AFTER_GEN:
                     gen.GeneratorError(stmt_exit->def, "`exit` except type `int`\nNOTE: but got type " + etype.to_string());
                 }
                 gen.gen_expr(stmt_exit->expr);
-                gen.m_builder.call(gen.sym("ExitProcess@4"));
+                gen.m_builder.call(gen.sym("ExitProcess"));
             }
 
             void operator()(const NodeStmtProc* stmt_proc)
@@ -4614,9 +4614,9 @@ AFTER_GEN:
 	    std::vector<PendingTemplateInstance> pending;
     	m_pending_templates = &pending;
 	
-	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("global __BpmDoubleExceptionTypeId")));
-	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("global __BpmRecursionExceptionTypeId")));
-	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("global __BpmSigSegvExceptionTypeId")));
+	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("public ___BpmDoubleExceptionTypeId")));
+	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("public ___BpmRecursionExceptionTypeId")));
+	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("public ___BpmSigSegvExceptionTypeId")));
 	
 	    for (const NodeStmt* stmt : m_prog->stmts) {
 	        gen_stmt(stmt);
@@ -4640,9 +4640,9 @@ AFTER_GEN:
         m_builder.call(sym("gc_set_stack_base"));
         m_builder.add(reg(Reg::ESP), imm(4));
 
-	    m_builder.mov(mem(MemRef::sym("__BpmDoubleExceptionTypeId")),   imm(0));
-	    m_builder.mov(mem(MemRef::sym("__BpmRecursionExceptionTypeId")), imm(0));
-	    m_builder.mov(mem(MemRef::sym("__BpmSigSegvExceptionTypeId")),  imm(0));
+	    m_builder.mov(mem(MemRef::sym("___BpmDoubleExceptionTypeId")),   imm(0));
+	    m_builder.mov(mem(MemRef::sym("___BpmRecursionExceptionTypeId")), imm(0));
+	    m_builder.mov(mem(MemRef::sym("___BpmSigSegvExceptionTypeId")),  imm(0));
 
 	    m_builder.push(imm(static_cast<int32_t>((*m_typeid_table_size) * 4ULL)));
 	    m_builder.call(sym("malloc"));
@@ -4655,7 +4655,7 @@ AFTER_GEN:
         m_builder.add(reg(Reg::ESP), imm(8));
 
 	    m_builder.push(imm(0));
-	    m_builder.call(sym("ExitProcess@4"));
+	    m_builder.call(sym("ExitProcess"));
 
 	    bool has_oninits = !__oninits.empty();
 
@@ -4676,9 +4676,9 @@ AFTER_GEN:
 	            );
 	        }
 	    };
-	    init_builtin_id("__DoubleFreeException", "__BpmDoubleExceptionTypeId");
-	    init_builtin_id("__RecursionException",  "__BpmRecursionExceptionTypeId");
-	    init_builtin_id("__SigSegvException",    "__BpmSigSegvExceptionTypeId");
+	    init_builtin_id("__DoubleFreeException", "___BpmDoubleExceptionTypeId");
+	    init_builtin_id("__RecursionException",  "___BpmRecursionExceptionTypeId");
+	    init_builtin_id("__SigSegvException",    "___BpmSigSegvExceptionTypeId");
 
 	    for (const NodeScope* scope : __oninits) {
 	        gen_scope(scope);

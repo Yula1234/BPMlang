@@ -49,7 +49,7 @@ void show_usage(std::ostream& stream) {
 
 int main(int argc, char* argv[]) {
 
-    auto start = std::chrono::system_clock::now();
+    auto start_all = std::chrono::system_clock::now();
 
     ArgParser argparser(argc, argv);
     argparser.parse();
@@ -77,6 +77,8 @@ int main(int argc, char* argv[]) {
         user_code = contents_stream.str();
     }
 
+    auto start_lexing = std::chrono::system_clock::now();
+
     Tokenizer internal_tokenizer(std::move(INTERNAL_CODE::IMPLEMENTATION));
     auto internal_res = internal_tokenizer.tokenize("<built-in>");
     
@@ -84,6 +86,10 @@ int main(int argc, char* argv[]) {
     auto user_res = user_tokenizer.tokenize(input_filename);
     
     internal_res.tokens->insert(internal_res.tokens->end(), user_res.tokens->begin(), user_res.tokens->end());
+
+    auto end_lexing = std::chrono::system_clock::now();
+
+    auto start_parsing = std::chrono::system_clock::now();
     
     Parser parser(std::move(*internal_res.tokens), std::vector<std::string>()); 
     
@@ -92,10 +98,14 @@ int main(int argc, char* argv[]) {
     
     std::optional<NodeProg*> prog = parser.parse_prog();
 
+    auto end_parsing = std::chrono::system_clock::now();
+
     if (!prog.has_value()) {
         std::cerr << "Invalid program" << std::endl;
         exit(EXIT_FAILURE);
     }
+
+    auto start_generation = std::chrono::system_clock::now();
 
     {
         Generator generator(prog.value());
@@ -108,11 +118,16 @@ int main(int argc, char* argv[]) {
         file << generated_asm;
     }
 
+    auto end_generation = std::chrono::system_clock::now();
+
     if(auto _f_time = argparser.find_flag(FlagType::time)) {
-        auto end = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed_seconds = end-start;
-        std::cout << "Compilation took: " << elapsed_seconds.count() << "s" << std::endl;
+        std::chrono::duration<double> elapsed_seconds = end_lexing-start_lexing;
+        std::cout << "Lexing took: " << elapsed_seconds.count() << "s" << std::endl;
+        elapsed_seconds = end_parsing-start_parsing;
+        std::cout << "Parsing took: " << elapsed_seconds.count() << "s" << std::endl;
+        elapsed_seconds = end_generation-start_generation;
+        std::cout << "Generation took: " << elapsed_seconds.count() << "s" << std::endl;
     }
-    auto fexit_status = argparser.compile();
+    auto fexit_status = argparser.compile(start_all);
     return fexit_status;
 }

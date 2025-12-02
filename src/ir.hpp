@@ -294,18 +294,22 @@ public:
     explicit AsmEmitter(std::ostream& o) : out(o) {}
 
     void emit_program(const IRProgram& p) {
-        out << "section .text\n\n";
-        out << "global main\n\n";
+        out << "format MS COFF\n\n";
+        out << "section '.text' code readable executable\n\n";
+        out << "public main as '_main'\n\n";
     
         for (const auto& ins : p.instrs) {
             emit_instr(ins);
         }
         for (const auto& name : p.externs) {
-            out << "extern " << name << "\n";
+            if (name == "ExitProcess@4") {
+                out << "extrn '_ExitProcess@4' as ExitProcess\n";
+            }
+            else { out << "extrn '_" << name << "' as " + name + "\n"; }
         }
         out << "\n";
     
-        out << "section .data\n";
+        out << "section '.data' data readable writeable\n";
 
         out << "    numfmt:   db \"%d\", 0x0\n";
         out << "    numfmtnl: db \"%d\", 0xa, 0x0\n";
@@ -320,15 +324,15 @@ public:
             out << hex.str() << "0x0\n";
         }
 
-        out << "\nsection .bss\n";
-        out << "    tmp_stor: resd 1024\n";
-        out << "    tmp_p:    resd 1\n";
-        out << "    __BpmDoubleExceptionTypeId: resd 1\n";
-        out << "    __BpmRecursionExceptionTypeId: resd 1\n";
-        out << "    __BpmSigSegvExceptionTypeId: resd 1\n";
+        out << "\nsection '.bss' readable writeable\n";
+        out << "    tmp_stor: rd 1024\n";
+        out << "    tmp_p:    rd 1\n";
+        out << "    ___BpmDoubleExceptionTypeId: rd 1\n";
+        out << "    ___BpmRecursionExceptionTypeId: rd 1\n";
+        out << "    ___BpmSigSegvExceptionTypeId: rd 1\n";
     
         for (const auto& g : p.globals) {
-            out << "    v_" << g.name << ": resd 1\n";
+            out << "    v_" << g.name << ": rd 1\n";
         }
     }
 

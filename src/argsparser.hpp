@@ -36,6 +36,25 @@ struct ParsedFlag {
     std::optional<std::string> value;
 };
 
+std::pair<int, std::string> compileFasmSilent(const std::string& cmd) {
+    std::string fullCmd = cmd + " 2>&1";
+    std::string output;
+    char buffer[128];
+    FILE* pipe = _popen(fullCmd.c_str(), "r");
+
+    if (!pipe) {
+        return std::pair(1, output);
+    }
+
+    while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        output += buffer;
+    }
+
+    int returnCode = _pclose(pipe);
+
+    return std::pair(returnCode, output);
+}
+
 class ArgParser {
 private:
     int m_argc;
@@ -153,19 +172,28 @@ public:
         return m_input_file;
     }
 
-    int compile() {
+    int compile(auto start_comp) {
         if (find_flag(FlagType::dump)) {
             return EXIT_SUCCESS;
         }
 
         fs::path asm_file = "output.asm";
         fs::path obj_file = "output.o";
+
+        auto start_fasm = std::chrono::system_clock::now();
         
-        std::string nasm_cmd = "nasm --gprefix _ -fwin32 " + asm_file.string() + " -o " + obj_file.string();
-        if (system(nasm_cmd.c_str()) != 0) {
-            std::cerr << "Error: Assembler (nasm) failed.\n";
-            return EXIT_FAILURE;
+        std::string fasm_cmd = "fasm " + asm_file.string() + " " + obj_file.string();
+        auto fasm_res = compileFasmSilent(fasm_cmd);
+        if(fasm_res.first != 0) {
+            std::cerr << "Fasm error:\n";
+            std::cerr << fasm_res.second << "\n";
+            exit(EXIT_FAILURE);
         }
+
+        auto end_fasm = std::chrono::system_clock::now();
+
+        std::chrono::duration<double> fasm_elapsed_seconds = end_fasm-start_fasm;
+        std::cout << "Fasm took: " << fasm_elapsed_seconds.count() << "s" << std::endl;
 
         if (!find_flag(FlagType::sasm)) {
             std::error_code ec;
@@ -195,6 +223,10 @@ public:
 
         std::error_code ec;
         fs::remove(obj_file, ec);
+
+        auto end_comp = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end_comp-start_comp;
+        std::cout << "\nThe whole compilation took: " << elapsed_seconds.count() << "s" << std::endl;
 
         if (find_flag(FlagType::run)) {
             int run_ret = system(output_exe.string().c_str());
