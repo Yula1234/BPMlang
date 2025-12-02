@@ -39,7 +39,7 @@ enum IR_OP_KIND {
 	PROC_DEF, PROC_END, PROC_START, LOAD_ARG,
 	LOAD_CONST, LOAD_LOCAL, ADD, RETURN_VOID,
 	RETURN_VALUE, STORE_LOCAL, LOAD_REG, CALL,
-	DEALLOC_STACK
+	DEALLOC_STACK, SUB, DIV, MUL
 }
 
 struct IROperand {
@@ -139,6 +139,18 @@ impl IROp {
 			std::fprint(fd, "DEALLOC_STACK");
 			return;
 		}
+		if(self.kind == IR_OP_KIND::SUB) {
+			std::fprint(fd, "SUB");
+			return;
+		}
+		if(self.kind == IR_OP_KIND::DIV) {
+			std::fprint(fd, "DIV");
+			return;
+		}
+		if(self.kind == IR_OP_KIND::MUL) {
+			std::fprint(fd, "MUL");
+			return;
+		}
 		assert(false, "unreachable");
 	}
 }
@@ -178,6 +190,15 @@ impl IRBuilder {
 	}
 	proc add(IRBuilder self) {
 		self.program.insts.push(IROp(IR_OP_KIND::ADD, IROperand::new()));
+	}
+	proc sub(IRBuilder self) {
+		self.program.insts.push(IROp(IR_OP_KIND::SUB, IROperand::new()));
+	}
+	proc div(IRBuilder self) {
+		self.program.insts.push(IROp(IR_OP_KIND::DIV, IROperand::new()));
+	}
+	proc mul(IRBuilder self) {
+		self.program.insts.push(IROp(IR_OP_KIND::MUL, IROperand::new()));
 	}
 	proc return_void(IRBuilder self, string symbol) {
 		self.program.insts.push(IROp(IR_OP_KIND::RETURN_VOID, IROperand::new(symbol)));

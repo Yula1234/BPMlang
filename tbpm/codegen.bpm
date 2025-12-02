@@ -57,9 +57,30 @@ impl IRGenerator {
 	proc gen_bin_expr(IRGenerator self, NodeBinExpr bin_expr) {
 		if(bin_expr.kind == NODE_BIN_EXPR_KIND::ADD) {
 			let as_add = cast(NodeBinExprAdd, bin_expr.var);
-			self.gen_expr(as_add.rhs);
 			self.gen_expr(as_add.lhs);
+			self.gen_expr(as_add.rhs);
 			self.m_builder.add();
+			return;
+		}
+		if(bin_expr.kind == NODE_BIN_EXPR_KIND::SUB) {
+			let as_sub = cast(NodeBinExprSub, bin_expr.var);
+			self.gen_expr(as_sub.lhs);
+			self.gen_expr(as_sub.rhs);
+			self.m_builder.sub();
+			return;
+		}
+		if(bin_expr.kind == NODE_BIN_EXPR_KIND::DIV) {
+			let as_div = cast(NodeBinExprDiv, bin_expr.var);
+			self.gen_expr(as_div.lhs);
+			self.gen_expr(as_div.rhs);
+			self.m_builder.div();
+			return;
+		}
+		if(bin_expr.kind == NODE_BIN_EXPR_KIND::MUL) {
+			let as_mul = cast(NodeBinExprMul, bin_expr.var);
+			self.gen_expr(as_mul.lhs);
+			self.gen_expr(as_mul.rhs);
+			self.m_builder.mul();
 			return;
 		}
 		assert(false, "unreachable");

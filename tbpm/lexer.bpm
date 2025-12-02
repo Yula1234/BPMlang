@@ -10,6 +10,9 @@ enum TOKEN_KIND {
     INT_LIT, 
     SEMI,
     PLUS,
+    MINUS,
+    SLASH,
+    STAR,
     EOF,
     INT_TYPE,
     VOID_TYPE,
@@ -46,62 +49,49 @@ impl Optional<T> [new] {
 proc tok_to_string(int kind) -> string {
     if(kind == TOKEN_KIND::PROC) {
         return string::new("`proc`");
-    }
-    elif(kind == TOKEN_KIND::ID) {
+    } elif(kind == TOKEN_KIND::ID) {
         return string::new("`identifier`");
-    }
-    elif(kind == TOKEN_KIND::OPAREN) {
+    } elif(kind == TOKEN_KIND::OPAREN) {
         return string::new("`(`");
-    }
-    elif(kind == TOKEN_KIND::CPAREN) {
+    } elif(kind == TOKEN_KIND::CPAREN) {
         return string::new("`)`");
-    }
-    elif(kind == TOKEN_KIND::OCURLY) {
+    } elif(kind == TOKEN_KIND::OCURLY) {
         return string::new("`{`");
-    }
-    elif(kind == TOKEN_KIND::CCURLY) {
+    } elif(kind == TOKEN_KIND::CCURLY) {
         return string::new("`}`");
-    }
-    elif(kind == TOKEN_KIND::LET) {
+    } elif(kind == TOKEN_KIND::LET) {
         return string::new("`let`");
-    }
-    elif(kind == TOKEN_KIND::EQ) {
+    } elif(kind == TOKEN_KIND::EQ) {
         return string::new("`=`");
-    }
-    elif(kind == TOKEN_KIND::INT_LIT) {
+    } elif(kind == TOKEN_KIND::INT_LIT) {
         return string::new("`int literal`");
-    }
-    elif(kind == TOKEN_KIND::SEMI) {
+    } elif(kind == TOKEN_KIND::SEMI) {
         return string::new("`;`");
-    }
-    elif(kind == TOKEN_KIND::INT_TYPE) {
+    } elif(kind == TOKEN_KIND::INT_TYPE) {
         return string::new("`int`");
-    }
-    elif(kind == TOKEN_KIND::CHAR_TYPE) {
+    } elif(kind == TOKEN_KIND::CHAR_TYPE) {
         return string::new("`char`");
-    }
-    elif(kind == TOKEN_KIND::VOID_TYPE) {
+    } elif(kind == TOKEN_KIND::VOID_TYPE) {
         return string::new("`void`");
-    }
-    elif(kind == TOKEN_KIND::ANY_TYPE) {
+    } elif(kind == TOKEN_KIND::ANY_TYPE) {
         return string::new("`any`");
-    }
-    elif(kind == TOKEN_KIND::DOUBLE_DOT) {
+    } elif(kind == TOKEN_KIND::DOUBLE_DOT) {
         return string::new("`:`");
-    }
-    elif(kind == TOKEN_KIND::COMMA) {
+    } elif(kind == TOKEN_KIND::COMMA) {
         return string::new("`,`");
-    }
-    elif(kind == TOKEN_KIND::PLUS) {
+    } elif(kind == TOKEN_KIND::PLUS) {
         return string::new("`+`");
-    }
-    elif(kind == TOKEN_KIND::ARROW) {
+    } elif(kind == TOKEN_KIND::MINUS) {
+        return string::new("`-`");
+    } elif(kind == TOKEN_KIND::SLASH) {
+        return string::new("`/`");
+    } elif(kind == TOKEN_KIND::STAR) {
+        return string::new("`*`");
+    } elif(kind == TOKEN_KIND::ARROW) {
         return string::new("`->`");
-    }
-    elif(kind == TOKEN_KIND::RETURN) {
+    } elif(kind == TOKEN_KIND::RETURN) {
         return string::new("`return`");
-    }
-    elif(kind == TOKEN_KIND::EOF) {
+    } elif(kind == TOKEN_KIND::EOF) {
         return string::new("<eof>");
     }
     assert(false, "unreachable");
@@ -149,8 +139,11 @@ impl Token {
 }
 
 proc get_bin_prec(int tok_kind) -> Optional<int> {
-    if(tok_kind == TOKEN_KIND::PLUS) {
+    if(tok_kind == TOKEN_KIND::PLUS || tok_kind == TOKEN_KIND::MINUS) {
         return Optional::new(5);
+    }
+    if(tok_kind == TOKEN_KIND::SLASH || tok_kind == TOKEN_KIND::STAR) {
+        return Optional::new(6);
     }
     return Optional::new<int>();
 }
@@ -313,6 +306,18 @@ impl Lexer {
         if (c == '+') {
             self.advance();
             return Token(TOKEN_KIND::PLUS, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
+        }
+        if (c == '-') {
+            self.advance();
+            return Token(TOKEN_KIND::MINUS, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
+        }
+        if (c == '/') {
+            self.advance();
+            return Token(TOKEN_KIND::SLASH, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
+        }
+        if (c == '*') {
+            self.advance();
+            return Token(TOKEN_KIND::STAR, self.m_line, self.m_col - 1, self.m_filename.clone(), "");
         }
         if (is_digit(c)) {
             let buf = string::new("");

@@ -160,7 +160,37 @@ impl SemanticContext {
 			let type_lhs = self.analyze_expr(as_add.lhs);
 			let type_rhs = self.analyze_expr(as_add.rhs);
 			if(not(type_lhs.equals(type_rhs))) {
-				self.prs.DiagnosticMessage(bin_expr.def, "error", string::new(" + type mismatch"), 0);
+				self.prs.DiagnosticMessage(bin_expr.def, "error", string::new("+ type mismatch"), 0);
+				exit(EXIT_FAILURE);
+			}
+			return type_lhs;
+		}
+		if(bin_expr.kind == NODE_BIN_EXPR_KIND::SUB) {
+			let as_sub = cast(NodeBinExprSub, bin_expr.var);
+			let type_lhs = self.analyze_expr(as_sub.lhs);
+			let type_rhs = self.analyze_expr(as_sub.rhs);
+			if(not(type_lhs.equals(type_rhs))) {
+				self.prs.DiagnosticMessage(bin_expr.def, "error", string::new("- type mismatch"), 0);
+				exit(EXIT_FAILURE);
+			}
+			return type_lhs;
+		}
+		if(bin_expr.kind == NODE_BIN_EXPR_KIND::DIV) {
+			let as_div = cast(NodeBinExprDiv, bin_expr.var);
+			let type_lhs = self.analyze_expr(as_div.lhs);
+			let type_rhs = self.analyze_expr(as_div.rhs);
+			if(not(type_lhs.equals(type_rhs))) {
+				self.prs.DiagnosticMessage(bin_expr.def, "error", string::new("/ type mismatch"), 0);
+				exit(EXIT_FAILURE);
+			}
+			return type_lhs;
+		}
+		if(bin_expr.kind == NODE_BIN_EXPR_KIND::MUL) {
+			let as_mul = cast(NodeBinExprMul, bin_expr.var);
+			let type_lhs = self.analyze_expr(as_mul.lhs);
+			let type_rhs = self.analyze_expr(as_mul.rhs);
+			if(not(type_lhs.equals(type_rhs))) {
+				self.prs.DiagnosticMessage(bin_expr.def, "error", string::new("* type mismatch"), 0);
 				exit(EXIT_FAILURE);
 			}
 			return type_lhs;

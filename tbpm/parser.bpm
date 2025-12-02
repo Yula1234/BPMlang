@@ -192,6 +192,21 @@ impl Parser {
 				expr.def = ctok;
 				expr.kind = NODE_BIN_EXPR_KIND::ADD;
 				expr.var = cast(ptr, add);
+			} elif(ctok.kind == TOKEN_KIND::MINUS) {
+				let sub = NodeBinExprSub(NodeExpr(expr_lhs2.kind, expr_lhs2.var, null()), NodeExpr(expr_rhs.value().kind, expr_rhs.value().var, null()));
+				expr.def = ctok;
+				expr.kind = NODE_BIN_EXPR_KIND::SUB;
+				expr.var = cast(ptr, sub);
+			} elif(ctok.kind == TOKEN_KIND::SLASH) {
+				let div = NodeBinExprDiv(NodeExpr(expr_lhs2.kind, expr_lhs2.var, null()), NodeExpr(expr_rhs.value().kind, expr_rhs.value().var, null()));
+				expr.def = ctok;
+				expr.kind = NODE_BIN_EXPR_KIND::DIV;
+				expr.var = cast(ptr, div);
+			} elif(ctok.kind == TOKEN_KIND::STAR) {
+				let mul = NodeBinExprMul(NodeExpr(expr_lhs2.kind, expr_lhs2.var, null()), NodeExpr(expr_rhs.value().kind, expr_rhs.value().var, null()));
+				expr.def = ctok;
+				expr.kind = NODE_BIN_EXPR_KIND::MUL;
+				expr.var = cast(ptr, mul);
 			} else {
 				assert(false, "unreachable");
 			}

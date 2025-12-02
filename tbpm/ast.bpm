@@ -7,7 +7,7 @@ enum NODE_EXPR_KIND {
 }
 
 enum NODE_BIN_EXPR_KIND {
-	ADD
+	ADD, SUB, DIV, MUL
 }
 
 enum NODE_TERM_KIND {
@@ -44,6 +44,21 @@ struct NodeTerm {
 
 
 struct NodeBinExprAdd {
+	lhs: NodeExpr,
+	rhs: NodeExpr
+}
+
+struct NodeBinExprSub {
+	lhs: NodeExpr,
+	rhs: NodeExpr
+}
+
+struct NodeBinExprDiv {
+	lhs: NodeExpr,
+	rhs: NodeExpr
+}
+
+struct NodeBinExprMul {
 	lhs: NodeExpr,
 	rhs: NodeExpr
 }

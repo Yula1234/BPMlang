@@ -66,6 +66,18 @@ impl NasmEmitter {
 			self.out += "    pop ecx\n    pop edx\n    add edx, ecx\n    push edx\n";
 			return;
 		}
+		if(op.kind == IR_OP_KIND::SUB) {
+			self.out += "    pop ecx\n    pop edx\n    sub edx, ecx\n    push edx\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::DIV) {
+			self.out += "    pop ebx\n    pop eax\n    xor edx, edx\n    div ebx\n    push eax\n";
+			return;
+		}
+		if(op.kind == IR_OP_KIND::MUL) {
+			self.out += "    pop ebx\n    pop eax\n    mul ebx\n    push eax\n";
+			return;
+		}
 		if(op.kind == IR_OP_KIND::RETURN_VALUE) {
 			assert(op.operand.kind == IR_OPERAND_KIND::LABEL, "unreachable");
 			self.out += "    pop eax\n    jmp ";
