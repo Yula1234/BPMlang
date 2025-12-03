@@ -44,6 +44,8 @@ bool __slashinpath;
 #include "argsparser.hpp"
 #include "tokenization.hpp"
 #include "diagnostic.hpp"
+#include "datatype.hpp"
+#include "ast.hpp"
 #include "parser.hpp"
 #include "ir.hpp"
 #include "ir_opt.hpp"
