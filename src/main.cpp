@@ -20,6 +20,7 @@
 #include <ctime>
 #include <stdexcept>
 #include <functional>
+#include <windows.h>
 
 /*
     To start using compiller
@@ -41,6 +42,11 @@ bool __slashinpath;
 
 #include "arena.hpp"
 #include "argsparser.hpp"
+#include "tokenization.hpp"
+#include "diagnostic.hpp"
+#include "parser.hpp"
+#include "ir.hpp"
+#include "ir_opt.hpp"
 #include "generation.hpp"
 
 void show_usage(std::ostream& stream) {
@@ -49,6 +55,8 @@ void show_usage(std::ostream& stream) {
 }
 
 int main(int argc, char* argv[]) {
+
+    ArenaAllocator global_allocator((1024 * 1024) * 256);
 
     auto start_all = std::chrono::system_clock::now();
 
@@ -90,12 +98,13 @@ int main(int argc, char* argv[]) {
 
     auto end_lexing = std::chrono::system_clock::now();
 
+    DiagnosticManager dmanager{};
+    dmanager.save_file("<built-in>", std::move(*internal_res.lines));
+    dmanager.save_file(std::move(input_filename), std::move(*user_res.lines));
+
     auto start_parsing = std::chrono::system_clock::now();
     
-    Parser parser(std::move(*internal_res.tokens), std::vector<std::string>()); 
-    
-    parser.m_lines["<built-in>"] = std::move(*internal_res.lines);
-    parser.m_lines[input_filename]       = std::move(*user_res.lines);
+    Parser parser(std::move(*internal_res.tokens), &dmanager, &global_allocator); 
     
     std::optional<NodeProg*> prog = parser.parse_prog();
 
@@ -109,11 +118,10 @@ int main(int argc, char* argv[]) {
     auto start_generation = std::chrono::system_clock::now();
 
     {
-        Generator generator(prog.value());
+        Generator generator(prog.value(), &dmanager, &global_allocator);
         if(auto _f_time = argparser.find_flag(FlagType::optimize)) {
             generator.m_optimize = true;
         }
-        generator.get_props_from_parser(&parser);
         const std::string& generated_asm = generator.gen_prog();
         std::fstream file("output.asm", std::ios::out);
         file << generated_asm;

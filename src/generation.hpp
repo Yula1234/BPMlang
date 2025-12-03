@@ -1,9 +1,5 @@
 #pragma once
 
-#include "parser.hpp"
-#include "ir.hpp"
-#include "ir_opt.hpp"
-
 #define VectorSimDataCap 4096
 
 #define TYPEID_INT  0
@@ -359,18 +355,18 @@ public:
         Generator& gen;
     };
 
-    explicit Generator(NodeProg* prog)
-        : m_prog(prog), m_allocator(4 * 1024 * 1024) {}
+    explicit Generator(NodeProg* prog, DiagnosticManager* dman, ArenaAllocator* arenall) {
+        m_prog = prog;
+        m_diag_man = dman;
+        m_allocator = arenall;
+    }
 
-    Generator(const Generator& other)
-    : m_allocator(12 * 1024)
-	{
+    Generator(const Generator& other) {
 	    m_typeid_table   = other.m_typeid_table;
 	    m_consts         = other.m_consts;
 	    m_typedefs       = other.m_typedefs;
 	    m_string_index   = other.m_string_index;
 	    m_prog           = other.m_prog;
-	    m_lines          = other.m_lines;
 	    m_strings        = other.m_strings;
 	    m_procs          = other.m_procs;
 	    m_structs        = other.m_structs;
@@ -379,7 +375,8 @@ public:
 	    m_used_labels    = other.m_used_labels;
 	    m_namespaces     = other.m_namespaces;
 	    m_cur_namespace  = NULL;
-	    m_parser         = other.m_parser;
+        m_allocator      = other.m_allocator;
+	    m_diag_man       = other.m_diag_man;
 	    m_structs_count  = other.m_structs_count;
 	    CTX_IOTA         = other.CTX_IOTA;
 	    m_label_count    = other.m_label_count;
@@ -503,23 +500,23 @@ public:
     }
 
     void DiagnosticMessage(const Token& tok, __str_ref header, __str_ref msg, const int col_inc) {
-        m_parser->DiagnosticMessage(tok, header, msg, col_inc);
+        m_diag_man->DiagnosticMessage(tok, header, msg, col_inc);
     }
 
     void GeneratorError(const Token& tok, __str_ref msg) {
-        m_parser->DiagnosticMessage(tok, "error", msg, 0);
+        m_diag_man->DiagnosticMessage(tok, "error", msg, 0);
 
         if (m_cur_proc.has_value()) {
             const Procedure& p = m_cur_proc.value();
             std::string detail = "in function `" + p.name + "`";
-            m_parser->DiagnosticMessage(p.def, "note", detail, 0, false);
+            m_diag_man->DiagnosticMessage(p.def, "note", detail, 0, false);
         }
 
         exit(EXIT_FAILURE);
     }
 
     void GeneratorWarning(const Token& tok, __str_ref msg) {
-        DiagnosticMessage(tok, "warning", msg, 0);
+        m_diag_man->DiagnosticMessage(tok, "warning", msg, 0);
     }
 
     std::vector<DataType> get_template_args(const DataType& dt) {
@@ -582,76 +579,76 @@ public:
     }
 
     NodeExpr* make_ident_expr(std::string name) {
-        auto* term = m_allocator.emplace<NodeTermIdent>();
+        auto* term = m_allocator->emplace<NodeTermIdent>();
         term->ident = {TokenType_t::ident, 0, 0, name, "", std::nullopt}; 
-        auto* t = m_allocator.emplace<NodeTerm>(); t->var = term;
-        auto* e = m_allocator.emplace<NodeExpr>(); e->var = t;
+        auto* t = m_allocator->emplace<NodeTerm>(); t->var = term;
+        auto* e = m_allocator->emplace<NodeExpr>(); e->var = t;
         return e;
     }
 
     NodeExpr* make_neq_expr(NodeExpr* lhs, NodeExpr* rhs, Token def) {
-        auto* nq = m_allocator.emplace<NodeBinExprNotEq>();
+        auto* nq = m_allocator->emplace<NodeBinExprNotEq>();
         nq->lhs = lhs;
         nq->rhs = rhs;
-        auto* be = m_allocator.emplace<NodeBinExpr>();
+        auto* be = m_allocator->emplace<NodeBinExpr>();
         be->def = def;
         be->var = nq;
-        auto* e = m_allocator.emplace<NodeExpr>(); e->var = be;
+        auto* e = m_allocator->emplace<NodeExpr>(); e->var = be;
         return e;
     }
 
     NodeExpr* make_int_lit(int val) {
-        auto* term = m_allocator.emplace<NodeTermIntLit>();
+        auto* term = m_allocator->emplace<NodeTermIntLit>();
         term->int_lit = {TokenType_t::int_lit, 0, 0, std::to_string(val), "", std::nullopt};
-        auto* t = m_allocator.emplace<NodeTerm>(); t->var = term;
-        auto* e = m_allocator.emplace<NodeExpr>(); e->var = t;
+        auto* t = m_allocator->emplace<NodeTerm>(); t->var = term;
+        auto* e = m_allocator->emplace<NodeExpr>(); e->var = t;
         return e;
     }
 
     NodeExpr* make_method_call(NodeExpr* obj, std::string method, std::vector<NodeExpr*> args, Token def) {
-        auto* call = m_allocator.emplace<NodeTermCall>();
+        auto* call = m_allocator->emplace<NodeTermCall>();
         call->def = def;
         call->name = method;
         if (!args.empty()) {
-            auto* bargs = m_allocator.emplace<NodeBinExprArgs>();
+            auto* bargs = m_allocator->emplace<NodeBinExprArgs>();
             bargs->args = args;
-            auto* be = m_allocator.emplace<NodeBinExpr>(); be->var = bargs;
-            auto* ae = m_allocator.emplace<NodeExpr>(); ae->var = be;
+            auto* be = m_allocator->emplace<NodeBinExpr>(); be->var = bargs;
+            auto* ae = m_allocator->emplace<NodeExpr>(); ae->var = be;
             call->args = ae;
         } else {
             call->args = std::nullopt;
         }
         
-        auto* t_call = m_allocator.emplace<NodeTerm>(); t_call->var = call;
-        auto* e_rhs = m_allocator.emplace<NodeExpr>(); e_rhs->var = t_call;
+        auto* t_call = m_allocator->emplace<NodeTerm>(); t_call->var = call;
+        auto* e_rhs = m_allocator->emplace<NodeExpr>(); e_rhs->var = t_call;
         
-        auto* dot = m_allocator.emplace<NodeBinExprDot>();
+        auto* dot = m_allocator->emplace<NodeBinExprDot>();
         dot->lhs = obj;
         dot->rhs = e_rhs;
         
-        auto* b_dot = m_allocator.emplace<NodeBinExpr>();
+        auto* b_dot = m_allocator->emplace<NodeBinExpr>();
         b_dot->def = def;
         b_dot->var = dot;
         
-        auto* e = m_allocator.emplace<NodeExpr>(); e->var = b_dot;
+        auto* e = m_allocator->emplace<NodeExpr>(); e->var = b_dot;
         return e;
     }
     
     NodeExpr* make_deref_expr(NodeExpr* expr, Token def) {
-        auto* unref = m_allocator.emplace<NodeTermUnref>();
+        auto* unref = m_allocator->emplace<NodeTermUnref>();
         unref->def = def;
         unref->expr = expr;
-        auto* t = m_allocator.emplace<NodeTerm>(); t->var = unref;
-        auto* e = m_allocator.emplace<NodeExpr>(); e->var = t;
+        auto* t = m_allocator->emplace<NodeTerm>(); t->var = unref;
+        auto* e = m_allocator->emplace<NodeExpr>(); e->var = t;
         return e;
     }
     
     NodeStmt* make_inc_stmt(NodeExpr* lvalue, NodeExpr* expr, Token def) {
-        auto* inc = m_allocator.emplace<NodeStmtIncBy>();
+        auto* inc = m_allocator->emplace<NodeStmtIncBy>();
         inc->def = def;
         inc->lvalue = lvalue;
         inc->expr = expr;
-        auto* s = m_allocator.emplace<NodeStmt>(); s->var = inc;
+        auto* s = m_allocator->emplace<NodeStmt>(); s->var = inc;
         return s;
     }
 
@@ -3197,7 +3194,7 @@ AFTER_GEN:
                             gen.DiagnosticMessage(pdef, "note", "first definition here.", 0);
                             exit(1);
                         } else {
-                            Procedure* ovs = gen.m_allocator.emplace<Procedure>();
+                            Procedure* ovs = gen.m_allocator->emplace<Procedure>();
                             ovs->name         = stmt_proc->name;
                             ovs->params       = stmt_proc->params;
                             ovs->rettype      = stmt_proc->rettype;
@@ -3275,7 +3272,7 @@ AFTER_GEN:
                                 }
                             }
 
-                            Procedure* ovs = gen.m_allocator.emplace<Procedure>();
+                            Procedure* ovs = gen.m_allocator->emplace<Procedure>();
                             ovs->name         = stmt_proc->name;
                             ovs->params       = stmt_proc->params;
                             ovs->rettype      = stmt_proc->rettype;
@@ -4121,7 +4118,7 @@ AFTER_GEN:
                 Namespace* nm;
                 auto enm = gen.namespace_lookup(fullName);
                 if (!enm.has_value()) {
-                    nm = gen.m_allocator.emplace<Namespace>();
+                    nm = gen.m_allocator->emplace<Namespace>();
                     nm->procs = {};
                     nm->name  = fullName;
                     gen.m_namespaces[fullName] = nm;
@@ -4152,7 +4149,7 @@ AFTER_GEN:
                 if (enm.has_value()) {
                     gen.GeneratorError(stmt_impl->def, "redefenition of implementation struct `" + iname + "`.");
                 }
-                Namespace* nm = gen.m_allocator.emplace<Namespace>();
+                Namespace* nm = gen.m_allocator->emplace<Namespace>();
                 nm->procs = {};
                 nm->name  = stmt_impl->name;
                 gen.m_cur_namespace = nm;
@@ -4164,7 +4161,7 @@ AFTER_GEN:
                         if (std::find(stmt_impl->inst.begin(), stmt_impl->inst.end(), pname) ==
                             stmt_impl->inst.end()) {
                             if (ps->templates == NULL)
-                                ps->templates = gen.m_parser->m_allocator.emplace<__stdvec<std::string>>();
+                                ps->templates = gen.m_allocator->emplace<__stdvec<std::string>>();
                             ps->templates->insert(ps->templates->begin(),
                                                   stmt_impl->temps.begin(), stmt_impl->temps.end());
                         }
@@ -4241,7 +4238,7 @@ AFTER_GEN:
                         NodeBinExpr* be = std::get<NodeBinExpr*>(orig_args_expr->var);
                         NodeBinExprArgs* orig_args = std::get<NodeBinExprArgs*>(be->var);
 
-                        auto* new_args = gen.m_allocator.emplace<NodeBinExprArgs>();
+                        auto* new_args = gen.m_allocator->emplace<NodeBinExprArgs>();
                         for (size_t i = 0; i < orig_args->args.size(); ++i) {
                             NodeExpr* e = orig_args->args[i];
                             if (i == 0 && e == stmt_call->mt) {
@@ -4251,10 +4248,10 @@ AFTER_GEN:
                         }
 
                         if (!new_args->args.empty()) {
-                            NodeBinExpr* ab = gen.m_allocator.emplace<NodeBinExpr>();
+                            NodeBinExpr* ab = gen.m_allocator->emplace<NodeBinExpr>();
                             ab->def = stmt_call->def;
                             ab->var = new_args;
-                            final_args_expr = gen.m_allocator.emplace<NodeExpr>();
+                            final_args_expr = gen.m_allocator->emplace<NodeExpr>();
                             final_args_expr->var = ab;
                         } else {
                             final_args_expr = nullptr;
@@ -4263,7 +4260,7 @@ AFTER_GEN:
                         final_args_expr = orig_args_expr;
                     }
 
-                    NodeTermCall* call_term = gen.m_allocator.emplace<NodeTermCall>();
+                    NodeTermCall* call_term = gen.m_allocator->emplace<NodeTermCall>();
                     call_term->def   = stmt_call->def;
                     call_term->name  = stmt_call->name;
                     call_term->targs = stmt_call->targs;
@@ -4273,21 +4270,21 @@ AFTER_GEN:
                         call_term->args = std::nullopt;
                     }
 
-                    NodeTerm* term = gen.m_allocator.emplace<NodeTerm>();
+                    NodeTerm* term = gen.m_allocator->emplace<NodeTerm>();
                     term->var = call_term;
 
-                    NodeExpr* rhs_expr = gen.m_allocator.emplace<NodeExpr>();
+                    NodeExpr* rhs_expr = gen.m_allocator->emplace<NodeExpr>();
                     rhs_expr->var = term;
 
-                    NodeBinExprDot* dot = gen.m_allocator.emplace<NodeBinExprDot>();
+                    NodeBinExprDot* dot = gen.m_allocator->emplace<NodeBinExprDot>();
                     dot->lhs = stmt_call->mt;
                     dot->rhs = rhs_expr;
 
-                    NodeBinExpr* bexpr = gen.m_allocator.emplace<NodeBinExpr>();
+                    NodeBinExpr* bexpr = gen.m_allocator->emplace<NodeBinExpr>();
                     bexpr->def = stmt_call->def;
                     bexpr->var = dot;
 
-                    NodeExpr* expr = gen.m_allocator.emplace<NodeExpr>();
+                    NodeExpr* expr = gen.m_allocator->emplace<NodeExpr>();
                     expr->var = bexpr;
 
                     gen.gen_expr(expr);
@@ -4304,7 +4301,7 @@ AFTER_GEN:
                         "can't call method from type " + tpof.to_string() + ".");
                 }
 
-                NodeStmtNmCall* nmcall = gen.m_allocator.emplace<NodeStmtNmCall>();
+                NodeStmtNmCall* nmcall = gen.m_allocator->emplace<NodeStmtNmCall>();
                 nmcall->def   = stmt_call->def;
                 nmcall->nm    = tpof.getobjectname();
                 nmcall->name  = stmt_call->name;
@@ -4564,7 +4561,7 @@ AFTER_GEN:
                 
                 auto it = gen.m_namespaces.find(ns_name);
                 if (it == gen.m_namespaces.end()) {
-                    nm = gen.m_allocator.emplace<Namespace>();
+                    nm = gen.m_allocator->emplace<Namespace>();
                     nm->name = ns_name;
                     nm->def = stmt_enum->def;
                     nm->procs = {};
@@ -4717,11 +4714,6 @@ AFTER_GEN:
     	emitter.emit_program(final_ir);
     	return result_ss.str();
 	}
-
-    void get_props_from_parser(Parser* parser) noexcept {
-        m_parser = parser;
-        m_lines  = &(parser->m_lines);
-    }
 
     bool m_optimize = false;
 
@@ -5574,7 +5566,7 @@ private:
 	
 	IRBuilder m_builder{ nullptr };
 
-    __map<std::string, __stdvec<std::string>>* m_lines = nullptr;
+    DiagnosticManager* m_diag_man = nullptr;
 
     __stdvec<__map<std::string, Var>> m_vars;
     __map<std::string, String>        m_strings;
@@ -5587,8 +5579,7 @@ private:
     __stdvec<std::string> m_ns_stack;
 
     Namespace* m_cur_namespace = nullptr;
-    ArenaAllocator m_allocator;
-    Parser*        m_parser = nullptr;
+    ArenaAllocator* m_allocator = nullptr;
 
     size_t m_structs_count = 5;
     std::optional<Procedure> m_cur_proc;

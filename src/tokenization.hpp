@@ -313,8 +313,7 @@ struct TokenizerResult {
 class Tokenizer {
 public:
     explicit Tokenizer(std::string src)
-        : m_src(std::move(src)) ,
-          m_allocator(1024)
+        : m_src(std::move(src))
     {
         lines = split_string(m_src, "\n");
     }
@@ -835,7 +834,6 @@ private:
     }
 
     const std::string m_src;
-    ArenaAllocator m_allocator;
     size_t m_index = 0;
     int m_col = 1;
 };
