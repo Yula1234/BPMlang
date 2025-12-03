@@ -192,8 +192,10 @@ public:
 
         auto end_fasm = std::chrono::system_clock::now();
 
-        std::chrono::duration<double> fasm_elapsed_seconds = end_fasm-start_fasm;
-        std::cout << "Fasm took: " << fasm_elapsed_seconds.count() << "s" << std::endl;
+        if(find_flag(FlagType::time)) {
+            std::chrono::duration<double> fasm_elapsed_seconds = end_fasm-start_fasm;
+            std::cout << "Fasm took: " << fasm_elapsed_seconds.count() << "s" << std::endl;
+        }
 
         if (!find_flag(FlagType::sasm)) {
             std::error_code ec;
@@ -225,8 +227,11 @@ public:
         fs::remove(obj_file, ec);
 
         auto end_comp = std::chrono::system_clock::now();
-        std::chrono::duration<double> elapsed_seconds = end_comp-start_comp;
-        std::cout << "\nThe whole compilation took: " << elapsed_seconds.count() << "s" << std::endl;
+
+        if(find_flag(FlagType::time)) {
+            std::chrono::duration<double> elapsed_seconds = end_comp-start_comp;
+            std::cout << "\nThe whole compilation took: " << elapsed_seconds.count() << "s" << std::endl;
+        }
 
         if (find_flag(FlagType::run)) {
             int run_ret = system(output_exe.string().c_str());
