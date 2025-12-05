@@ -136,7 +136,6 @@ public:
             std::cout << "  " << def.short_name << ", " << def.long_name;
             if (def.requires_value) std::cout << " <value>";
             
-            // Выравнивание
             size_t len = def.short_name.length() + def.long_name.length() + (def.requires_value ? 7 : 0);
             if (len < 20) {
                 for(size_t i = 0; i < 20 - len; ++i) std::cout << " ";

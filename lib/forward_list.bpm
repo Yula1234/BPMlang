@@ -1,12 +1,12 @@
 include "std"
 
 struct forward_list<T> {
-    m_head: ptr,  // указатель на первый узел (или null)
+    m_head: ptr,
     m_size: int
 }
 
 struct ForwardListIterator<T> {
-    _node: ptr    // указатель на текущий узел
+    _node: ptr 
 }
 
 impl ForwardListIterator<T> [new] {
@@ -17,7 +17,6 @@ impl ForwardListIterator<T> [new] {
     proc m_inc(ForwardListIterator<T> self, int __count) {
         let i = 0;
         while((i < __count) && (cast(int, self._node) != cast(int, null()))) {
-            // next лежит по адресу _node + 4
             self._node = cast(ptr, rd32(self._node + 4));
             i += 1;
         }
@@ -53,11 +52,10 @@ impl forward_list<T> [new] {
         return self.m_size;
     }
 
-    // Внутренний helper: аллоцирует узел [value, next]
     proc __alloc_node(forward_list<T> self, T value, ptr next) -> ptr {
-        let node = memalloc(8);      // 2 * 4 байта
-        store32(node, value);        // value по offset 0
-        store32(node + 4, next);     // next  по offset 4
+        let node = memalloc(8); 
+        store32(node, value);   
+        store32(node + 4, next);
         return node;
     }
 

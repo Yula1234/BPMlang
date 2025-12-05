@@ -2,7 +2,7 @@ include "std"
 
 
 const MAP_INITIAL_CAP = 16;
-const MAP_LOAD_FACTOR_PERCENT = 75; // 75%
+const MAP_LOAD_FACTOR_PERCENT = 75;
 
 struct MapEntry<K, V> {
     key: K,
@@ -60,7 +60,6 @@ impl MapIterator<K, V> [new] {
             
             self._bucket_idx += 1;
             while (self._bucket_idx < m.m_cap) {
-                // Доступ к бакетам через m
                 let bucket_addr = m.m_buckets + (self._bucket_idx * 4);
                 let head = cast(ptr, rd32(bucket_addr));
                 
