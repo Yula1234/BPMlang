@@ -15,12 +15,14 @@
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
-#include <set>
 #include <chrono>
 #include <ctime>
 #include <stdexcept>
 #include <functional>
+#include <random>
 #include <windows.h>
+
+namespace fs = std::filesystem;
 
 /*
     To start using compiller
@@ -28,19 +30,19 @@
     with gcc (gcc -c ./lib/lib_core.c -o ./lib/lib_core.o -m32).
 */
 
-std::string basepath;
-bool __slashinpath;
+#include "arena.hpp"
 
-#define __map std::unordered_map
-#define __stdset std::set
-#define __stdvec std::vector
+
+GString basepath;
+bool __slashinpath;
 
 #define __PATH "C:/cpp/BPMlang" /*
     path to compiller (bpm.exe).
     and standart libraries.
 */
 
-#include "arena.hpp"
+#include "fasm.hpp"
+#include "tcc_linker.hpp"
 #include "argsparser.hpp"
 #include "tokenization.hpp"
 #include "diagnostic.hpp"
@@ -51,21 +53,17 @@ bool __slashinpath;
 #include "ir_opt.hpp"
 #include "generation.hpp"
 
-void show_usage(std::ostream& stream) {
-    stream << "Incorrect usage. Correct usage is..." << std::endl;
-    stream << "bpm <input.bpm> <flags>" << std::endl;
-}
 
 int main(int argc, char* argv[]) {
 
-    ArenaAllocator global_allocator((1024 * 1024) * 256);
+    ArenaAllocator* global_allocator = g_GlobalArena;
 
     auto start_all = std::chrono::system_clock::now();
 
     ArgParser argparser(argc, argv);
     argparser.parse();
 
-    std::string input_filename = argparser.get_input_file();
+    GString input_filename = argparser.get_input_file();
     
     if (input_filename.empty()) {
         std::cerr << "ERROR: No input file provided.\n";
@@ -80,10 +78,10 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    std::string user_code;
+    GString user_code;
     {
-        std::stringstream contents_stream;
-        std::fstream input(input_filename, std::ios::in);
+        GStringStream contents_stream;
+        std::fstream input(input_filename.c_str(), std::ios::in);
         contents_stream << input.rdbuf();
         user_code = contents_stream.str();
     }
@@ -106,7 +104,7 @@ int main(int argc, char* argv[]) {
 
     auto start_parsing = std::chrono::system_clock::now();
     
-    Parser parser(std::move(*internal_res.tokens), &dmanager, &global_allocator); 
+    Parser parser(std::move(*internal_res.tokens), &dmanager, global_allocator); 
     
     std::optional<NodeProg*> prog = parser.parse_prog();
 
@@ -119,26 +117,22 @@ int main(int argc, char* argv[]) {
 
     auto start_generation = std::chrono::system_clock::now();
 
-    {
-        Generator generator(prog.value(), &dmanager, &global_allocator);
-        if(auto _f_time = argparser.find_flag(FlagType::optimize)) {
-            generator.m_optimize = true;
-        }
-        const std::string& generated_asm = generator.gen_prog();
-        std::fstream file("output.asm", std::ios::out);
-        file << generated_asm;
+    Generator generator(prog.value(), &dmanager, global_allocator);
+    if(auto _f_opt = argparser.find_flag(FlagType::optimize)) {
+        generator.m_optimize = true;
     }
+    const GString& generated_asm = generator.gen_prog();
 
     auto end_generation = std::chrono::system_clock::now();
 
     if(auto _f_time = argparser.find_flag(FlagType::time)) {
         std::chrono::duration<double> elapsed_seconds = end_lexing-start_lexing;
-        std::cout << "Lexing took: " << elapsed_seconds.count() << "s" << std::endl;
+        printf("Lexing took: %fs\n", elapsed_seconds.count());
         elapsed_seconds = end_parsing-start_parsing;
-        std::cout << "Parsing took: " << elapsed_seconds.count() << "s" << std::endl;
+        printf("Parsing took: %fs\n", elapsed_seconds.count());
         elapsed_seconds = end_generation-start_generation;
-        std::cout << "Generation took: " << elapsed_seconds.count() << "s" << std::endl;
+        printf("Generation took: %fs\n", elapsed_seconds.count());
     }
-    auto fexit_status = argparser.compile(start_all);
+    auto fexit_status = argparser.compile(start_all, generated_asm);
     return fexit_status;
 }

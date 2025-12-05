@@ -33,15 +33,21 @@ public:
     }
 
     template <typename T>
-    [[nodiscard]] T* alloc()
+    [[nodiscard]] T* alloc(size_t count = 1)
     {
         size_t remaining_num_bytes = m_size - static_cast<size_t>(m_offset - m_buffer);
         auto pointer = static_cast<void*>(m_offset);
-        const auto aligned_address = std::align(alignof(T), sizeof(T), pointer, remaining_num_bytes);
+        
+        size_t size_to_alloc = sizeof(T) * count;
+
+        const auto aligned_address = std::align(alignof(T), size_to_alloc, pointer, remaining_num_bytes);
+        
         if (aligned_address == nullptr) {
             throw std::bad_alloc {};
         }
-        m_offset = static_cast<std::byte*>(aligned_address) + sizeof(T);
+
+        m_offset = static_cast<std::byte*>(aligned_address) + size_to_alloc;
+        
         return static_cast<T*>(aligned_address);
     }
 
@@ -67,3 +73,76 @@ private:
     std::byte* m_buffer;
     std::byte* m_offset;
 };
+
+ArenaAllocator* g_GlobalArena = new ArenaAllocator((1024 * 1024) * 256);
+
+template <typename T>
+class GlobalArenaAllocator {
+public:
+    using value_type = T;
+
+    GlobalArenaAllocator() noexcept = default;
+
+    template <typename U>
+    GlobalArenaAllocator(const GlobalArenaAllocator<U>&) noexcept {}
+
+    [[nodiscard]] T* allocate(std::size_t n) {
+        assert(g_GlobalArena != nullptr && "Global arena is not initialized!");
+        
+        return g_GlobalArena->alloc<T>(n);
+    }
+
+    void deallocate(T*, std::size_t) noexcept {
+    }
+
+    template<class U>
+    bool operator==(const GlobalArenaAllocator<U>&) const noexcept { return true; }
+
+    template<class U>
+    bool operator!=(const GlobalArenaAllocator<U>&) const noexcept { return false; }
+};
+
+
+template <typename T>
+using GVector = std::vector<T, GlobalArenaAllocator<T>>;
+
+using GString = std::basic_string<char, std::char_traits<char>, GlobalArenaAllocator<char>>;
+
+template <typename Key, typename Value>
+using GMap = std::unordered_map<
+    Key, 
+    Value, 
+    std::hash<Key>, 
+    std::equal_to<Key>, 
+    GlobalArenaAllocator<std::pair<const Key, Value>>
+>;
+
+template <
+    typename Key,
+    typename Hash = std::hash<Key>,
+    typename KeyEqual = std::equal_to<Key>
+>
+using GSet = std::unordered_set<
+    Key, 
+    Hash, 
+    KeyEqual, 
+    GlobalArenaAllocator<Key>
+>;
+
+using GStringStream = std::basic_stringstream<
+    char,
+    std::char_traits<char>,
+    GlobalArenaAllocator<char>
+>;
+
+using GOStringStream = std::basic_ostringstream<
+    char,
+    std::char_traits<char>,
+    GlobalArenaAllocator<char>
+>;
+
+using GIStringStream = std::basic_istringstream<
+    char,
+    std::char_traits<char>,
+    GlobalArenaAllocator<char>
+>;

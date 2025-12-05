@@ -20,21 +20,21 @@ static inline void __white_console() {
 class DiagnosticManager {
 public:
 	void DiagnosticMessage(Token tok,
-	                       const std::string& header,
-	                       const std::string& msg,
+	                       const GString& header,
+	                       const GString& msg,
 	                       const int col_inc,
 	                       bool show_expansion)
 	{
-	    auto normalize_kind = [](const std::string& h) -> std::string {
+	    auto normalize_kind = [](const GString& h) -> GString {
 	        if (h == "NOTE" || h == "note")        return "note";
 	        if (h == "WARNING" || h == "warning")  return "warning";
 	        if (h == "ERROR" || h == "error")      return "error";
 	        return h;
 	    };
 
-	    std::string kind = normalize_kind(header);
+	    GString kind = normalize_kind(header);
 
-	    auto set_color_for_kind = [](const std::string& k) {
+	    auto set_color_for_kind = [](const GString& k) {
 	        if (k == "error") {
 	            __red_console();
 	        } else if (k == "warning") {
@@ -53,15 +53,15 @@ public:
 	        __normal_console();
 	    };
 
-	    auto get_line_safely = [&](const std::string& file, int line) -> std::string {
+	    auto get_line_safely = [&](const GString& file, int line) -> GString {
 	        auto it = m_lines.find(file);
-	        if (it == m_lines.end()) return std::string{};
+	        if (it == m_lines.end()) return GString{};
 	        auto& vec = it->second;
-	        if (line <= 0 || static_cast<size_t>(line) > vec.size()) return std::string{};
+	        if (line <= 0 || static_cast<size_t>(line) > vec.size()) return GString{};
 	        return vec[line - 1];
 	    };
 
-	    auto print_header_line = [&](const Token& t, const std::string& kind_, const std::string& message) {
+	    auto print_header_line = [&](const Token& t, const GString& kind_, const GString& message) {
 	        reset_color();
 	        __white_console();
 	        std::cout << t.file << ":" << t.line << ":" << t.col << ": ";
@@ -73,10 +73,10 @@ public:
 	    };
 
 	    auto print_source_with_caret = [&](const Token& t, int extra_col_inc) {
-		    std::string orig_line = get_line_safely(t.file, t.line);
+		    GString orig_line = get_line_safely(t.file, t.line);
 		    if (orig_line.empty()) return;
 
-		    std::string line = orig_line;
+		    GString line = orig_line;
 		    int col = t.col;
 
 		    while (!line.empty() && (line[0] == ' ' || line[0] == '\t')) {
@@ -108,7 +108,7 @@ public:
 	        while (inexp.expand.has_value()) {
 	            Token exp = *(inexp.expand.value());
 
-	            std::string note_msg = (exp.type == TokenType_t::_include)
+	            GString note_msg = (exp.type == TokenType_t::_include)
 	                ? "in file included from here"
 	                : "expanded from here";
 
@@ -119,7 +119,7 @@ public:
 	            __normal_console();
 	            std::cout << note_msg << "\n";
 
-	            std::string line = get_line_safely(exp.file, exp.line);
+	            GString line = get_line_safely(exp.file, exp.line);
 	            if (!line.empty()) {
 	                while (!line.empty() && (line[0] == ' ' || line[0] == '\t')) {
 	                    line.erase(line.begin());
@@ -147,17 +147,17 @@ public:
 	}
 
 	void DiagnosticMessage(Token tok,
-                       const std::string& header,
-                       const std::string& msg,
+                       const GString& header,
+                       const GString& msg,
                        const int col_inc)
 	{
 	    DiagnosticMessage(tok, header, msg, col_inc, true);
 	}
 
-	void save_file(std::string fname, std::vector<std::string> lines) {
+	void save_file(GString fname, GVector<GString> lines) {
 		m_lines[std::move(fname)] = std::move(lines);
 	}
 
 private:
-	std::unordered_map<std::string, std::vector<std::string>> m_lines {};
+	GMap<GString, GVector<GString>> m_lines {};
 };

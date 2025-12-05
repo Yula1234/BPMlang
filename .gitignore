@@ -4,3 +4,7 @@ input.bpm
 git_push.bat
 *.asm
 *.s
+*.dll
+*.def
+*.a
+*.obj

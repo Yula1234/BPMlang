@@ -98,11 +98,11 @@ enum class TokenType_t {
     enum_,
 };
 
-std::vector<std::string>* split_string(const std::string& str, const std::string& delimiter) {
-    std::vector<std::string>* strings = new std::vector<std::string>;
-    std::string::size_type pos = 0;
-    std::string::size_type prev = 0;
-    while((pos = str.find(delimiter, prev)) != std::string::npos) {
+GVector<GString>* split_string(const GString& str, const GString& delimiter) {
+    GVector<GString>* strings = g_GlobalArena->emplace<GVector<GString>>();
+    GString::size_type pos = 0;
+    GString::size_type prev = 0;
+    while((pos = str.find(delimiter, prev)) != GString::npos) {
         strings->push_back(str.substr(prev, pos - prev));
         prev = pos + delimiter.size();
     }
@@ -110,7 +110,7 @@ std::vector<std::string>* split_string(const std::string& str, const std::string
     return strings;
 }
 
-const __map<TokenType_t, std::string> map_tok2str {
+const GMap<TokenType_t, GString> map_tok2str {
     {TokenType_t::exit, "`exit`"},
     {TokenType_t::int_lit, "`int literal`"},
     {TokenType_t::semi, "`;`"},
@@ -208,7 +208,7 @@ const __map<TokenType_t, std::string> map_tok2str {
     {TokenType_t::enum_, "`enum`"},
 };
 
-std::string tok_to_string(const TokenType_t type)
+GString tok_to_string(const TokenType_t type)
 {
     const auto& search = map_tok2str.find(type);
     assert(search != map_tok2str.end());
@@ -269,8 +269,8 @@ struct Token {
     TokenType_t type;
     int line;
     int col;
-    std::optional<std::string> value {};
-    std::string file;
+    std::optional<GString> value {};
+    GString file;
     std::optional<Token*> expand;
     friend std::ostream& operator<<(std::ostream& out, const Token& tok) {
         out << "Token(.type = " << tok_to_string(tok.type);
@@ -288,10 +288,10 @@ void putloc(const Token& tok) {
     printf("%s %d:%d", tok.file.c_str(), tok.line, tok.col);
 }
 
-std::string loc_of(const Token& tok) {
+GString loc_of(const Token& tok) {
     static char buffer[2048];
     sprintf(buffer, "%s %d:%d", tok.file.c_str(), tok.line, tok.col);
-    std::string str(buffer);
+    GString str(buffer);
     return str;
 }
 
@@ -306,22 +306,22 @@ bool is_valid_id(const char c) {
 }
 
 struct TokenizerResult {
-    std::vector<Token>* tokens;
-    std::vector<std::string>* lines;
+    GVector<Token>* tokens;
+    GVector<GString>* lines;
 };
 
 class Tokenizer {
 public:
-    explicit Tokenizer(std::string src)
+    explicit Tokenizer(GString src)
         : m_src(std::move(src))
     {
         lines = split_string(m_src, "\n");
     }
 
-    TokenizerResult tokenize(const std::string& file)
+    TokenizerResult tokenize(const GString& file)
     {
-        std::vector<Token>* tokens = new std::vector<Token>;
-        std::string buf;
+        GVector<Token>* tokens = g_GlobalArena->emplace<GVector<Token>>();
+        GString buf;
         int line_count = 1;
         while (peek().has_value()) {
             if (std::isalpha(peek().value()) || is_valid_id(peek().value())) {
@@ -698,7 +698,7 @@ public:
                         }
                     }
                 }
-                tokens->push_back({ .type = TokenType_t::int_lit, .line = line_count , .col = m_col - static_cast<int>(buf.size()), .value = std::to_string(static_cast<int>(buf[0])), .file = file, .expand = std::nullopt });
+                tokens->push_back({ .type = TokenType_t::int_lit, .line = line_count , .col = m_col - static_cast<int>(buf.size()), .value = GString(std::to_string(static_cast<int>(buf[0])).c_str()), .file = file, .expand = std::nullopt });
                 buf.clear();
             }
             else if (peek().value() == '(') {
@@ -816,7 +816,7 @@ public:
         return {.tokens = tokens, .lines = lines};
     }
 
-    std::vector<std::string>* lines;
+    GVector<GString>* lines;
 
 private:
     [[nodiscard]] std::optional<char> peek(const size_t offset = 0) const
@@ -833,7 +833,7 @@ private:
         return m_src.at(m_index++);
     }
 
-    const std::string m_src;
+    const GString m_src;
     size_t m_index = 0;
     int m_col = 1;
 };

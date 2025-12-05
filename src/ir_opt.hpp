@@ -1,46 +1,39 @@
 #pragma once
-#include "ir.hpp"
-
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
-#include <string>
-#include <algorithm>
 
 namespace iropt {
 
 struct FunctionInfo {
-    std::string name;
+    GString name;
     size_t      start;  
     size_t      end;    
 };
 
-inline bool is_function_label_name(const std::string& name) {
+inline bool is_function_label_name(const GString& name) {
     if (name.empty()) return false;
     if (name[0] == '.') return false; 
     if (name.size() >= 4) {
-        const std::string suffix = "@ret";
+        const GString suffix = "@ret";
         if (name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0)
             return false; 
     }
     return true;
 }
 
-inline std::vector<FunctionInfo> collect_functions(const IRProgram& prog) {
+inline GVector<FunctionInfo> collect_functions(const IRProgram& prog) {
     const auto& instrs = prog.instrs;
-    std::vector<std::pair<std::string, size_t>> func_labels;
+    GVector<std::pair<GString, size_t>> func_labels;
 
     for (size_t i = 0; i < instrs.size(); ++i) {
         const IRInstr& ins = instrs[i];
         if (ins.op == IROp::Label && ins.a.kind == OperandKind::Label) {
-            const std::string& lbl = ins.a.name;
+            const GString& lbl = ins.a.name;
             if (is_function_label_name(lbl)) {
                 func_labels.emplace_back(lbl, i);
             }
         }
     }
 
-    std::vector<FunctionInfo> functions;
+    GVector<FunctionInfo> functions;
     if (func_labels.empty()) return functions;
 
     const size_t N = instrs.size();
@@ -54,20 +47,20 @@ inline std::vector<FunctionInfo> collect_functions(const IRProgram& prog) {
     return functions;
 }
 
-inline std::unordered_set<std::string>
+inline GSet<GString>
 compute_reachable_functions(const IRProgram& prog,
-                            const std::vector<FunctionInfo>& funcs)
+                            const GVector<FunctionInfo>& funcs)
 {
-    std::unordered_set<std::string> reachable;
-    std::vector<std::string>        worklist;
+    GSet<GString> reachable;
+    GVector<GString>        worklist;
 
-    std::unordered_map<std::string, const FunctionInfo*> name_to_func;
+    GMap<GString, const FunctionInfo*> name_to_func;
     name_to_func.reserve(funcs.size());
     for (const auto& f : funcs) {
         name_to_func[f.name] = &f;
     }
 
-    auto mark = [&](const std::string& fname) {
+    auto mark = [&](const GString& fname) {
         auto itf = name_to_func.find(fname);
         if (itf == name_to_func.end()) return;
         if (reachable.insert(fname).second) {
@@ -78,7 +71,7 @@ compute_reachable_functions(const IRProgram& prog,
     mark("main");
 
     while (!worklist.empty()) {
-        std::string cur = worklist.back();
+        GString cur = worklist.back();
         worklist.pop_back();
 
         auto itf = name_to_func.find(cur);
@@ -103,14 +96,14 @@ compute_reachable_functions(const IRProgram& prog,
 }
 
 inline void remove_unused_functions(IRProgram& prog) {
-    std::vector<FunctionInfo> funcs = collect_functions(prog);
+    GVector<FunctionInfo> funcs = collect_functions(prog);
     if (funcs.empty()) return;
 
-    std::unordered_set<std::string> reachable =
+    GSet<GString> reachable =
         compute_reachable_functions(prog, funcs);
 
     const size_t N = prog.instrs.size();
-    std::vector<bool> kill(N, false);
+    GVector<bool> kill(N, false);
 
     for (const auto& f : funcs) {
         if (f.name == "main") continue;
@@ -121,7 +114,7 @@ inline void remove_unused_functions(IRProgram& prog) {
         }
     }
 
-    std::vector<IRInstr> new_instrs;
+    GVector<IRInstr> new_instrs;
     new_instrs.reserve(N);
     for (size_t i = 0; i < N; ++i) {
         if (!kill[i]) {
@@ -143,7 +136,7 @@ inline bool instr_reads_reg(const IRInstr& ins, Reg r) {
 
 
 inline void peephole_noops(IRProgram& prog) {
-    std::vector<IRInstr> out;
+    GVector<IRInstr> out;
     out.reserve(prog.instrs.size());
 
     const auto& in = prog.instrs;

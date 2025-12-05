@@ -10,7 +10,7 @@ enum class SimpleDataType {
 
 struct BaseDataType {
 	bool is_object = false;
-	std::variant<SimpleDataType, std::string> type;
+	std::variant<SimpleDataType, GString> type;
 	bool link = false;
 	bool rvalue = false;
 	size_t ptrlvl = 0ULL;
@@ -21,19 +21,19 @@ struct BaseDataType {
 	SimpleDataType getsimpletype() const {
 		return std::get<SimpleDataType>(this->type);
 	}
-	std::string getobjectname() const {
-		return std::get<std::string>(this->type);
+	GString getobjectname() const {
+		return std::get<GString>(this->type);
 	}
-	std::string sign() const {
-		std::string res;
+	GString sign() const {
+		GString res;
 		
-		if(ptrlvl > 0) res += "P" + std::to_string(ptrlvl);
+		if(ptrlvl > 0) res += "P" + GString(std::to_string(ptrlvl).c_str());
 		if(link) res += "R";
 		if(rvalue) res += "V";
 
 		if(is_object) {
-			std::string name = getobjectname();
-			res += std::to_string(name.length()) + name;
+			GString name = getobjectname();
+			res += GString(std::to_string(name.length()).c_str()) + name;
 		} else {
 			switch(getsimpletype()) {
 			case SimpleDataType::_int:   res += "i"; break;
@@ -48,8 +48,8 @@ struct BaseDataType {
 		}
 		return res;
 	}
-	std::string to_string() const {
-		std::string dop(this->link ? "&" : "");
+	GString to_string() const {
+		GString dop(this->link ? "&" : "");
 		for(size_t i = 0;i < ptrlvl;++i) {
 			dop += '*';
 		}
@@ -80,16 +80,16 @@ struct BaseDataType {
 		assert(false);
 		return "unkown";
 	}
-	std::string get_postfix() const {
-		std::string dop(this->link ? "&" : "");
+	GString get_postfix() const {
+		GString dop(this->link ? "&" : "");
 		for(size_t i = 0;i < ptrlvl;++i) {
 			dop += '*';
 		}
 		if(rvalue) dop += "&&";
 		return dop;
 	}
-	std::string to_string_wt() const {
-		std::string dop(get_postfix());
+	GString to_string_wt() const {
+		GString dop(get_postfix());
 		if(!this->is_object) {
 			switch(this->getsimpletype()) {
 			case SimpleDataType::_int:
@@ -116,7 +116,7 @@ struct BaseDataType {
 		assert(false);
 		return "unkown";
 	}
-	std::string to_string_d() const {
+	GString to_string_d() const {
 		if(!this->is_object) {
 			switch(this->getsimpletype()) {
 			case SimpleDataType::_int:
@@ -140,6 +140,8 @@ struct BaseDataType {
 		} else {
 			return this->getobjectname();
 		}
+		assert(false);
+		return "";
 	}
 	bool arg_eq(const BaseDataType& two) const {
 		if(two.is_simple() && two.getsimpletype() == SimpleDataType::ptr && this->ptrlvl != 0ULL && !this->rvalue && !this->link) return true;
@@ -195,7 +197,7 @@ struct BaseDataType {
 		this->rvalue = other.rvalue;
 		this->ptrlvl = other.ptrlvl;
 	}
-	BaseDataType(const std::string& objname) {
+	BaseDataType(const GString& objname) {
 		this->type = objname;
 		this->is_object = true;
 	}
@@ -210,7 +212,7 @@ struct BaseDataType {
 		this->rvalue = other.rvalue;
 		this->ptrlvl = other.ptrlvl;
 	}
-	void operator=(const std::string& objname) {
+	void operator=(const GString& objname) {
 		this->type = objname;
 		this->is_object = true;
 	}
@@ -224,7 +226,7 @@ struct DataType;
 
 struct TypeNode {
     BaseDataType data;
-    std::vector<DataType> generics;
+    GVector<DataType> generics;
 };
 
 struct DataType {
@@ -243,7 +245,7 @@ struct DataType {
     
     bool is_object() const { return node->data.is_object; }
     bool is_simple() const { return node->data.is_simple(); }
-    std::string getobjectname() const { return node->data.getobjectname(); }
+    GString getobjectname() const { return node->data.getobjectname(); }
     
     bool operator==(const DataType& other) const {
         if (this == &other) return true;
@@ -258,16 +260,16 @@ struct DataType {
     
     bool operator!=(const DataType& other) const { return !(*this == other); }
 
-    std::string sign() const {
-        std::string res = node->data.sign();
+    GString sign() const {
+        GString res = node->data.sign();
         for(const auto& arg : node->generics) {
             res += "_" + arg.sign();
         }
         return res;
     }
 
-    std::string to_string() const {
-        std::string res = node->data.to_string_d();
+    GString to_string() const {
+        GString res = node->data.to_string_d();
         if (!node->generics.empty()) {
             res += "<";
             for(size_t i = 0; i < node->generics.size(); ++i) {
@@ -326,7 +328,7 @@ BaseDataType BaseDataTypeChar = make_char_type();
 BaseDataType BaseDataTypeConst = SimpleDataType::_constexpr;
 BaseDataType BaseDataTypeProcPtr = SimpleDataType::proc_ptr;
 
-std::string dt_to_string(DataType& dt) {
+GString dt_to_string(DataType& dt) {
 	return dt.root().to_string();
 }
 

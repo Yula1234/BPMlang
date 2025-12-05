@@ -1,9 +1,4 @@
 #pragma once
-#include <string>
-#include <vector>
-#include <variant>
-#include <ostream>
-#include <cstdint>
 
 enum class Reg {
     EAX, EBX, ECX, EDX,
@@ -51,7 +46,7 @@ struct MemRef {
     bool        hasBase   = false;
     Reg         base;
     bool        hasSymbol = false;
-    std::string symbol;
+    GString symbol;
     int32_t     disp      = 0;
 
     static MemRef baseDisp(Reg b, int32_t d = 0) {
@@ -62,7 +57,7 @@ struct MemRef {
         return m;
     }
 
-    static MemRef sym(const std::string& s, int32_t d = 0) {
+    static MemRef sym(const GString& s, int32_t d = 0) {
         MemRef m;
         m.hasSymbol = true;
         m.symbol    = s;
@@ -70,7 +65,7 @@ struct MemRef {
         return m;
     }
 
-    static MemRef baseSym(Reg b, const std::string& s, int32_t d = 0) {
+    static MemRef baseSym(Reg b, const GString& s, int32_t d = 0) {
         MemRef m;
         m.hasBase   = true;
         m.base      = b;
@@ -96,7 +91,7 @@ struct Operand {
     Reg         reg;
     int32_t     imm = 0;
     MemRef      mem;
-    std::string name;
+    GString name;
 
     static Operand none() {
         return Operand{};
@@ -123,14 +118,14 @@ struct Operand {
         return o;
     }
 
-    static Operand labelOp(const std::string& n) {
+    static Operand labelOp(const GString& n) {
         Operand o;
         o.kind = OperandKind::Label;
         o.name = n;
         return o;
     }
 
-    static Operand symbolOp(const std::string& n) {
+    static Operand symbolOp(const GString& n) {
         Operand o;
         o.kind = OperandKind::Symbol;
         o.name = n;
@@ -155,19 +150,19 @@ struct IRInstr {
 
 
 struct IRStringLiteral {
-    std::string label; 
-    std::string value; 
+    GString label; 
+    GString value; 
 };
 
 struct IRGlobalVar {
-    std::string name;
+    GString name;
 };
 
 struct IRProgram {
-    std::vector<IRInstr>    instrs;
-    std::vector<std::string>   externs;  
-    std::vector<IRStringLiteral> strings;
-    std::vector<IRGlobalVar>   globals;  
+    GVector<IRInstr>    instrs;
+    GVector<GString>   externs;  
+    GVector<IRStringLiteral> strings;
+    GVector<IRGlobalVar>   globals;  
 };
 
 
@@ -181,11 +176,11 @@ public:
         cur->instrs.push_back(ins);
     }
 
-    void label(const std::string& name) {
+    void label(const GString& name) {
         emit(IRInstr(IROp::Label, Operand::labelOp(name)));
     }
 
-    void comment(const std::string& text) {
+    void comment(const GString& text) {
         emit(IRInstr(IROp::Comment, Operand::symbolOp(text)));
     }
 
@@ -294,22 +289,22 @@ public:
     explicit AsmEmitter(std::ostream& o) : out(o) {}
 
     void emit_program(const IRProgram& p) {
-        out << "format MS COFF\n\n";
-        out << "section '.text' code readable executable\n\n";
-        out << "public main as '_main'\n\n";
+        out << "format ELF\n\n";
+        out << "section '.text' executable\n\n";
+        out << "public main as 'main'\n\n";
     
         for (const auto& ins : p.instrs) {
             emit_instr(ins);
         }
         for (const auto& name : p.externs) {
             if (name == "ExitProcess@4") {
-                out << "extrn '_ExitProcess@4' as ExitProcess\n";
+                out << "extrn 'ExitProcess' as ExitProcess\n";
             }
-            else { out << "extrn '_" << name << "' as " + name + "\n"; }
+            else { out << "extrn '" << name << "' as " + name + "\n"; }
         }
         out << "\n";
     
-        out << "section '.data' data readable writeable\n";
+        out << "section '.data' writeable\n";
 
         out << "    numfmt:   db \"%d\", 0x0\n";
         out << "    numfmtnl: db \"%d\", 0xa, 0x0\n";
@@ -317,19 +312,19 @@ public:
     
         for (const auto& s : p.strings) {
             out << "    " << s.label << ": db ";
-            std::stringstream hex;
+            GStringStream hex;
             for (char c : s.value) {
                 hex << "0x" << std::hex << static_cast<int>(static_cast<unsigned char>(c)) << ", ";
             }
             out << hex.str() << "0x0\n";
         }
 
-        out << "\nsection '.bss' readable writeable\n";
+        out << "\nsection '.bss' writeable\n";
         out << "    tmp_stor: rd 1024\n";
         out << "    tmp_p:    rd 1\n";
-        out << "    ___BpmDoubleExceptionTypeId: rd 1\n";
-        out << "    ___BpmRecursionExceptionTypeId: rd 1\n";
-        out << "    ___BpmSigSegvExceptionTypeId: rd 1\n";
+        out << "    __BpmDoubleExceptionTypeId: rd 1\n";
+        out << "    __BpmRecursionExceptionTypeId: rd 1\n";
+        out << "    __BpmSigSegvExceptionTypeId: rd 1\n";
     
         for (const auto& g : p.globals) {
             out << "    v_" << g.name << ": rd 1\n";

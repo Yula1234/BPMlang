@@ -6,7 +6,7 @@ struct NodeTermIntLit {
 };
 
 struct NodeTermStrLit {
-	std::string str_lit;
+	GString str_lit;
 };
 
 struct NodeTermIdent {
@@ -26,17 +26,17 @@ struct NodeTermParen {
 
 struct NodeTermCall {
 	Token def; 
-	std::string name;
+	GString name;
 	std::optional<NodeExpr*> args;
-	std::vector<DataType> targs;
+	GVector<DataType> targs;
 };
 
 struct NodeTermNmCall {
 	Token def; 
-	std::string name;
-	std::string nm;
+	GString name;
+	GString nm;
 	std::optional<NodeExpr*> args;
-	std::vector<DataType> targs;
+	GVector<DataType> targs;
 };
 
 struct NodeTermSizeof {
@@ -118,15 +118,15 @@ struct NodeTermUnref {
 struct NodeTermMtCall {
 	Token def;
 	NodeExpr* mt;
-	std::string name;
+	GString name;
 	std::optional<NodeExpr*> args;
-	__stdvec<DataType> targs;
+	GVector<DataType> targs;
 };
 
 struct NodeTermNmIdent {
     Token def;
-    std::string nm;
-    std::string name;
+    GString nm;
+    GString name;
 };
 
 struct NodeBinExprAdd {
@@ -195,7 +195,7 @@ struct NodeBinExprShr {
 };
 
 struct NodeBinExprArgs {
-	std::vector<NodeExpr*> args;
+	GVector<NodeExpr*> args;
 };
 
 struct NodeBinExprDot {
@@ -246,7 +246,7 @@ struct NodeStmtLet {
 struct NodeStmt;
 
 struct NodeScope {
-	std::vector<NodeStmt*> stmts;
+	GVector<NodeStmt*> stmts;
 };
 
 struct NodeIfPred;
@@ -283,35 +283,35 @@ struct NodeStmtWhile {
 };
 
 struct TypeConstraint {
-    std::string type_param;
+    GString type_param;
     DataType iface_type;
 };
 
 struct NodeStmtProc {
-	std::string name;
+	GString name;
 	Token def;
 	DataType rettype;
-	std::vector<ProcAttr> attrs;
-	std::vector<std::pair<std::string, DataType>> params;
+	GVector<ProcAttr> attrs;
+	GVector<std::pair<GString, DataType>> params;
 	NodeScope* scope {};
 	bool prototype = false;
-	__stdvec<std::string>* templates;
-	__stdvec<TypeConstraint> constraints;
+	GVector<GString>* templates;
+	GVector<TypeConstraint> constraints;
 };
 
 struct NodeStmtCall {
 	Token def;
-	std::string name;
+	GString name;
 	std::optional<NodeExpr*> args;
-	std::vector<DataType> targs;
+	GVector<DataType> targs;
 };
 
 struct NodeStmtNmCall {
 	Token def;
-	std::string name;
-	std::string nm;
+	GString name;
+	GString nm;
 	std::optional<NodeExpr*> args;
-	std::vector<DataType> targs;
+	GVector<DataType> targs;
 };
 
 struct NodeStmtStore {
@@ -323,20 +323,20 @@ struct NodeStmtStore {
 
 struct NodeStmtBuffer {
 	Token def;
-	std::string name;
+	GString name;
 	NodeExpr* size;
 };
 
 struct NodeStmtCextern {
-	std::string name;
+	GString name;
 };
 
 struct NodeStmtAsm {
-	std::string code;
+	GString code;
 };
 
 struct Field {
-	std::string name;
+	GString name;
 	DataType type;
 	size_t nth;
 	bool operator==(Field& two) {
@@ -350,19 +350,19 @@ bool operator==(const Field& one, const Field& two) {
 
 struct NodeStmtStruct {
 	Token def;
-	std::string name;
-	__stdvec<std::pair<std::string, DataType>> fields;
-	std::optional<std::string> __allocator;
-	__stdvec<std::string> temps;
+	GString name;
+	GVector<std::pair<GString, DataType>> fields;
+	std::optional<GString> __allocator;
+	GVector<GString> temps;
 	bool temp;
 	std::optional<DataType> parent; 
 };
 
 struct NodeStmtInterface {
     Token def;
-    std::string name;
-    std::vector<std::string> temps;
-    std::vector<InterfaceMethod> methods;
+    GString name;
+    GVector<GString> temps;
+    GVector<InterfaceMethod> methods;
 };
 
 struct NodeStmtDelete {
@@ -410,7 +410,7 @@ struct NodeStmtPushOnStack {
 
 struct NodeStmtStaticAssert {
 	Token def;
-	std::string msg;
+	GString msg;
 	NodeExpr* condition;
 };
 
@@ -423,36 +423,36 @@ struct NodeStmtCompileTimeIf {
 
 struct NodeStmtNamespace {
 	Token def;
-	std::string name;
+	GString name;
 	NodeScope* scope;
 };
 
 struct NodeStmtImpl {
 	Token def;
-	std::string name;
+	GString name;
 	NodeScope* scope;
-	__stdvec<std::string> temps;
-	__stdvec<std::string> inst;
+	GVector<GString> temps;
+	GVector<GString> inst;
 };
 
 struct NodeStmtMtCall {
 	Token def;
 	NodeExpr* mt;
-	std::string name;
+	GString name;
 	std::optional<NodeExpr*> args;
-	__stdvec<DataType> targs;
+	GVector<DataType> targs;
 };
 
 struct NodeStmtConst {
 	Token def;
-	std::string name;
+	GString name;
 	NodeExpr* expr;
 };
 
 struct NodeStmtTypedef {
 	Token def;
 	DataType type;
-	std::string name;
+	GString name;
 };
 
 struct NodeStmtRaise {
@@ -465,7 +465,7 @@ struct NodeStmtTry {
 	NodeScope* _try;
 	NodeScope* _catch;
 	DataType type;
-	std::string name;
+	GString name;
 };
 
 struct NodeStmtFor {
@@ -483,8 +483,8 @@ struct NodeStmtForeach {
 
 struct NodeStmtEnum {
     Token def;
-    std::string name;
-    std::vector<std::pair<std::string, int>> members;
+    GString name;
+    GVector<std::pair<GString, int>> members;
 };
 
 struct NodeStmt {
@@ -510,5 +510,5 @@ struct NodeStmt {
 };
 
 struct NodeProg {
-	std::vector<NodeStmt*> stmts {};
+	GVector<NodeStmt*> stmts {};
 };

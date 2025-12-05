@@ -15,12 +15,12 @@
 
 #define UNUSED_ARG __attribute__((unused))
 
-using __str_ref = const std::string&;
+using __str_ref = const GString&;
 
 void consume_un(...) {}
 
 namespace INTERNAL_CODE {
-    std::string IMPLEMENTATION = R"(struct exception { __message: char*, __bstub1: int, __bstub2: int }
+    GString IMPLEMENTATION = R"(struct exception { __message: char*, __bstub1: int, __bstub2: int }
 impl exception { proc what(exception self) -> char* { return self.__message; } }
 struct __DoubleFreeException { __addr: ptr, __bstub1: int, __bstub2: int }
 impl __DoubleFreeException { proc what(__DoubleFreeException self) -> char* {
@@ -30,14 +30,14 @@ impl __DoubleFreeException { proc what(__DoubleFreeException self) -> char* {
         asm "push eax";
         let __fst = __popfromstack();
         return cast(char*, __fst); } }
-__oninit { __pushonstack(typeid(__DoubleFreeException)); asm "pop edx"; asm "mov dword [___BpmDoubleExceptionTypeId], edx"; }
+__oninit { __pushonstack(typeid(__DoubleFreeException)); asm "pop edx"; asm "mov dword [__BpmDoubleExceptionTypeId], edx"; }
 struct __RecursionException { __bstub: int, __bstub1: int, __bstub2: int }
 impl __RecursionException { proc what(__RecursionException self) -> char* {
         asm "call __bpm_recursion_exception_what";
         asm "push eax";
         let __fst = __popfromstack();
         return cast(char*, __fst); } }
-__oninit { __pushonstack(typeid(__RecursionException)); asm "pop edx"; asm "mov dword [___BpmRecursionExceptionTypeId], edx"; }
+__oninit { __pushonstack(typeid(__RecursionException)); asm "pop edx"; asm "mov dword [__BpmRecursionExceptionTypeId], edx"; }
 struct __SigSegvException { __addr: int, __bstub1: int, __bstub2: int }
 impl __SigSegvException { proc what(__SigSegvException self) -> char* {
         __pushonstack(self.__addr);
@@ -46,7 +46,7 @@ impl __SigSegvException { proc what(__SigSegvException self) -> char* {
         asm "push eax";
         let __fst = __popfromstack();
         return cast(char*, __fst); } }
-__oninit { __pushonstack(typeid(__SigSegvException)); asm "pop edx"; asm "mov dword [___BpmSigSegvExceptionTypeId], edx"; }
+__oninit { __pushonstack(typeid(__SigSegvException)); asm "pop edx"; asm "mov dword [__BpmSigSegvExceptionTypeId], edx"; }
 namespace std { proc exception(char* mess_) -> exception = return exception(mess_, 0, 0); }
 interface __ObjectTypeI {}
 interface __SimpleTypeI {}
@@ -74,9 +74,9 @@ public:
 
 namespace std {
 template<>
-struct hash<std::pair<std::string, std::string>> {
-    size_t operator()(const std::pair<std::string, std::string>& p) const noexcept {
-        std::hash<std::string> h;
+struct hash<std::pair<GString, GString>> {
+    size_t operator()(const std::pair<GString, GString>& p) const noexcept {
+        std::hash<GString> h;
         size_t seed = h(p.first);
         size_t h2   = h(p.second);
         seed ^= h2 + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
@@ -89,21 +89,21 @@ class Generator {
 public:
     inline Operand reg(Reg r) const              { return Operand::regOp(r); }
     inline Operand imm(int32_t v) const          { return Operand::immOp(v); }
-    inline Operand label(const std::string& s) const { return Operand::labelOp(s); }
-    inline Operand sym(const std::string& s) const   { return Operand::symbolOp(s); }
+    inline Operand label(const GString& s) const { return Operand::labelOp(s); }
+    inline Operand sym(const GString& s) const   { return Operand::symbolOp(s); }
     inline Operand mem(const MemRef& m) const    { return Operand::memOp(m); }
 
     inline MemRef local_mem(size_t stack_loc) const {
         return MemRef::baseDisp(Reg::EBP, -static_cast<int32_t>(stack_loc));
     }
-    inline MemRef global_mem(const std::string& name) const {
+    inline MemRef global_mem(const GString& name) const {
         return MemRef::sym("v_" + name);
     }
 
     inline void push_reg(Reg r)                { m_builder.push(reg(r)); }
     inline void push_imm(int32_t v)            { m_builder.push(imm(v)); }
     inline void push_mem(const MemRef& m)      { m_builder.push(mem(m)); }
-    inline void push_sym(const std::string& s) { m_builder.push(sym(s)); }
+    inline void push_sym(const GString& s) { m_builder.push(sym(s)); }
 
     inline void pop_reg(Reg r)                 { m_builder.pop(reg(r)); }
 
@@ -120,7 +120,7 @@ public:
             case SimpleDataType::proc_ptr:   return 0ULL;
             }
         } else {
-            std::string sname = type.root().getobjectname();
+            GString sname = type.root().getobjectname();
             std::optional<Struct> st = struct_lookup(sname);
             if (st.has_value())  return st.value().m_typeid;
             std::optional<Interface> st2 = inter_lookup(sname);
@@ -132,7 +132,7 @@ public:
 
     size_t sizeof_of(DataType& type) noexcept {
         if (type.root().is_object) {
-            std::string name = type.root().getobjectname();
+            GString name = type.root().getobjectname();
             std::optional<Struct> st = struct_lookup(name);
             if (st.has_value()) {
                 return st.value().fields.size() * 4ULL;
@@ -148,12 +148,12 @@ public:
     }
 
     struct Var {
-        std::string name{};
+        GString name{};
         size_t      stack_loc{};
         DataType    type;
 
-        std::string ref() {
-            return "dword [ebp-" + std::to_string(stack_loc) + "]";
+        GString ref() {
+            return "dword [ebp-" + GString(std::to_string(stack_loc)) + "]";
         }
         MemRef mem() const {
             return MemRef::baseDisp(Reg::EBP, -static_cast<int32_t>(stack_loc));
@@ -161,46 +161,46 @@ public:
     };
 
     struct GVar {
-        std::string name;
+        GString name;
         DataType    type;
     };
 
     struct Procedure {
-        std::string name{};
-        std::vector<std::pair<std::string, DataType>> params{};
+        GString name{};
+        GVector<std::pair<GString, DataType>> params{};
         DataType rettype;
         size_t   stack_allign;
-        std::vector<ProcAttr> attrs;
+        GVector<ProcAttr> attrs;
         Token    def;
         bool     prototype;
-        std::vector<Procedure*> overrides;
+        GVector<Procedure*> overrides;
         bool     override;
         std::optional<int> uniq_sign;
-        __stdvec<std::string>* templates;
+        GVector<GString>* templates;
         const NodeScope*  scope;
         const NodeStmtProc* from;
-        __map<std::string, bool> instanceated;
-        std::string mbn;
+        GMap<GString, bool> instanceated;
+        GString mbn;
         int overload_nth = 0;
 
-        std::string get_sign() {
+        GString get_sign() {
             if (params.empty()) {
                 if (!uniq_sign.has_value()) uniq_sign = rand() % 1000;
-                return std::to_string(uniq_sign.value());
+                return GString(std::to_string(uniq_sign.value()));
             }
-            std::string res;
+            GString res;
             for (size_t i = 0; i < params.size(); ++i) {
                 res += params[i].second.sign();
             }
             return res;
         }
 
-        void gen_ret(Generator& gen, std::optional<std::string> cnm) {
+        void gen_ret(Generator& gen, std::optional<GString> cnm) {
             size_t allign = gen.__compute_allign_ret();
             if (allign != 0) {
                 gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(allign * 4));
             }
-            std::string lbl = "__";
+            GString lbl = "__";
             if (cnm.has_value()) {
                 lbl += gen.mangle_ns_name(cnm.value()) + "@";
             } else {
@@ -224,18 +224,18 @@ public:
     };
 
     struct String {
-        std::string value{};
+        GString value{};
         size_t      index{};
     };
 
     struct Struct {
-        std::string name;
-        __map<std::string, Field> fields;
-        std::optional<std::string> __allocator;
-        __stdvec<std::pair<std::string, DataType>> __fields;
+        GString name;
+        GMap<GString, Field> fields;
+        std::optional<GString> __allocator;
+        GVector<std::pair<GString, DataType>> __fields;
         size_t  m_typeid;
         bool    temp;
-        __stdvec<std::string> temps;
+        GVector<GString> temps;
         Token   def;
         std::optional<DataType> parent_type;
 
@@ -259,7 +259,7 @@ public:
             gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(4));
         }
 
-        void call_dtor(Generator& gen, const std::string& offset, const Token& def) const {
+        void call_dtor(Generator& gen, const GString& offset, const Token& def) const {
             if (has_allocator())
                 gen.GeneratorWarning(def, "deleting object with custom allocator function.");
             std::optional<Procedure> __dtor = gen.proc_lookup(__DTOR_PREFIX + name);
@@ -279,23 +279,23 @@ public:
     };
 
     struct InterfaceMethodInfo {
-        std::string name;
-        std::vector<std::pair<std::string, DataType>> params;
+        GString name;
+        GVector<std::pair<GString, DataType>> params;
         DataType rettype;
     };
 
     struct Interface {
-        std::string name;
-        __map<std::string, InterfaceMethodInfo> methods;
-        __stdvec<std::string> method_order;
+        GString name;
+        GMap<GString, InterfaceMethodInfo> methods;
+        GVector<GString> method_order;
         size_t m_typeid;
-        __stdvec<std::string> temps;
+        GVector<GString> temps;
     };
 
     struct Namespace {
-        __map<std::string, Procedure> procs;
-        __map<std::string, int> consts;
-        std::string name;
+        GMap<GString, Procedure> procs;
+        GMap<GString, int> consts;
+        GString name;
         Token       def;
     };
 
@@ -350,7 +350,7 @@ public:
             return std::nullopt;
         }
     private:
-        __stdvec<__map<std::string, int>> m_vars;
+        GVector<GMap<GString, int>> m_vars;
         Token where;
         Generator& gen;
     };
@@ -389,7 +389,7 @@ public:
 	}
 
     std::optional<Var> var_lookup_cs(__str_ref name) noexcept {
-        __map<std::string, Var>& vrs = last_scope();
+        GMap<GString, Var>& vrs = last_scope();
         const auto& search = vrs.find(name);
         if (search != vrs.end()) return search->second;
         return std::nullopt;
@@ -421,15 +421,15 @@ public:
         return v.value();
     }
 
-    __map<std::string, Var>& last_scope() {
+    GMap<GString, Var>& last_scope() {
         return m_vars[m_vars.size() - 1ULL];
     }
 
-    __map<std::string, Constant>& last_scope_cns() {
+    GMap<GString, Constant>& last_scope_cns() {
         return m_consts[m_consts.size() - 1ULL];
     }
 
-    __map<std::string, DataType>& last_scope_tdef() {
+    GMap<GString, DataType>& last_scope_tdef() {
         return m_typedefs[m_typedefs.size() - 1ULL];
     }
 
@@ -508,7 +508,7 @@ public:
 
         if (m_cur_proc.has_value()) {
             const Procedure& p = m_cur_proc.value();
-            std::string detail = "in function `" + p.name + "`";
+            GString detail = "in function `" + p.name + "`";
             m_diag_man->DiagnosticMessage(p.def, "note", detail, 0, false);
         }
 
@@ -519,7 +519,7 @@ public:
         m_diag_man->DiagnosticMessage(tok, "warning", msg, 0);
     }
 
-    std::vector<DataType> get_template_args(const DataType& dt) {
+    GVector<DataType> get_template_args(const DataType& dt) {
         return dt.node->generics;
     }
 
@@ -548,8 +548,8 @@ public:
         DataType parent = st_opt.value().parent_type.value();
         
         if (st_opt.value().temp) {
-            std::vector<DataType> targs = get_template_args(derived);
-            __map<std::string, DataType> temps = compute_temps(st_opt.value().temps, targs);
+            GVector<DataType> targs = get_template_args(derived);
+            GMap<GString, DataType> temps = compute_temps(st_opt.value().temps, targs);
             substitute_template_wct(parent, temps);
         }
         
@@ -557,8 +557,8 @@ public:
         return is_base_of(base, parent);
     }
 
-    bool same_param_types(const std::vector<std::pair<std::string, DataType>>& a,
-                          const std::vector<std::pair<std::string, DataType>>& b) {
+    bool same_param_types(const GVector<std::pair<GString, DataType>>& a,
+                          const GVector<std::pair<GString, DataType>>& b) {
         if (a.size() != b.size()) return false;
         for (size_t i = 0; i < a.size(); ++i) {
             if (a[i].second != b[i].second) return false;
@@ -578,7 +578,7 @@ public:
         return true;
     }
 
-    NodeExpr* make_ident_expr(std::string name) {
+    NodeExpr* make_ident_expr(GString name) {
         auto* term = m_allocator->emplace<NodeTermIdent>();
         term->ident = {TokenType_t::ident, 0, 0, name, "", std::nullopt}; 
         auto* t = m_allocator->emplace<NodeTerm>(); t->var = term;
@@ -599,13 +599,13 @@ public:
 
     NodeExpr* make_int_lit(int val) {
         auto* term = m_allocator->emplace<NodeTermIntLit>();
-        term->int_lit = {TokenType_t::int_lit, 0, 0, std::to_string(val), "", std::nullopt};
+        term->int_lit = {TokenType_t::int_lit, 0, 0, GString(std::to_string(val)), "", std::nullopt};
         auto* t = m_allocator->emplace<NodeTerm>(); t->var = term;
         auto* e = m_allocator->emplace<NodeExpr>(); e->var = t;
         return e;
     }
 
-    NodeExpr* make_method_call(NodeExpr* obj, std::string method, std::vector<NodeExpr*> args, Token def) {
+    NodeExpr* make_method_call(NodeExpr* obj, GString method, GVector<NodeExpr*> args, Token def) {
         auto* call = m_allocator->emplace<NodeTermCall>();
         call->def = def;
         call->name = method;
@@ -663,7 +663,7 @@ public:
 
         if (std::holds_alternative<NodeTermCall*>(term->var)) {
             NodeTermCall* call = std::get<NodeTermCall*>(term->var);
-            std::string mname = call->name;
+            GString mname = call->name;
 
             if (is_interface_type(otype)) {
                 Interface iface = get_interface(otype, def);
@@ -682,7 +682,7 @@ public:
             mt.name  = call->name;
             mt.targs = call->targs;
 
-            __stdvec<NodeExpr*> allargs;
+            GVector<NodeExpr*> allargs;
             allargs.push_back(dot->lhs);
 
             if (call->args.has_value()) {
@@ -718,13 +718,13 @@ public:
 
         NodeTermIdent* tid = std::get<NodeTermIdent*>(term->var);
         Token ident = tid->ident;
-        std::string field_name = ident.value.value();
+        GString field_name = ident.value.value();
 
         if (!otype.root().is_object) {
             return BaseDataTypeVoid;
         }
 
-        std::string struct_name = otype.root().getobjectname();
+        GString struct_name = otype.root().getobjectname();
         std::optional<Struct> st = struct_lookup(struct_name);
         if (st.has_value()) {
             std::optional<Field> field = field_lookup(st.value(), field_name);
@@ -736,17 +736,17 @@ public:
             Struct stc = st.value();
             Field  fd  = field.value();
             if (stc.temp) {
-                std::vector<DataType> targs;
+                GVector<DataType> targs;
                 targs = otype.node->generics;
 
                 if (targs.size() != stc.temps.size()) {
                     GeneratorError(def, 
                         "Internal Compiler Error: template args count mismatch for struct `" 
-                        + stc.name + "` (expected " + std::to_string(stc.temps.size()) 
-                        + ", got " + std::to_string(targs.size()) + ")");
+                        + stc.name + "` (expected " + GString(std::to_string(stc.temps.size())) 
+                        + ", got " + GString(std::to_string(targs.size())) + ")");
                 }
 
-                __map<std::string, DataType> temps = compute_temps(stc.temps, targs);
+                GMap<GString, DataType> temps = compute_temps(stc.temps, targs);
                 substitute_template_wct(fd.type, temps);
             }
             return fd.type;
@@ -867,7 +867,7 @@ public:
                     deref.def = unref->def;
                     deref.mt = unref->expr;
                     deref.name = "m_deref";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(unref->expr);
                     NodeBinExprArgs bargs{ .args = args };
                     NodeBinExpr bexpr{ .def = unref->def, .var = &bargs };
@@ -917,7 +917,7 @@ public:
             }
             if (std::holds_alternative<NodeTermCall*>(term->var)) {
                 NodeTermCall* call = std::get<NodeTermCall*>(term->var);
-                std::string name = call->name;
+                GString name = call->name;
                 std::optional<Var> var = var_lookup(name);
                 if (var.has_value() && 
                     var.value().type.root().is_simple() &&
@@ -935,7 +935,7 @@ public:
                     if (proc.templates == NULL || !_proc.value().rettype.root().is_object) {
                         return proc.rettype;
                     }
-                    __map<std::string, DataType> temps;
+                    GMap<GString, DataType> temps;
                     bool substituted = false;
                     if (call->targs.empty() && proc.templates == NULL) return proc.rettype;
                     else if (call->targs.empty() && call->args.has_value() && proc.templates != NULL) {
@@ -945,7 +945,7 @@ public:
                     size_t counter{ 0 };
                     if (!substituted) {
                         if (proc.templates != NULL && call->targs.size() != proc.templates->size()) {
-                            GeneratorError(call->def, "procedure `" + call->name + "` expects " + std::to_string(proc.templates->size()) + " template arguments, but got " + std::to_string(call->targs.size()));
+                            GeneratorError(call->def, "procedure `" + call->name + "` expects " + GString(std::to_string(proc.templates->size())) + " template arguments, but got " + GString(std::to_string(call->targs.size())));
                         }
                         for (auto&& el : *proc.templates) {
                             temps[el] = call->targs[counter++];
@@ -961,7 +961,7 @@ public:
                     BaseDataType bs = st.name;
                     DataType dt = bs;
                     if (st.temp && call->targs.size() != st.temps.size())
-                        GeneratorError(call->def, "struct `" + st.name + "` except " + std::to_string(st.temps.size()) + " template arguments in <...>, bug got " + std::to_string(call->targs.size()) + ".");
+                        GeneratorError(call->def, "struct `" + st.name + "` except " + GString(std::to_string(st.temps.size())) + " template arguments in <...>, bug got " + GString(std::to_string(call->targs.size())) + ".");
                     for (int i = 0; i < static_cast<int>(call->targs.size()); ++i) {
                         DataType arg_tp = call->targs[i];
                         substitute_template(arg_tp);
@@ -988,7 +988,7 @@ public:
                 if (proc.templates == NULL || !proc.rettype.root().is_object) {
                     return proc.rettype;
                 }
-                __map<std::string, DataType> temps;
+                GMap<GString, DataType> temps;
                 bool substituted = false;
                 if (call->targs.empty() && proc.templates == NULL) return proc.rettype;
                 else if (call->targs.empty() && call->args.has_value() && proc.templates != NULL) {
@@ -998,7 +998,7 @@ public:
                 size_t counter{ 0 };
                 if (!substituted) {
                     if (proc.templates != NULL && call->targs.size() != proc.templates->size()) {
-                        GeneratorError(call->def, "procedure `" + call->name + "` expects " + std::to_string(proc.templates->size()) + " template arguments, but got " + std::to_string(call->targs.size()));
+                        GeneratorError(call->def, "procedure `" + call->name + "` expects " + GString(std::to_string(proc.templates->size())) + " template arguments, but got " + GString(std::to_string(call->targs.size())));
                     }
                     for (auto&& el : *proc.templates) {
                         temps[el] = call->targs[counter++];
@@ -1047,7 +1047,7 @@ public:
                     mtadd.def = binex->def;
                     mtadd.mt = add->lhs;
                     mtadd.name = "m_add";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(add->lhs);
                     args.push_back(add->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1068,7 +1068,7 @@ public:
                     mtmul.def = binex->def;
                     mtmul.mt = mul->lhs;
                     mtmul.name = "m_mul";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(mul->lhs);
                     args.push_back(mul->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1089,7 +1089,7 @@ public:
                     mtsub.def = binex->def;
                     mtsub.mt = sub->lhs;
                     mtsub.name = "m_sub";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(sub->lhs);
                     args.push_back(sub->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1110,7 +1110,7 @@ public:
                     mtdiv.def = binex->def;
                     mtdiv.mt = div->lhs;
                     mtdiv.name = "m_div";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(div->lhs);
                     args.push_back(div->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1134,7 +1134,7 @@ public:
                     mteqeq.def = binex->def;
                     mteqeq.mt = eqeq->lhs;
                     mteqeq.name = "m_equal";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(eqeq->lhs);
                     args.push_back(eqeq->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1155,7 +1155,7 @@ public:
                     mnq.def = binex->def;
                     mnq.mt = nq->lhs;
                     mnq.name = "m_not_equal";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(nq->lhs);
                     args.push_back(nq->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1176,7 +1176,7 @@ public:
                     mtless.def = binex->def;
                     mtless.mt = less->lhs;
                     mtless.name = "m_less";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(less->lhs);
                     args.push_back(less->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1197,7 +1197,7 @@ public:
                     mtabove.def = binex->def;
                     mtabove.mt = above->lhs;
                     mtabove.name = "m_above";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(above->lhs);
                     args.push_back(above->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1224,7 +1224,7 @@ public:
                     mtshr.def = binex->def;
                     mtshr.mt = shr->lhs;
                     mtshr.name = "m_shr";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(shr->lhs);
                     args.push_back(shr->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1245,7 +1245,7 @@ public:
                     mtshl.def = binex->def;
                     mtshl.mt = shl->lhs;
                     mtshl.name = "m_shl";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(shl->lhs);
                     args.push_back(shl->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1268,7 +1268,7 @@ public:
                 call.def = binex->def;
                 call.mt = idx->lhs;
                 call.name = "m_index";
-                std::vector<NodeExpr*> args_list;
+                GVector<NodeExpr*> args_list;
                 args_list.push_back(idx->lhs);
                 args_list.push_back(idx->rhs);
                 NodeBinExprArgs bargs;
@@ -1284,9 +1284,9 @@ public:
         assert(false);
     }
 
-    using mapped_temps = __map<std::string, DataType>;
+    using mapped_temps = GMap<GString, DataType>;
 
-    mapped_temps compute_temps(const __stdvec<std::string>& templates, const __stdvec<DataType>& targs) {
+    mapped_temps compute_temps(const GVector<GString>& templates, const GVector<DataType>& targs) {
         assert(templates.size() == targs.size());
         mapped_temps temps;
         size_t counter{ 0 };
@@ -1296,10 +1296,10 @@ public:
         return temps;
     }
 
-    __map<std::string, Field> compute_fields(const std::vector<std::pair<std::string, DataType>>& fields) {
-        __map<std::string, Field> __fields;
+    GMap<GString, Field> compute_fields(const GVector<std::pair<GString, DataType>>& fields) {
+        GMap<GString, Field> __fields;
         size_t nth = 0ULL;
-        for (const std::pair<std::string, DataType>& field : fields) {
+        for (const std::pair<GString, DataType>& field : fields) {
             __fields[field.first] = { .name = field.first, .type = field.second, .nth = nth++ };
         }
         return __fields;
@@ -1314,7 +1314,7 @@ public:
         } else {
             idx = str->index;
         }
-        push_sym("s_" + std::to_string(idx));
+        push_sym("s_" + GString(std::to_string(idx)));
     }
 
     void gen_traceback_push(Procedure& proc) {
@@ -1338,7 +1338,7 @@ public:
             void operator()(const NodeTermIntLit* term_int_lit) const {
                 if (lvalue)
                     gen.GeneratorError(term_int_lit->int_lit, "can't use integer constant as lvalue expression (any operations that taking addres).");
-                int32_t v = std::stol(term_int_lit->int_lit.value.value());
+                int32_t v = std::stol(term_int_lit->int_lit.value.value().c_str());
                 gen.push_imm(v);
             }
 
@@ -1440,7 +1440,7 @@ public:
                         deref.def = term_unref->def;
                         deref.mt = term_unref->expr;
                         deref.name = "m_assign_deref";
-                        std::vector<NodeExpr*> args;
+                        GVector<NodeExpr*> args;
                         args.push_back(term_unref->expr);
                         NodeBinExprArgs bargs{ .args = args };
                         NodeBinExpr bexpr{ .def = term_unref->def, .var = &bargs };
@@ -1454,7 +1454,7 @@ public:
                         deref.def = term_unref->def;
                         deref.mt = term_unref->expr;
                         deref.name = "m_deref";
-                        std::vector<NodeExpr*> args;
+                        GVector<NodeExpr*> args;
                         args.push_back(term_unref->expr);
                         NodeBinExprArgs bargs{ .args = args };
                         NodeBinExpr bexpr{ .def = term_unref->def, .var = &bargs };
@@ -1500,7 +1500,7 @@ public:
             }
 
             void operator()(const NodeTermIdent* term_ident) const {
-                std::string name = term_ident->ident.value.value();
+                GString name = term_ident->ident.value.value();
                 if (auto it = gen.var_lookup(name)) {
                     const Var& v = it.value();
                     if (lvalue) {
@@ -1551,11 +1551,11 @@ public:
                 if (!proc.overrides.empty()) {
                     gen.resolve_overrides_tp(&proc, term_call->args, term_call->def, term_call->targs);
                 }
-                std::vector<NodeExpr*> raw_args;
+                GVector<NodeExpr*> raw_args;
                 if (term_call->args.has_value()) raw_args = gen.__getargs(term_call->args.value());
                 
                 auto inst_res = gen.instantiate_if_needed(proc, term_call->targs, raw_args, term_call->def, pname, nname);
-                std::string tsign = inst_res.first;
+                GString tsign = inst_res.first;
                 auto temps = inst_res.second;
 
                 if (proc.rettype.root() == BaseDataTypeVoid)
@@ -1568,12 +1568,12 @@ public:
                 if (!raw_args.empty() || proc.params.empty()) {
                     if (!raw_args.empty()) gen.__typecheck_call(raw_args, proc_check.params, term_call->def, proc_check, &stack_allign);
                 } else {
-                    gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` expects " + std::to_string(proc.params.size()) + " args, but got 0");
+                    gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` expects " + GString(std::to_string(proc.params.size())) + " args, but got 0");
                 }
                 
                 gen.gen_args(raw_args, proc_check.params, term_call->def);
                 
-                std::string label = gen.mangle_ns_name(nname) + "@" + pname + tsign;
+                GString label = gen.mangle_ns_name(nname) + "@" + pname + tsign;
                 if (proc.override) label += proc.get_sign();
                 gen.m_builder.call(gen.sym(label));
                 if (stack_allign != 0) {
@@ -1583,7 +1583,7 @@ public:
             }
 
             void operator()(NodeTermCall* term_call) const {
-                const std::string name = term_call->name;
+                const GString name = term_call->name;
                 std::optional<Var> var = gen.var_lookup(name);
                 if (var.has_value() && 
                     var.value().type.root().is_simple() &&
@@ -1597,14 +1597,14 @@ public:
                     }
                     
                     DataType retType = gens[0];
-                    std::vector<DataType> paramTypes;
+                    GVector<DataType> paramTypes;
                     for(size_t i = 1; i < gens.size(); ++i) paramTypes.push_back(gens[i]);
                     
-                    std::vector<NodeExpr*> callArgs;
+                    GVector<NodeExpr*> callArgs;
                     if (term_call->args.has_value()) callArgs = gen.__getargs(term_call->args.value());
                     
                     if (callArgs.size() != paramTypes.size()) {
-                         gen.GeneratorError(term_call->def, "indirect call expects " + std::to_string(paramTypes.size()) + " args, got " + std::to_string(callArgs.size()));
+                         gen.GeneratorError(term_call->def, "indirect call expects " + GString(std::to_string(paramTypes.size())) + " args, got " + GString(std::to_string(callArgs.size())));
                     }
                     
                     for (int i = static_cast<int>(callArgs.size()) - 1; i >= 0; --i) {
@@ -1639,11 +1639,11 @@ public:
                     }
                     if (proc.rettype.root() == BaseDataTypeVoid)
                         gen.GeneratorError(term_call->def, "can't use void " + term_call->name + "(...) as value");
-                    std::vector<NodeExpr*> raw_args;
+                    GVector<NodeExpr*> raw_args;
                     if (term_call->args.has_value()) raw_args = gen.__getargs(term_call->args.value());
                     
                     auto inst_res = gen.instantiate_if_needed(proc, term_call->targs, raw_args, term_call->def, name, "");
-                    std::string tsign = inst_res.first;
+                    GString tsign = inst_res.first;
                     auto temps = inst_res.second;
                     
                     size_t stack_allign = 0;
@@ -1653,12 +1653,12 @@ public:
                     if (!raw_args.empty() || proc.params.empty()) {
                         if (!raw_args.empty()) gen.__typecheck_call(raw_args, proc_check.params, term_call->def, proc_check, &stack_allign);
                     } else {
-                        gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` expects " + std::to_string(proc.params.size()) + " args, but got 0");
+                        gen.GeneratorError(term_call->def, "procedure `" + proc.name + "` expects " + GString(std::to_string(proc.params.size())) + " args, but got 0");
                     }
                     
                     gen.gen_args(raw_args, proc_check.params, term_call->def);
                     
-                    std::string label = name + tsign;
+                    GString label = name + tsign;
                     if (proc.override) label += proc.get_sign();
                     gen.m_builder.call(gen.sym(label));
                     if (stack_allign != 0) {
@@ -1670,7 +1670,7 @@ public:
                 std::optional<Struct> st = gen.struct_lookup(term_call->name);
                 if (st.has_value()) {
                     if (st.value().temp && term_call->targs.size() != st.value().temps.size())
-                        gen.GeneratorError(term_call->def, "struct `" + st.value().name + "` except " + std::to_string(st.value().temps.size()) + " template arguments in <...>, bug got " + std::to_string(term_call->targs.size()) + ".");
+                        gen.GeneratorError(term_call->def, "struct `" + st.value().name + "` except " + GString(std::to_string(st.value().temps.size()).c_str()) + " template arguments in <...>, bug got " + GString(std::to_string(term_call->targs.size()).c_str()) + ".");
                     size_t objectSize = st.value().fields.size();
                     if (objectSize == 0U) {
                         gen.GeneratorError(term_call->def, "try to allocate zero-sized type.");
@@ -1683,7 +1683,7 @@ public:
                     }
                     gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(4));
                     bool eax_break = false;
-                    std::vector<NodeExpr*> iargs;
+                    GVector<NodeExpr*> iargs;
                     if (term_call->args.has_value()) {
                         if (std::holds_alternative<NodeBinExpr*>(term_call->args.value()->var)) {
                             NodeBinExpr* binargs = std::get<NodeBinExpr*>(term_call->args.value()->var);
@@ -1701,7 +1701,7 @@ public:
                     }
                     if (!iargs.empty()) {
                         if (iargs.size() != st.value().fields.size()) {
-                            gen.GeneratorError(term_call->def, "except " + std::to_string(st.value().fields.size()) + " args\nNOTE: but got " + std::to_string(iargs.size()) + "\nNOTE: if you don't want initialize all fields dont provide any arguments");
+                            gen.GeneratorError(term_call->def, "except " + GString(std::to_string(st.value().fields.size()).c_str()) + " args\nNOTE: but got " + GString(std::to_string(iargs.size()).c_str()) + "\nNOTE: if you don't want initialize all fields dont provide any arguments");
                         }
                         eax_break = true;
                         gen.m_builder.mov(gen.reg(Reg::EDX), gen.mem(MemRef::sym("tmp_p")));
@@ -1713,7 +1713,7 @@ public:
                         );
 
                         Struct _st = st.value();
-                        __map<std::string, DataType> temps;
+                        GMap<GString, DataType> temps;
                         if (_st.temp) {
                             size_t counter{ 0 };
                             for (auto&& el : _st.temps) {
@@ -1729,7 +1729,7 @@ public:
                             if (_st.temp)
                                 gen.substitute_template_wct(ftype, temps);
                             if (itype != ftype) {
-                                gen.GeneratorError(term_call->def, "missmatch in initializers types for field nth `" + std::to_string(i + 1) + "`\nNOTE: field name - `" + _st.__fields[i].first + "`" + "\nNOTE: excepted " + ftype.to_string() + "\nNOTE: but got " + itype.to_string());
+                                gen.GeneratorError(term_call->def, "missmatch in initializers types for field nth `" + GString(std::to_string(i + 1).c_str()) + "`\nNOTE: field name - `" + _st.__fields[i].first + "`" + "\nNOTE: excepted " + ftype.to_string() + "\nNOTE: but got " + itype.to_string());
                             }
                             gen.gen_expr(iargs[i]);
                             gen.pop_reg(Reg::ECX);
@@ -1807,7 +1807,7 @@ public:
                     sb.def = base->def;
                     sb.mt = sub->lhs;
                     sb.name = "m_sub";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(sub->lhs);
                     args.push_back(sub->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1840,7 +1840,7 @@ public:
                     dd.def = base->def;
                     dd.mt = add->lhs;
                     dd.name = "m_add";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(add->lhs);
                     args.push_back(add->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1873,7 +1873,7 @@ public:
                     dd.def = base->def;
                     dd.mt = multi->lhs;
                     dd.name = "m_mul";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(multi->lhs);
                     args.push_back(multi->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1903,7 +1903,7 @@ public:
                     dd.def = base->def;
                     dd.mt = div->lhs;
                     dd.name = "m_div";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(div->lhs);
                     args.push_back(div->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1934,7 +1934,7 @@ public:
                     dd.def = base->def;
                     dd.mt = shl->lhs;
                     dd.name = "m_shl";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(shl->lhs);
                     args.push_back(shl->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1964,7 +1964,7 @@ public:
                     dd.def = base->def;
                     dd.mt = shr->lhs;
                     dd.name = "m_shr";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(shr->lhs);
                     args.push_back(shr->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -1994,7 +1994,7 @@ public:
                     m.def = base->def;
                     m.nm = "std";
                     m.name = "mod";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(md->lhs);
                     args.push_back(md->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -2025,7 +2025,7 @@ public:
                     equal.def = base->def;
                     equal.mt = eqeq->lhs;
                     equal.name = "m_equal";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(eqeq->lhs);
                     args.push_back(eqeq->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -2058,7 +2058,7 @@ public:
                     nequal.def = base->def;
                     nequal.mt = nq->lhs;
                     nequal.name = "m_not_equal";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(nq->lhs);
                     args.push_back(nq->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -2091,7 +2091,7 @@ public:
                     mtless.def = base->def;
                     mtless.mt = less->lhs;
                     mtless.name = "m_less";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(less->lhs);
                     args.push_back(less->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -2118,8 +2118,8 @@ public:
 
             void operator()(const NodeBinExprAnd* band) const {
                 gen.gen_expr(band->lhs);
-                std::string flab = gen.create_label();
-                std::string elab = gen.create_label();
+                GString flab = gen.create_label();
+                GString elab = gen.create_label();
                 gen.pop_reg(Reg::EDX);
                 gen.m_builder.emit(IRInstr(IROp::Test, gen.reg(Reg::EDX), gen.reg(Reg::EDX)));
                 gen.m_builder.jz(gen.label(flab));
@@ -2136,9 +2136,9 @@ public:
             }
 
             void operator()(const NodeBinExprOr* bor) const {
-                std::string flab = gen.create_label();
-                std::string elab = gen.create_label();
-                std::string tlab = gen.create_label();
+                GString flab = gen.create_label();
+                GString elab = gen.create_label();
+                GString tlab = gen.create_label();
                 gen.gen_expr(bor->lhs);
                 gen.pop_reg(Reg::EDX);
                 gen.m_builder.emit(IRInstr(IROp::Test, gen.reg(Reg::EDX), gen.reg(Reg::EDX)));
@@ -2164,7 +2164,7 @@ public:
                     mtabove.def = base->def;
                     mtabove.mt = above->lhs;
                     mtabove.name = "m_above";
-                    std::vector<NodeExpr*> args;
+                    GVector<NodeExpr*> args;
                     args.push_back(above->lhs);
                     args.push_back(above->rhs);
                     NodeBinExprArgs bargs{ .args = args };
@@ -2202,7 +2202,7 @@ public:
                         gen.GeneratorError(base->def, "dynamic interface call must be method call");
                     }
                     NodeTermCall* call = std::get<NodeTermCall*>(rhs_term->var);
-                    std::string mname = call->name;
+                    GString mname = call->name;
 
                     Interface iface = gen.get_interface(otype, base->def);
 
@@ -2223,7 +2223,7 @@ public:
                     gen.m_builder.mov(gen.reg(Reg::EAX),
                                       gen.mem(MemRef::baseDisp(Reg::ECX, (1 + idx) * 4)));
 
-                    __stdvec<NodeExpr*> args_raw;
+                    GVector<NodeExpr*> args_raw;
                     if (call->args.has_value()) {
                         args_raw = gen.__getargs(call->args.value());
                     }
@@ -2242,8 +2242,8 @@ public:
                     if (explicit_got != explicit_expected) {
                         gen.GeneratorError(call->def,
                             "method `" + mname + "` of interface `" + iface.name +
-                            "` expects " + std::to_string(explicit_expected) +
-                            " argument(s), but got " + std::to_string(explicit_got));
+                            "` expects " + GString(std::to_string(explicit_expected).c_str()) +
+                            " argument(s), but got " + GString(std::to_string(explicit_got)).c_str());
                     }
 
                     for (size_t i = 0; i < explicit_expected; ++i) {
@@ -2253,7 +2253,7 @@ public:
                         if (formal.is_object() && formal.getobjectname() == "self") {
                             if (!actual.is_object() || actual.getobjectname() != iface.name) {
                                 gen.GeneratorError(call->def,
-                                    "argument " + std::to_string(i + 1) + " of method `" + mname +
+                                    "argument " + GString(std::to_string(i + 1).c_str()) + " of method `" + mname +
                                     "` of interface `" + iface.name +
                                     "` must be of interface type `" + iface.name +
                                     "`, but got " + actual.to_string());
@@ -2261,7 +2261,7 @@ public:
                         } else {
                             if (formal != actual) {
                                 gen.GeneratorError(call->def,
-                                    "argument " + std::to_string(i + 1) +
+                                    "argument " + GString(std::to_string(i + 1).c_str()) +
                                     " of method `" + mname + "` of interface `" + iface.name +
                                     "` expects " + formal.to_string() +
                                     ", but got " + actual.to_string());
@@ -2301,7 +2301,7 @@ public:
                     mt.name  = call->name;
                     mt.targs = call->targs;
 
-                    __stdvec<NodeExpr*> allargs;
+                    GVector<NodeExpr*> allargs;
                     allargs.push_back(dot->lhs);
 
                     if (call->args.has_value()) {
@@ -2335,7 +2335,7 @@ public:
 
                 NodeTermIdent* tid = std::get<NodeTermIdent*>(term->var);
                 Token ident = tid->ident;
-                std::string field_name = ident.value.value();
+                GString field_name = ident.value.value();
 
                 if (!otype.root().is_object) {
                     gen.GeneratorError(
@@ -2345,7 +2345,7 @@ public:
                     );
                 }
 
-                std::string struct_name = otype.root().getobjectname();
+                GString struct_name = otype.root().getobjectname();
                 std::optional<Struct> st = gen.struct_lookup(struct_name);
                 size_t field_offset = 0;
                 if (st.has_value()) {
@@ -2399,7 +2399,7 @@ public:
                     call.name = "m_index";
                 }
                 
-                std::vector<NodeExpr*> args_list;
+                GVector<NodeExpr*> args_list;
                 args_list.push_back(idx->lhs);
                 args_list.push_back(idx->rhs);
                 NodeBinExprArgs bargs; bargs.args = args_list;
@@ -2504,14 +2504,14 @@ public:
 
     void convert(NodeExpr* expr, const DataType& to, const DataType& from, const Token& def) {
         if (to.root().is_object) {
-            std::string objName = to.root().getobjectname();
+            GString objName = to.root().getobjectname();
             std::optional<Namespace*> _nms = namespace_lookup(objName);
             if (!_nms.has_value()) goto CONVERT_FAILED;
             NodeTermNmCall call;
             call.def = def;
             call.nm = objName;
             call.name = "new";
-            std::vector<NodeExpr*> args;
+            GVector<NodeExpr*> args;
             args.push_back(expr);
             NodeBinExprArgs bargs{ .args = args };
             NodeBinExpr     bexpr{ .def = def, .var = &bargs };
@@ -2602,7 +2602,7 @@ AFTER_GEN:
             {
                 gen.gen_expr(elif->expr);
                 gen.pop_reg(Reg::EAX);
-                const std::string label = gen.create_label();
+                const GString label = gen.create_label();
                 gen.m_builder.emit(IRInstr(IROp::Test, gen.reg(Reg::EAX), gen.reg(Reg::EAX)));
                 gen.m_builder.jz(gen.label(label));
                 gen.gen_scope(elif->scope);
@@ -2631,8 +2631,8 @@ AFTER_GEN:
         return proc.value();
     }
 
-    void __typecheck_call(const std::vector<NodeExpr*>& args,
-                          const std::vector<std::pair<std::string, DataType>>& params,
+    void __typecheck_call(const GVector<NodeExpr*>& args,
+                          const GVector<std::pair<GString, DataType>>& params,
                           const Token& def,
                           const Procedure& proc,
                           size_t* stack_allign)
@@ -2648,8 +2648,8 @@ AFTER_GEN:
                 GeneratorError(
                     def,
                     "procedure `" + proc.name + "` expects " +
-                    std::to_string(params_sz) + " argument(s), but " +
-                    std::to_string(args_sz) + " were provided"
+                    GString(std::to_string(params_sz).c_str()) + " argument(s), but " +
+                    GString(std::to_string(args_sz).c_str()) + " were provided"
                 );
             }
         } else {
@@ -2657,8 +2657,8 @@ AFTER_GEN:
                 GeneratorError(
                     def,
                     "procedure `" + proc.name + "` expects at least " +
-                    std::to_string(params_sz) + " argument(s), but " +
-                    std::to_string(args_sz) + " were provided"
+                    GString(std::to_string(params_sz).c_str()) + " argument(s), but " +
+                    GString(std::to_string(args_sz).c_str()) + " were provided"
                 );
             }
         }
@@ -2675,7 +2675,7 @@ AFTER_GEN:
                     def,
                     "procedure `" + proc.name + "`\nexcept type " +
                     canonical_type(params[bad].second).to_string() + " at " +
-                    std::to_string(bad) + " argument\nNOTE: but found type " +
+                    GString(std::to_string(bad).c_str()) + " argument\nNOTE: but found type " +
                     canonical_type(type_of_expr(args[bad])).to_string()
                 );
             }
@@ -2684,9 +2684,9 @@ AFTER_GEN:
         *stack_allign += args_sz;
     }
 
-    void substitute_template_wct(DataType& type, __map<std::string, DataType>& temps) {
+    void substitute_template_wct(DataType& type, GMap<GString, DataType>& temps) {
         bool generics_changed = false;
-        std::vector<DataType> new_generics;
+        GVector<DataType> new_generics;
         
         if (!type.node->generics.empty()) {
             new_generics = type.node->generics;
@@ -2698,7 +2698,7 @@ AFTER_GEN:
         }
 
         if (type.root().is_object) {
-            std::string oname = type.root().getobjectname();
+            GString oname = type.root().getobjectname();
             const auto it = temps.find(oname);
             
             if (it != temps.end()) {
@@ -2729,13 +2729,13 @@ AFTER_GEN:
         substitute_template_wct(type, m_temps.back());
     }
 
-    bool __try_typecheck_call(const std::vector<NodeExpr*>& args, const Procedure& proc) {
+    bool __try_typecheck_call(const GVector<NodeExpr*>& args, const Procedure& proc) {
         bool nosizedargs =
             std::find(proc.attrs.begin(), proc.attrs.end(), ProcAttr::nosizedargs) != proc.attrs.end();
         return match_call_signature(args, proc.params, proc, nosizedargs, nullptr);
     }
 
-    std::vector<NodeExpr*> __getargs(NodeExpr* __expr) {
+    GVector<NodeExpr*> __getargs(NodeExpr* __expr) {
         return std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(__expr->var)->var)->args;
     }
 
@@ -2745,7 +2745,7 @@ AFTER_GEN:
             if (!call->args.has_value()) {
                 GeneratorError(def, "is_same_t excepts 2 args");
             }
-            std::vector<NodeExpr*> args = __getargs(call->args.value());
+            GVector<NodeExpr*> args = __getargs(call->args.value());
             if (args.size() != 2) {
                 GeneratorError(def, "is_same_t excepts 2 args");
             }
@@ -2765,7 +2765,7 @@ AFTER_GEN:
             if (!call->args.has_value()) {
                 GeneratorError(def, "is_object_t excepts 1 args");
             }
-            std::vector<NodeExpr*> args = __getargs(call->args.value());
+            GVector<NodeExpr*> args = __getargs(call->args.value());
             if (args.size() != 1) {
                 GeneratorError(def, "is_object_t excepts 1 args");
             }
@@ -2780,7 +2780,7 @@ AFTER_GEN:
             if (!call->args.has_value()) {
                 GeneratorError(def, "ct_not excepts 1 args");
             }
-            std::vector<NodeExpr*> args = __getargs(call->args.value());
+            GVector<NodeExpr*> args = __getargs(call->args.value());
             if (args.size() != 1) {
                 GeneratorError(def, "ct_not excepts 1 args");
             }
@@ -2788,7 +2788,7 @@ AFTER_GEN:
         }
         if (name == "is_implements_t") {
             if (!call->args.has_value()) GeneratorError(def, "is_implements_t excepts 2 args");
-            std::vector<NodeExpr*> args = __getargs(call->args.value());
+            GVector<NodeExpr*> args = __getargs(call->args.value());
             if (args.size() != 2) GeneratorError(def, "is_implements_t excepts 2 args");
 
             std::optional<NodeTermType*> type_1 = ptools::get::type(args[0]);
@@ -2817,13 +2817,13 @@ AFTER_GEN:
         if (std::holds_alternative<NodeTerm*>(expr->var)) {
             NodeTerm* nterm = std::get<NodeTerm*>(expr->var);
             if (std::holds_alternative<NodeTermIntLit*>(nterm->var)) {
-                return std::stoul(std::get<NodeTermIntLit*>(nterm->var)->int_lit.value.value());
+                return std::stoul(std::get<NodeTermIntLit*>(nterm->var)->int_lit.value.value().c_str());
             }
             if (std::holds_alternative<NodeTermCtMdefined*>(nterm->var)) {
                 return static_cast<int>(std::get<NodeTermCtMdefined*>(nterm->var)->value);
             }
             if (std::holds_alternative<NodeTermIdent*>(nterm->var)) {
-                std::string cname = std::get<NodeTermIdent*>(nterm->var)->ident.value.value();
+                GString cname = std::get<NodeTermIdent*>(nterm->var)->ident.value.value();
                 if (cname == "iota") return CTX_IOTA++;
                 if (cname == "reset") {
                     int old = CTX_IOTA;
@@ -2901,11 +2901,11 @@ AFTER_GEN:
         return m_cur_namespace != NULL;
     }
 
-    __map<std::string, DataType> try_derive_templates(std::vector<DataType>& targs,
-                                                      const std::vector<std::pair<std::string, DataType>>& params,
+    GMap<GString, DataType> try_derive_templates(GVector<DataType>& targs,
+                                                      const GVector<std::pair<GString, DataType>>& params,
                                                       const Token& def,
-                                                      __stdvec<std::string>* templates,
-                                                      const std::vector<NodeExpr*> args,
+                                                      GVector<GString>* templates,
+                                                      const GVector<NodeExpr*> args,
                                                       const Procedure& proc)
     {
         if (params.empty()) {
@@ -2913,14 +2913,14 @@ AFTER_GEN:
         }
         if (params.size() != args.size()) {
             GeneratorError(def, "procedure `" + proc.name +
-                                 "` excepts " + std::to_string(params.size()) +
-                                 " args, but got " + std::to_string(args.size()) + ".");
+                                 "` excepts " + GString(std::to_string(params.size()).c_str()) +
+                                 " args, but got " + GString(std::to_string(args.size()).c_str()) + ".");
         }
 
         assert(templates != NULL);
         assert(!templates->empty());
 
-        __map<std::string, DataType> temps;
+        GMap<GString, DataType> temps;
         bool ok = derive_templates_core(targs, params, templates, args, proc, temps);
         if (!ok) {
             int bad = -1;
@@ -2942,23 +2942,23 @@ AFTER_GEN:
         return temps;
     }
 
-    std::pair<__map<std::string, DataType>, bool> try_derive_templates_no_err(
-        std::vector<DataType> targs,
-        const std::vector<std::pair<std::string, DataType>> params,
+    std::pair<GMap<GString, DataType>, bool> try_derive_templates_no_err(
+        GVector<DataType> targs,
+        const GVector<std::pair<GString, DataType>> params,
         const Token& def,
-        __stdvec<std::string>* templates,
-        const std::vector<NodeExpr*> args,
+        GVector<GString>* templates,
+        const GVector<NodeExpr*> args,
         const Procedure& proc)
     {
-        using __L_map = __map<std::string, DataType>;
+        using __L_map = GMap<GString, DataType>;
 
         if (params.empty()) {
             return std::make_pair(__L_map{}, false);
         }
         if (params.size() != args.size()) {
             GeneratorError(def, "procedure `" + proc.name +
-                                 "` excepts " + std::to_string(params.size()) +
-                                 " args, but got " + std::to_string(args.size()) + ".");
+                                 "` excepts " + GString(std::to_string(params.size()).c_str()) +
+                                 " args, but got " + GString(std::to_string(args.size()).c_str()) + ".");
         }
 
         assert(templates != NULL);
@@ -2978,7 +2978,7 @@ AFTER_GEN:
         if (!proc->overrides.empty()) {
             if (!args.has_value()) {
                 if (!proc->params.empty() && proc->overrides.size() == 0)
-                    GeneratorError(def, "procedure `" + proc->name + "` excepts " + std::to_string(proc->params.size()) + " arguments, but got 0.");
+                    GeneratorError(def, "procedure `" + proc->name + "` excepts " + GString(std::to_string(proc->params.size()).c_str()) + " arguments, but got 0.");
                 if (proc->params.empty()) return;
                 for (int i = 0; i < static_cast<int>(proc->overrides.size()); ++i) {
                     cp = proc->overrides[i];
@@ -2999,14 +2999,14 @@ AFTER_GEN:
         }
         if (!proc->overrides.empty()) {
             if (!__try_typecheck_call(__getargs(args.value()), *proc)) {
-                std::vector<NodeExpr*> args_v = __getargs(args.value());
-                std::vector<DataType>  arg_types;
+                GVector<NodeExpr*> args_v = __getargs(args.value());
+                GVector<DataType>  arg_types;
                 for (auto* e : args_v) arg_types.push_back(canonical_type(type_of_expr(e)));
-                std::string args_s = format_type_list(arg_types);
+                GString args_s = format_type_list(arg_types);
                 DiagnosticMessage(def, "error", "no match candidate for call procedure " + proc->name + "(" + args_s + ").", 0);
-                std::string args_s1;
+                GString args_s1;
                 for (int i = 0; i < static_cast<int>(proc->params.size()); ++i) {
-                    std::string tmp(proc->params[i].second.to_string());
+                    GString tmp(proc->params[i].second.to_string());
                     args_s1 += tmp.substr(1, tmp.size() - 2);
                     if (i != static_cast<int>(proc->params.size()) - 1) {
                         args_s1 += ", ";
@@ -3015,9 +3015,9 @@ AFTER_GEN:
                 DiagnosticMessage(proc->def, "note", "candidate " + proc->name + "(" + args_s1 + ").", 0);
                 for (int i = 0; i < static_cast<int>(proc->overrides.size()); ++i) {
                     Procedure* cp2 = proc->overrides[i];
-                    std::string args_s2;
+                    GString args_s2;
                     for (int j = 0; j < static_cast<int>(cp2->params.size()); ++j) {
-                        std::string tmp(cp2->params[j].second.to_string());
+                        GString tmp(cp2->params[j].second.to_string());
                         args_s2 += tmp.substr(1, tmp.size() - 2);
                         if (j != static_cast<int>(cp2->params.size()) - 1) {
                             args_s2 += ", ";
@@ -3030,8 +3030,8 @@ AFTER_GEN:
         }
     }
 
-    __stdvec<Procedure> collect_candidates_earg(Procedure* proc) {
-        __stdvec<Procedure> res;
+    GVector<Procedure> collect_candidates_earg(Procedure* proc) {
+        GVector<Procedure> res;
         if (proc->params.empty()) res.push_back(*proc);
         for (int i = 0; i < static_cast<int>(proc->overrides.size()); ++i) {
             if (proc->overrides[i]->params.empty()) res.push_back(*proc->overrides[i]);
@@ -3039,8 +3039,8 @@ AFTER_GEN:
         return res;
     }
 
-    __stdvec<Procedure> collect_candidates(Procedure* proc, size_t args_size) {
-        __stdvec<Procedure> res;
+    GVector<Procedure> collect_candidates(Procedure* proc, size_t args_size) {
+        GVector<Procedure> res;
         if (proc->params.size() == args_size) res.push_back(*proc);
         for (int i = 0; i < static_cast<int>(proc->overrides.size()); ++i) {
             if (proc->overrides[i]->params.size() == args_size) res.push_back(*proc->overrides[i]);
@@ -3051,12 +3051,12 @@ AFTER_GEN:
     void resolve_overrides_tp(Procedure* proc,
                               std::optional<NodeExpr*> args,
                               const Token& def,
-                              __stdvec<DataType> targs)
+                              GVector<DataType> targs)
     {
         assert(proc != NULL);
         Procedure  copy_of_proc = *proc;
         Procedure* ptr_to_proc  = proc;
-        __stdvec<Procedure> candidates;
+        GVector<Procedure> candidates;
         if (args.has_value())
             candidates = collect_candidates(ptr_to_proc, __getargs(args.value()).size());
         else {
@@ -3070,7 +3070,7 @@ AFTER_GEN:
         }
         for (int i = 0; i < static_cast<int>(candidates.size()); ++i) {
             Procedure cur_c = candidates[i];
-            __map<std::string, DataType> temps;
+            GMap<GString, DataType> temps;
             if (cur_c.templates != NULL && targs.empty()) {
                 assert(args.has_value());
                 auto res = try_derive_templates_no_err(targs, cur_c.params, def, cur_c.templates, __getargs(args.value()), cur_c);
@@ -3095,15 +3095,15 @@ AFTER_GEN:
                 return;
             }
         }
-        std::string args_s = "";
+        GString args_s = "";
         if(args.has_value()) {
-            std::vector<NodeExpr*> args_v = __getargs(args.value());
-            std::vector<DataType>  arg_types;
+            GVector<NodeExpr*> args_v = __getargs(args.value());
+            GVector<DataType>  arg_types;
             for (auto* e : args_v) arg_types.push_back(canonical_type(type_of_expr(e)));
             args_s = format_type_list(arg_types);
         }
         DiagnosticMessage(def, "error", "no match candidate for call procedure " + proc->name + "(" + args_s + ").", 0);
-        std::string args_s1;
+        GString args_s1;
         for (int i = 0; i < static_cast<int>(proc->params.size()); ++i) {
             args_s1 += proc->params[i].second.to_string();
             if (i != static_cast<int>(proc->params.size()) - 1) {
@@ -3113,7 +3113,7 @@ AFTER_GEN:
         DiagnosticMessage(proc->def, "note", "candidate " + proc->name + "(" + args_s1 + ").", 0);
         for (int i = 0; i < static_cast<int>(proc->overrides.size()); ++i) {
             Procedure* cp = proc->overrides[i];
-            std::string args_s2;
+            GString args_s2;
             for (int j = 0; j < static_cast<int>(cp->params.size()); ++j) {
                 args_s2 += cp->params[j].second.to_string();
                 if (j != static_cast<int>(cp->params.size()) - 1) {
@@ -3125,8 +3125,8 @@ AFTER_GEN:
         exit(1);
     }
 
-    void gen_args(const __stdvec<NodeExpr*>& args,
-              const __stdvec<std::pair<std::string, DataType>>& params,
+    void gen_args(const GVector<NodeExpr*>& args,
+              const GVector<std::pair<GString, DataType>>& params,
               const Token& where)
     {
         for (int i = static_cast<int>(args.size()) - 1; i >= 0; --i) {
@@ -3152,8 +3152,8 @@ AFTER_GEN:
         }
     }
 
-    void substitute_template_params(__map<std::string, DataType>& temps,
-                                    __stdvec<std::pair<std::string, DataType>>& params) {
+    void substitute_template_params(GMap<GString, DataType>& temps,
+                                    GVector<std::pair<GString, DataType>>& params) {
         for (int i = 0; i < static_cast<int>(params.size()); ++i) {
             substitute_template_wct(params[i].second, temps);
         }
@@ -3219,8 +3219,8 @@ AFTER_GEN:
                     if (proc.value().params.size() != stmt_proc->params.size()) {
                         gen.GeneratorError(stmt_proc->def,
                             "prototype of procedure and definition have different params sizes.\nNOTE: except `" +
-                            std::to_string(proc.value().params.size()) + "` but got `" +
-                            std::to_string(stmt_proc->params.size()) + "`.");
+                            GString(std::to_string(proc.value().params.size()).c_str()) + "` but got `" +
+                            GString(std::to_string(stmt_proc->params.size()).c_str()) + "`.");
                     }
                     if (proc.value().rettype != stmt_proc->rettype) {
                         gen.GeneratorError(stmt_proc->def,
@@ -3336,7 +3336,7 @@ AFTER_GEN:
                 if (stmt_proc->rettype == BaseDataTypeConst) return;
                 if (stmt_proc->templates != NULL)            return;
                 if (stmt_proc->prototype) {
-                    std::vector<ProcAttr> attrs = stmt_proc->attrs;
+                    GVector<ProcAttr> attrs = stmt_proc->attrs;
                     bool is_cimport = std::find(attrs.begin(), attrs.end(), ProcAttr::cimport) != attrs.end();
                     if (is_cimport) {
                         gen.m_cexterns.push_back(stmt_proc->name);
@@ -3345,13 +3345,13 @@ AFTER_GEN:
                 }
                 if (override && movs->templates != NULL)     return;
 
-                std::vector<ProcAttr> attrs = stmt_proc->attrs;
+                GVector<ProcAttr> attrs = stmt_proc->attrs;
                 bool noprolog = std::find(attrs.begin(), attrs.end(), ProcAttr::noprolog) != attrs.end();
 
-                std::string label;
+                GString label;
                 if (stmt_proc->name != "main") {
                     if (gen.in_namespace()) {
-                        std::string ns_asm = gen.mangle_ns_name(gen.m_cur_namespace->name);
+                        GString ns_asm = gen.mangle_ns_name(gen.m_cur_namespace->name);
                         label += ns_asm;
                         label += "@";
                     }
@@ -3448,7 +3448,7 @@ AFTER_GEN:
                                 NodeTerm* tt = std::get<NodeTerm*>(as_amp->expr->var);
                                 if (std::holds_alternative<NodeTermIdent*>(tt->var)) {
                                     NodeTermIdent* id = std::get<NodeTermIdent*>(tt->var);
-                                    std::string name = id->ident.value.value();
+                                    GString name = id->ident.value.value();
                                     if (gen.var_lookup_cs(name).has_value()) {
                                         gen.GeneratorWarning(stmt_return->def,
                                             "Taking address of local variable `" + name + "`. "
@@ -3539,7 +3539,7 @@ AFTER_GEN:
                         NodeTerm* lvterm = std::get<NodeTerm*>(lvalue->var);
                         if (std::holds_alternative<NodeTermIdent*>(lvterm->var)) {
                             NodeTermIdent* lvident = std::get<NodeTermIdent*>(lvterm->var);
-                            std::string name = lvident->ident.value.value();
+                            GString name = lvident->ident.value.value();
                             std::optional<Var> var = gen.var_lookup(name);
                             if (var.has_value()) {
                                 gen.gen_expr(stmt_assign->expr);
@@ -3594,7 +3594,7 @@ AFTER_GEN:
                         return;
                     }
 
-                    std::string objnm = ltype.getobjectname();
+                    GString objnm = ltype.getobjectname();
                     std::optional<Namespace*> _nms = gen.namespace_lookup(objnm);
                     // TODON
                     bool can_assign = true;
@@ -3778,16 +3778,16 @@ AFTER_GEN:
 
             void operator()(NodeStmtCall* stmt_call) const
             {
-                const std::string name = stmt_call->name;
+                const GString name = stmt_call->name;
                 Procedure proc = gen.__proc_get(stmt_call->name, stmt_call->def);
                 if (!proc.overrides.empty())
                     gen.resolve_overrides_tp(&proc, stmt_call->args, stmt_call->def, stmt_call->targs);
 
-                std::vector<NodeExpr*> raw_args;
+                GVector<NodeExpr*> raw_args;
                 if (stmt_call->args.has_value()) raw_args = gen.__getargs(stmt_call->args.value());
 
                 auto inst_res = gen.instantiate_if_needed(proc, stmt_call->targs, raw_args, stmt_call->def, name, "");
-                std::string tsign = inst_res.first;
+                GString tsign = inst_res.first;
                 auto temps = inst_res.second;
 
                 size_t stack_allign = 0;
@@ -3800,13 +3800,13 @@ AFTER_GEN:
                                              proc_check, &stack_allign);
                 } else {
                     gen.GeneratorError(stmt_call->def, "procedure `" + proc.name + "` expects " +
-                                                          std::to_string(proc.params.size()) +
+                                                          GString(std::to_string(proc.params.size()).c_str()) +
                                                           " args, but got 0");
                 }
 
                 gen.gen_args(raw_args, proc_check.params, stmt_call->def);
 
-                std::string label = name + tsign;
+                GString label = name + tsign;
                 if (proc.override) label += proc.get_sign();
                 gen.m_builder.call(gen.sym(label));
 
@@ -3829,12 +3829,12 @@ AFTER_GEN:
             {
                 gen.gen_expr(stmt_if->expr);
                 gen.pop_reg(Reg::EAX);
-                const std::string label = gen.create_label();
+                const GString label = gen.create_label();
                 gen.m_builder.emit(IRInstr(IROp::Test, gen.reg(Reg::EAX), gen.reg(Reg::EAX)));
                 gen.m_builder.jz(gen.label(label));
                 gen.gen_scope(stmt_if->scope);
                 if (stmt_if->pred.has_value()) {
-                    const std::string end_label = gen.create_label();
+                    const GString end_label = gen.create_label();
                     gen.m_builder.jmp(gen.label(end_label));
                     gen.m_builder.label(label);
                     gen.gen_if_pred(stmt_if->pred.value(), end_label);
@@ -3953,11 +3953,11 @@ AFTER_GEN:
                     exit(EXIT_FAILURE);
                 }
 
-                __stdvec<std::pair<std::string, DataType>> final_fields;
+                GVector<std::pair<GString, DataType>> final_fields;
                 std::optional<DataType> parent_dt = stmt_struct->parent;
 
                 if (parent_dt.has_value()) {
-                    std::string pname = parent_dt.value().getobjectname();
+                    GString pname = parent_dt.value().getobjectname();
                     std::optional<Struct> p_struct_opt = gen.struct_lookup(pname);
                     
                     if (!p_struct_opt.has_value()) {
@@ -3969,13 +3969,13 @@ AFTER_GEN:
                     final_fields = p_struct.__fields;
                     
                     if (p_struct.temp) {
-                        std::vector<DataType> targs = gen.get_template_args(parent_dt.value());
+                        GVector<DataType> targs = gen.get_template_args(parent_dt.value());
                         
                         if (targs.size() != p_struct.temps.size()) {
                              gen.GeneratorError(stmt_struct->def, "parent struct template args mismatch");
                         }
 
-                        __map<std::string, DataType> temps = gen.compute_temps(p_struct.temps, targs);
+                        GMap<GString, DataType> temps = gen.compute_temps(p_struct.temps, targs);
                         
                         for(auto& f : final_fields) {
                             gen.substitute_template_wct(f.second, temps);
@@ -4041,7 +4041,7 @@ AFTER_GEN:
                     gen.GeneratorError(stmt_delete->def, "`delete` except object\nNOTE: but got " +
                                                        gen.type_of_expr(stmt_delete->expr).to_string());
                 }
-                std::string objectName = type.getobjectname();
+                GString objectName = type.getobjectname();
                 std::optional<Struct> st = gen.struct_lookup(objectName);
                 if (st.has_value()) {
                     if (st.value().__allocator.has_value()) {
@@ -4057,7 +4057,7 @@ AFTER_GEN:
                         call.def = stmt_delete->def;
                         call.mt  = stmt_delete->expr;
                         call.name = "destroy";
-                        __stdvec<NodeExpr*> args;
+                        GVector<NodeExpr*> args;
                         args.push_back(stmt_delete->expr);
                         NodeBinExprArgs aa;
                         aa.args = args;
@@ -4081,7 +4081,7 @@ AFTER_GEN:
                 DataType tp = gen.type_of_expr(stmt_raise->expr);
                 bool has_what = false;
                 if (tp.is_object()) {
-                    std::string oname = tp.root().getobjectname();
+                    GString oname = tp.root().getobjectname();
                     std::optional<Namespace*> nm = gen.namespace_lookup(oname);
                     if (nm.has_value()) {
                         Namespace* nms = nm.value();
@@ -4089,7 +4089,7 @@ AFTER_GEN:
                         if (search != nms->procs.end()) {
                             Procedure proc = search->second;
                             has_what = true;
-                            std::string lbl = oname + "@what";
+                            GString lbl = oname + "@what";
                             gen.push_sym(lbl);
                         }
                     }
@@ -4108,7 +4108,7 @@ AFTER_GEN:
 
             void operator()(const NodeStmtNamespace* stmt_space) const
             {
-                std::string fullName;
+                GString fullName;
                 if (!gen.m_ns_stack.empty()) {
                     fullName = gen.m_ns_stack.back() + "::" + stmt_space->name;
                 } else {
@@ -4142,7 +4142,7 @@ AFTER_GEN:
             void operator()(NodeStmtImpl* stmt_impl) const
             {
                 std::optional<Namespace*> enm = gen.namespace_lookup(stmt_impl->name);
-                std::string iname = stmt_impl->name;
+                GString iname = stmt_impl->name;
                 std::optional<Struct> h_s = gen.struct_lookup(iname);
                 if (!h_s.has_value())
                     gen.GeneratorError(stmt_impl->def, "unkown structure name `" + iname + "`.");
@@ -4157,11 +4157,11 @@ AFTER_GEN:
                 for (NodeStmt* stmt : stmt_impl->scope->stmts) {
                     if (!stmt_impl->temps.empty() && std::holds_alternative<NodeStmtProc*>(stmt->var)) {
                         NodeStmtProc* ps = std::get<NodeStmtProc*>(stmt->var);
-                        std::string pname = ps->name;
+                        GString pname = ps->name;
                         if (std::find(stmt_impl->inst.begin(), stmt_impl->inst.end(), pname) ==
                             stmt_impl->inst.end()) {
                             if (ps->templates == NULL)
-                                ps->templates = gen.m_allocator->emplace<__stdvec<std::string>>();
+                                ps->templates = gen.m_allocator->emplace<GVector<GString>>();
                             ps->templates->insert(ps->templates->begin(),
                                                   stmt_impl->temps.begin(), stmt_impl->temps.end());
                         }
@@ -4187,11 +4187,11 @@ AFTER_GEN:
                     gen.resolve_overrides_tp(&proc, stmt_call->args, stmt_call->def, stmt_call->targs);
                 }
 
-                std::vector<NodeExpr*> raw_args;
+                GVector<NodeExpr*> raw_args;
                 if (stmt_call->args.has_value()) raw_args = gen.__getargs(stmt_call->args.value());
 
                 auto inst_res = gen.instantiate_if_needed(proc, stmt_call->targs, raw_args, stmt_call->def, pname, nname);
-                std::string tsign = inst_res.first;
+                GString tsign = inst_res.first;
                 auto temps = inst_res.second;
 
                 size_t stack_allign = 0;
@@ -4204,12 +4204,12 @@ AFTER_GEN:
                 } else {
                     gen.GeneratorError(stmt_call->def,
                         "procedure `" + proc.name + "` expects " +
-                        std::to_string(proc.params.size()) + " args, but got 0");
+                        GString(std::to_string(proc.params.size()).c_str()) + " args, but got 0");
                 }
 
                 gen.gen_args(raw_args, proc_check.params, stmt_call->def);
 
-                std::string label = gen.mangle_ns_name(nname) + "@" + pname + tsign;
+                GString label = gen.mangle_ns_name(nname) + "@" + pname + tsign;
                 if (proc.override) label += proc.get_sign();
                 gen.m_builder.call(gen.sym(label));
 
@@ -4333,9 +4333,9 @@ AFTER_GEN:
 
             void operator()(const NodeStmtTry* stmt_try) const
             {
-                const std::string catch_lab  = gen.create_label();
-                const std::string end_catch  = gen.create_label();
-                const std::string end_lab    = gen.create_label();
+                const GString catch_lab  = gen.create_label();
+                const GString end_catch  = gen.create_label();
+                const GString end_lab    = gen.create_label();
 
                 gen.m_builder.emit(
                     IRInstr(IROp::Inc, gen.mem(MemRef::sym("__exception_bufs_lvl")))
@@ -4499,7 +4499,7 @@ AFTER_GEN:
                 size_t body_size = gen.collect_alligns(stmt_foreach->scope);
                 gen.begin_scope(static_cast<int>(4 + body_size));
                 
-                std::string cont_name = "__foreach_cont_" + std::to_string(gen.CTX_IOTA++);
+                GString cont_name = "__foreach_cont_" + GString(std::to_string(gen.CTX_IOTA++).c_str());
                 gen.create_var(cont_name, stmt_foreach->expr, stmt_foreach->var_name, std::nullopt);
                 
                 NodeTermIdent cont_ident; 
@@ -4508,11 +4508,11 @@ AFTER_GEN:
                 NodeExpr cont_expr; cont_expr.var = &cont_term;
                 
                 auto* call_begin_node = gen.make_method_call(&cont_expr, "begin", {}, stmt_foreach->var_name);
-                std::string it_name = "__foreach_it_" + std::to_string(gen.CTX_IOTA++);
+                GString it_name = "__foreach_it_" + GString(std::to_string(gen.CTX_IOTA++).c_str());
                 gen.create_var(it_name, call_begin_node, stmt_foreach->var_name, std::nullopt);
                 
                 auto* call_end_node = gen.make_method_call(&cont_expr, "end", {}, stmt_foreach->var_name);
-                std::string end_name = "__foreach_end_" + std::to_string(gen.CTX_IOTA++);
+                GString end_name = "__foreach_end_" + GString(std::to_string(gen.CTX_IOTA++).c_str());
                 gen.create_var(end_name, call_end_node, stmt_foreach->var_name, std::nullopt);
                 
                 auto start_label = gen.create_label();
@@ -4534,7 +4534,7 @@ AFTER_GEN:
                 auto* it_expr_deref = gen.make_ident_expr(it_name);
                 auto* deref_expr = gen.make_deref_expr(it_expr_deref, stmt_foreach->var_name);
                 
-                std::string user_var_name = stmt_foreach->var_name.value.value();
+                GString user_var_name = stmt_foreach->var_name.value.value();
                 gen.create_var(user_var_name, deref_expr, stmt_foreach->var_name, std::nullopt);
                 
                 for(const auto& st : stmt_foreach->scope->stmts) {
@@ -4556,7 +4556,7 @@ AFTER_GEN:
             }
             void operator()(const NodeStmtEnum* stmt_enum) const
             {
-                std::string ns_name = stmt_enum->name;
+                GString ns_name = stmt_enum->name;
                 Namespace* nm;
                 
                 auto it = gen.m_namespaces.find(ns_name);
@@ -4588,7 +4588,7 @@ AFTER_GEN:
         std::visit(visitor, stmt->var);
     }
 
-    [[nodiscard]] std::string gen_prog()
+    [[nodiscard]] GString gen_prog()
 	{
 	    m_consts.push_back({});
 	    m_typedefs.push_back({});
@@ -4608,12 +4608,12 @@ AFTER_GEN:
 	    m_templ_ir = &templ_ir;
 	    m_builder  = IRBuilder(m_main_ir);
 
-	    std::vector<PendingTemplateInstance> pending;
+	    GVector<PendingTemplateInstance> pending;
     	m_pending_templates = &pending;
 	
-	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("public ___BpmDoubleExceptionTypeId")));
-	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("public ___BpmRecursionExceptionTypeId")));
-	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("public ___BpmSigSegvExceptionTypeId")));
+	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("public __BpmDoubleExceptionTypeId")));
+	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("public __BpmRecursionExceptionTypeId")));
+	    m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp("public __BpmSigSegvExceptionTypeId")));
 	
 	    for (const NodeStmt* stmt : m_prog->stmts) {
 	        gen_stmt(stmt);
@@ -4637,9 +4637,9 @@ AFTER_GEN:
         m_builder.call(sym("gc_set_stack_base"));
         m_builder.add(reg(Reg::ESP), imm(4));
 
-	    m_builder.mov(mem(MemRef::sym("___BpmDoubleExceptionTypeId")),   imm(0));
-	    m_builder.mov(mem(MemRef::sym("___BpmRecursionExceptionTypeId")), imm(0));
-	    m_builder.mov(mem(MemRef::sym("___BpmSigSegvExceptionTypeId")),  imm(0));
+	    m_builder.mov(mem(MemRef::sym("__BpmDoubleExceptionTypeId")),   imm(0));
+	    m_builder.mov(mem(MemRef::sym("__BpmRecursionExceptionTypeId")), imm(0));
+	    m_builder.mov(mem(MemRef::sym("__BpmSigSegvExceptionTypeId")),  imm(0));
 
 	    m_builder.push(imm(static_cast<int32_t>((*m_typeid_table_size) * 4ULL)));
 	    m_builder.call(sym("malloc"));
@@ -4664,7 +4664,7 @@ AFTER_GEN:
 
 	    m_builder.mov(mem(MemRef::sym("tmp_p")), imm(0));
 
-	    auto init_builtin_id = [&](const std::string& struct_name, const std::string& global_name) {
+	    auto init_builtin_id = [&](const GString& struct_name, const GString& global_name) {
 	        auto it = m_structs.find(struct_name);
 	        if (it != m_structs.end()) {
 	            m_builder.mov(
@@ -4673,9 +4673,9 @@ AFTER_GEN:
 	            );
 	        }
 	    };
-	    init_builtin_id("__DoubleFreeException", "___BpmDoubleExceptionTypeId");
-	    init_builtin_id("__RecursionException",  "___BpmRecursionExceptionTypeId");
-	    init_builtin_id("__SigSegvException",    "___BpmSigSegvExceptionTypeId");
+	    init_builtin_id("__DoubleFreeException", "__BpmDoubleExceptionTypeId");
+	    init_builtin_id("__RecursionException",  "__BpmRecursionExceptionTypeId");
+	    init_builtin_id("__SigSegvException",    "__BpmSigSegvExceptionTypeId");
 
 	    for (const NodeScope* scope : __oninits) {
 	        gen_scope(scope);
@@ -4698,7 +4698,7 @@ AFTER_GEN:
 	
     	for (auto&& p : m_strings) {
     	    final_ir.strings.push_back({
-    	        "s_" + std::to_string(p.second.index),
+    	        "s_" + GString(std::to_string(p.second.index).c_str()),
     	        p.second.value
     	    });
     	}
@@ -4709,7 +4709,7 @@ AFTER_GEN:
 	    if (m_optimize) {
             iropt::optimize_ir(final_ir);
         }
-    	std::stringstream result_ss;
+    	GStringStream result_ss;
     	AsmEmitter emitter(result_ss);
     	emitter.emit_program(final_ir);
     	return result_ss.str();
@@ -4720,12 +4720,12 @@ AFTER_GEN:
 private:
     bool is_interface_type(const DataType& dt) {
         if (!dt.is_object()) return false;
-        std::string nm = dt.getobjectname();
+        GString nm = dt.getobjectname();
         return inter_lookup(nm).has_value();
     }
 
-    std::string mangle_ns_name(const std::string& ns) const {
-        std::string out;
+    GString mangle_ns_name(const GString& ns) const {
+        GString out;
         out.reserve(ns.size());
         for (char c : ns) {
             if (c == ':') {
@@ -4739,15 +4739,15 @@ private:
 
     Interface get_interface(const DataType& dt, const Token& where) {
         assert(dt.is_object());
-        std::string nm = dt.getobjectname();
+        GString nm = dt.getobjectname();
         auto i = inter_lookup(nm);
         if (!i.has_value()) {
             GeneratorError(where, "type `" + dt.to_string() + "` is not an interface type");
         }
         return i.value();
     }
-    std::string format_type_list(const std::vector<DataType>& types) {
-        std::string res;
+    GString format_type_list(const GVector<DataType>& types) {
+        GString res;
         for (int i = 0; i < static_cast<int>(types.size()); ++i) {
             res += types[i].to_string();
             if (i + 1 < static_cast<int>(types.size())) res += ", ";
@@ -4755,12 +4755,12 @@ private:
         return res;
     }
 
-    bool derive_templates_core(std::vector<DataType>& targs,
-                               const std::vector<std::pair<std::string, DataType>>& params,
-                               __stdvec<std::string>* templates,
-                               const std::vector<NodeExpr*>& args,
+    bool derive_templates_core(GVector<DataType>& targs,
+                               const GVector<std::pair<GString, DataType>>& params,
+                               GVector<GString>* templates,
+                               const GVector<NodeExpr*>& args,
                                UNUSED_ARG const Procedure& proc,
-                               __map<std::string, DataType>& temps_out)
+                               GMap<GString, DataType>& temps_out)
     {
         assert(templates != NULL);
         assert(!templates->empty());
@@ -4772,7 +4772,7 @@ private:
         }
 
         size_t redo_count = 0;
-        __map<std::string, DataType> temps;
+        GMap<GString, DataType> temps;
 
         while (true) {
             for (int i = 0; i < static_cast<int>(params.size()); ++i) {
@@ -4793,7 +4793,7 @@ private:
                     temp_s = 0;
                     
                     for(size_t k = 0; k < p_gens.size(); ++k) {
-                        std::string gen_name = "";
+                        GString gen_name = "";
                         if(p_gens[k].is_object()) gen_name = p_gens[k].getobjectname();
 
                         if (p_gens[k].is_object() && 
@@ -4859,12 +4859,12 @@ private:
         return true;
     }
 
-    bool implements_interface_quiet(const DataType& ty, const std::string& iface_name) {
+    bool implements_interface_quiet(const DataType& ty, const GString& iface_name) {
         if (!ty.is_object()) return false;
 
-        std::string tname = ty.getobjectname();
+        GString tname = ty.getobjectname();
 
-        std::pair<std::string, std::string> key{ tname, iface_name };
+        std::pair<GString, GString> key{ tname, iface_name };
 
         auto it_cache = m_impl_cache.find(key);
         if (it_cache != m_impl_cache.end()) {
@@ -4891,7 +4891,7 @@ private:
         Namespace* ns = nmsOpt.value();
 
         for (const auto& km : ifc.methods) {
-            const std::string& mname      = km.first;
+            const GString& mname      = km.first;
             const InterfaceMethodInfo& im = km.second;
 
             const auto it = ns->procs.find(mname);
@@ -4950,8 +4950,8 @@ private:
         return false;
     }
 
-    bool match_call_signature(const std::vector<NodeExpr*>& args,
-                              const std::vector<std::pair<std::string, DataType>>& params,
+    bool match_call_signature(const GVector<NodeExpr*>& args,
+                              const GVector<std::pair<GString, DataType>>& params,
                               UNUSED_ARG const Procedure& proc,
                               bool nosizedargs,
                               int* bad_index /*может быть nullptr*/)
@@ -5001,14 +5001,14 @@ private:
 
         Procedure inst = impl;
         if (selfType.is_object()) {
-            std::string oname = selfType.getobjectname();
+            GString oname = selfType.getobjectname();
             std::optional<Struct> stOpt = struct_lookup(oname);
             if (stOpt.has_value() && stOpt.value().temp) {
-                std::vector<DataType> targs = get_template_args(selfType);
+                GVector<DataType> targs = get_template_args(selfType);
                 const Struct& st = stOpt.value();
 
                 if (targs.size() == st.temps.size()) {
-                    __map<std::string, DataType> temps;
+                    GMap<GString, DataType> temps;
                     for (size_t i = 0; i < st.temps.size(); ++i) {
                         temps[st.temps[i]] = targs[i];
                     }
@@ -5047,7 +5047,7 @@ private:
     }
 
     bool check_implements_quiet(const DataType& ty, const DataType& iface_type) {
-        std::string iface_name = iface_type.getobjectname();
+        GString iface_name = iface_type.getobjectname();
         
         if (iface_name == "__ObjectTypeI") return ty.is_object();
         if (iface_name == "__SimpleTypeI") return ty.is_simple();
@@ -5055,12 +5055,12 @@ private:
 
         if (!ty.is_object()) return false;
 
-        std::string tname = ty.getobjectname();
+        GString tname = ty.getobjectname();
         auto ifcOpt = inter_lookup(iface_name);
         if (!ifcOpt.has_value()) return false;
         const Interface& ifc = ifcOpt.value();
 
-        __map<std::string, DataType> iface_temps;
+        GMap<GString, DataType> iface_temps;
         auto& args = iface_type.node->generics;
         if (args.size() != ifc.temps.size()) return false;
         for(size_t i=0; i<args.size(); ++i) iface_temps[ifc.temps[i]] = args[i];
@@ -5103,8 +5103,8 @@ private:
                 iface_type.to_string() + "`");
         }
 
-        std::string iface_name = iface_type.getobjectname();
-        std::string tname = ty.getobjectname();
+        GString iface_name = iface_type.getobjectname();
+        GString tname = ty.getobjectname();
 
         if (iface_name == "__ObjectTypeI") {
             if (ty.is_object()) return;
@@ -5127,13 +5127,13 @@ private:
         }
         const Interface& ifc = ifcOpt.value();
 
-        __map<std::string, DataType> iface_temps;
+        GMap<GString, DataType> iface_temps;
         auto& args = iface_type.node->generics;
         
         if (args.size() != ifc.temps.size()) {
              GeneratorError(where, "interface `" + iface_name + "` expects " + 
-                            std::to_string(ifc.temps.size()) + " template args, but got " + 
-                            std::to_string(args.size()));
+                            GString(std::to_string(ifc.temps.size()).c_str()) + " template args, but got " + 
+                            GString(std::to_string(args.size()).c_str()));
         }
         
         for(size_t i=0; i<args.size(); ++i) {
@@ -5149,7 +5149,7 @@ private:
         Namespace* ns = nmsOpt.value();
 
         for (const auto& km : ifc.methods) {
-            const std::string& mname = km.first;
+            const GString& mname = km.first;
             InterfaceMethodInfo im = km.second; 
             
             for(auto& p : im.params) substitute_template_wct(p.second, iface_temps);
@@ -5188,13 +5188,13 @@ private:
         Interface iface = get_interface(ifaceType, where);
         size_t methods_count = iface.method_order.size();
 
-        __map<std::string, DataType> iface_temps;
+        GMap<GString, DataType> iface_temps;
         auto& args = ifaceType.node->generics;
         
         if (args.size() != iface.temps.size()) {
              GeneratorError(where, "interface `" + iface.name + "` expects " + 
-                            std::to_string(iface.temps.size()) + " template args, but got " + 
-                            std::to_string(args.size()));
+                            GString(std::to_string(iface.temps.size()).c_str()) + " template args, but got " + 
+                            GString(std::to_string(args.size())).c_str());
         }
         
         for(size_t i=0; i<args.size(); ++i) {
@@ -5215,7 +5215,7 @@ private:
         m_builder.mov(mem(MemRef::baseDisp(Reg::EDX, 0)),
                       reg(Reg::ECX));
 
-        std::string tname = srcType.getobjectname();
+        GString tname = srcType.getobjectname();
         auto nms = namespace_lookup(tname);
         if (!nms.has_value()) {
             GeneratorError(where, "type `" + tname +
@@ -5224,7 +5224,7 @@ private:
         Namespace* ns = nms.value();
 
         for (size_t i = 0; i < methods_count; ++i) {
-            const std::string& mname = iface.method_order[i];
+            const GString& mname = iface.method_order[i];
             auto it = ns->procs.find(mname);
             if (it == ns->procs.end()) {
                 GeneratorError(where,
@@ -5233,18 +5233,18 @@ private:
             }
             Procedure proc = it->second;
 
-            std::string tsign;
+            GString tsign;
 
             if (proc.templates != NULL) {
-                std::vector<DataType> local_targs = get_template_args(srcType);
-                std::vector<NodeExpr*> empty_args;
+                GVector<DataType> local_targs = get_template_args(srcType);
+                GVector<NodeExpr*> empty_args;
                 
                 auto inst_res = instantiate_if_needed(proc, local_targs, empty_args,
                                               where, mname, tname);
                 tsign = inst_res.first;
             }
             
-            std::string label = tname + "@" + mname + tsign;
+            GString label = tname + "@" + mname + tsign;
             if (proc.override) label += proc.get_sign();
             MemRef dst_mem = MemRef::baseDisp(Reg::EDX,
                                               static_cast<int32_t>((1 + i) * 4));
@@ -5253,13 +5253,13 @@ private:
         push_reg(Reg::EDX);
     }
 
-    std::pair<std::string, __map<std::string, DataType>> instantiate_if_needed(
+    std::pair<GString, GMap<GString, DataType>> instantiate_if_needed(
         Procedure& proc,
-        std::vector<DataType>& local_targs,
-        const std::vector<NodeExpr*>& call_args,
+        GVector<DataType>& local_targs,
+        const GVector<NodeExpr*>& call_args,
         const Token& def,
-        const std::string& name,
-        const std::string& nname /* = "" */
+        const GString& name,
+        const GString& nname /* = "" */
     ) {
         bool is_method_of_struct  = false;
         Struct ownerStruct;
@@ -5283,8 +5283,8 @@ private:
             }
         }
 
-        __map<std::string, DataType> temps;
-        std::string                  tsign;
+        GMap<GString, DataType> temps;
+        GString                  tsign;
 
         if (is_method_of_struct) {
             if (call_args.empty()) {
@@ -5300,13 +5300,13 @@ private:
                                      selfType.to_string());
             }
 
-            std::string oname = selfType.getobjectname();
+            GString oname = selfType.getobjectname();
             if (oname != nname) {
                 GeneratorError(def, "method `" + proc.name + "` called with self of different type: expected `" +
                                      nname + "`, got `" + oname + "`");
             }
 
-            std::vector<DataType> structArgs = get_template_args(selfType);
+            GVector<DataType> structArgs = get_template_args(selfType);
             if (structArgs.size() != structTemplateCount) {
                 GeneratorError(def, "internal compiler error: mismatch struct template args count for `" +
                                      nname + "`");
@@ -5405,12 +5405,12 @@ private:
 
 	struct PendingTemplateInstance {
     	Procedure                    proc;  
-    	std::string                  tsign; 
-    	std::string                  nname; 
-    	__map<std::string, DataType> temps; 
+    	GString                  tsign; 
+    	GString                  nname; 
+    	GMap<GString, DataType> temps; 
 	};
 
-	std::vector<PendingTemplateInstance>* m_pending_templates = nullptr;
+	GVector<PendingTemplateInstance>* m_pending_templates = nullptr;
 
 	void gen_template_instance(const PendingTemplateInstance& pt) {
 	    IRBuilder old_builder = m_builder;
@@ -5419,10 +5419,10 @@ private:
 	    m_temps.push_back(pt.temps);
 
 	    Procedure proc          = pt.proc;
-	    const std::string& tsign = pt.tsign;
-	    const std::string& nname = pt.nname;
+	    const GString& tsign = pt.tsign;
+	    const GString& nname = pt.nname;
 
-	    std::string lbl;
+	    GString lbl;
 	    if (nname.empty()) lbl = proc.name + tsign;
 	    else               lbl = nname + "@" + proc.name + tsign;
 	    if (proc.override) lbl += proc.get_sign();
@@ -5483,7 +5483,7 @@ private:
 
             m_builder.mov(
                 mem(MemRef::baseDisp(Reg::ECX, static_cast<int32_t>(tp.first * 4ULL))),
-                sym("s_" + std::to_string(_index))
+                sym("s_" + GString(std::to_string(_index).c_str()))
             );
         }
     }
@@ -5518,7 +5518,7 @@ private:
 
     void end_scope_sp(Procedure& proc, UNUSED_ARG const Token& def)
     {
-        std::string lbl;
+        GString lbl;
         if (in_namespace()) lbl += "__" + mangle_ns_name(m_cur_namespace->name) + "@";
         else                lbl += "__";
         if (!proc.mbn.empty()) lbl += proc.mbn + "@";
@@ -5552,11 +5552,9 @@ private:
         return res;
     }
 
-    inline std::string create_label() noexcept
+    inline GString create_label() noexcept
     {
-        std::stringstream ss;
-        ss << ".L" << (*m_label_count)++;
-        return ss.str();
+        return ".L" + GString(std::to_string((*m_label_count)++).c_str());
     }
 
     const NodeProg* m_prog = nullptr;
@@ -5568,15 +5566,15 @@ private:
 
     DiagnosticManager* m_diag_man = nullptr;
 
-    __stdvec<__map<std::string, Var>> m_vars;
-    __map<std::string, String>        m_strings;
-    __map<std::string, Procedure>     m_procs;
-    __map<std::string, Struct>        m_structs;
-    __map<std::string, GVar>          m_global_vars;
-    __map<std::string, Interface>     m_interfaces;
-    __map<std::string, Namespace*>    m_namespaces;
+    GVector<GMap<GString, Var>> m_vars;
+    GMap<GString, String>        m_strings;
+    GMap<GString, Procedure>     m_procs;
+    GMap<GString, Struct>        m_structs;
+    GMap<GString, GVar>          m_global_vars;
+    GMap<GString, Interface>     m_interfaces;
+    GMap<GString, Namespace*>    m_namespaces;
 
-    __stdvec<std::string> m_ns_stack;
+    GVector<GString> m_ns_stack;
 
     Namespace* m_cur_namespace = nullptr;
     ArenaAllocator* m_allocator = nullptr;
@@ -5584,17 +5582,17 @@ private:
     size_t m_structs_count = 5;
     std::optional<Procedure> m_cur_proc;
 
-    std::vector<std::string> m_breaks;
+    GVector<GString> m_breaks;
     VectorSim<size_t>        m_scopes;
     VectorSim<size_t>        m_scopes_vi;
     VectorSim<size_t>        m_break_scopes;
 
-    __stdset<std::string> m_used_labels;
+    GSet<GString> m_used_labels;
 
-    __stdvec<__map<std::string, Constant>> m_consts;
-    __stdvec<__map<std::string, DataType>> m_typedefs;
+    GVector<GMap<GString, Constant>> m_consts;
+    GVector<GMap<GString, DataType>> m_typedefs;
 
-    __stdvec<std::pair<size_t, std::string>> m_typeid_table{
+    GVector<std::pair<size_t, GString>> m_typeid_table{
         {TYPEID_INT,  "int"},
         {TYPEID_PTR,  "ptr"},
         {TYPEID_VOID, "void"},
@@ -5602,16 +5600,16 @@ private:
         {TYPEID_CHAR, "char"},
     };
 
-    std::vector<std::string> m_cexterns{
+    GVector<GString> m_cexterns{
         "ExitProcess@4",
         "malloc",
         "free",
         "memcpy",
         "memalloc",
         "memfree",
-        "heap_collect",
+        "gc_collect",
         "gc_set_stack_base",
-        "dump_all_chunks",
+        "__bpm_gc_dump_state",
         "__current_exception",
         "__bpm_exception_throwed",
         "__bpm_start_catch",
@@ -5621,7 +5619,6 @@ private:
         "__type_id_table",
         "_setjmp",
         "longjmp",
-        "__bpm_setjmp_cur",
         "__bpm_end_catch",
         "__exception_bufs",
         "__exception_bufs_lvl",
@@ -5638,11 +5635,11 @@ private:
         "__bpm_proc_leave",
     };
 
-    __stdvec<NodeScope*>                __oninits;
-    __stdvec<std::string>               m_tsigns;
-    __stdvec<__map<std::string, DataType>> m_temps;
-    __stdset<std::pair<std::string,std::string>> m_dyn_iface_impls;
-    __map<std::pair<std::string, std::string>, bool> m_impl_cache;
+    GVector<NodeScope*>                __oninits;
+    GVector<GString>               m_tsigns;
+    GVector<GMap<GString, DataType>> m_temps;
+    GSet<std::pair<GString,GString>> m_dyn_iface_impls;
+    GMap<std::pair<GString, GString>, bool> m_impl_cache;
 
     size_t* m_string_index      = nullptr;
     size_t  CTX_IOTA            = 0ULL;

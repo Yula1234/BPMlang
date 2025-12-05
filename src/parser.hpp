@@ -11,12 +11,12 @@ enum class ProcAttr {
 
 struct InterfaceMethod {
     Token def;
-    std::string name;
-    std::vector<std::pair<std::string, DataType>> params;
+    GString name;
+    GVector<std::pair<GString, DataType>> params;
     DataType rettype;
 };
 
-std::optional<ProcAttr> string_to_PA(const std::string& str) {
+std::optional<ProcAttr> string_to_PA(const GString& str) {
 	if(str == "nostdargs") {
 		return ProcAttr::nostdargs;
 	}
@@ -32,7 +32,7 @@ std::optional<ProcAttr> string_to_PA(const std::string& str) {
 	return std::nullopt;
 }
 
-bool file_exists(const std::string& name) {
+bool file_exists(const GString& name) {
 	if(FILE *file = fopen(name.c_str(), "r")) {
 		fclose(file);
 		return true;
@@ -87,19 +87,19 @@ namespace ptools {
 }
 
 struct Constant {
-	std::string name;
+	GString name;
 	int value;
 };
 
 struct Macro {
-	std::string name;
-	std::vector<std::string> args;
-	std::vector<Token> body;
+	GString name;
+	GVector<GString> args;
+	GVector<Token> body;
 	bool is_pure;
 };
 
 struct TokenStream {
-    std::vector<Token> tokens;
+    GVector<Token> tokens;
     size_t index = 0;
 };
 
@@ -107,7 +107,7 @@ class TokenStreamCursor {
 public:
     TokenStreamCursor() = default;
 
-    void init_main(const std::vector<Token>& toks) {
+    void init_main(const GVector<Token>& toks) {
         m_stack.clear();
         TokenStream s;
         s.tokens = toks; 
@@ -115,7 +115,7 @@ public:
         m_stack.push_back(std::move(s));
     }
 
-    void push_stream(std::vector<Token>&& toks) {
+    void push_stream(GVector<Token>&& toks) {
         TokenStream s;
         s.tokens = std::move(toks);
         s.index  = 0;
@@ -196,20 +196,20 @@ public:
     }
 
 private:
-    std::vector<TokenStream> m_stack;
+    GVector<TokenStream> m_stack;
 };
 
 class Parser {
 public:
 
-	explicit Parser(std::vector<Token> tokens, DiagnosticManager* _dman, ArenaAllocator* arenalloc)
+	explicit Parser(const GVector<Token>& tokens, DiagnosticManager* _dman, ArenaAllocator* arenalloc)
     {
         m_tok_cursor.init_main(tokens);
         m_diag_man = _dman;
         m_allocator = arenalloc;
     }
 
-	std::optional<Macro> macro_lookup(const std::string& name) const noexcept {
+	std::optional<Macro> macro_lookup(const GString& name) const noexcept {
 		const auto& search = m_macroses.find(name);
 		if(search != m_macroses.end()) {
 			return search->second;
@@ -257,7 +257,7 @@ public:
 	    return res;
 	}
 
-	void ParsingError(const std::string& msg, const int pos = 0) noexcept
+	void ParsingError(const GString& msg, const int pos = 0) noexcept
 	{
 	    auto tok_opt = peek(pos);
 	    if (tok_opt.has_value()) {
@@ -275,19 +275,19 @@ public:
 	    exit(EXIT_FAILURE);
 	}
 
-	void ParsingError_t(const std::string& msg, const Token& tok, bool ex = true) noexcept
+	void ParsingError_t(const GString& msg, const Token& tok, bool ex = true) noexcept
 	{
 		m_diag_man->DiagnosticMessage(tok, "error", msg, 0);
 		if(ex) exit(EXIT_FAILURE);
 	}
 
-	void ParsingNote(const std::string& msg, const Token& tok, bool ex = true) noexcept
+	void ParsingNote(const GString& msg, const Token& tok, bool ex = true) noexcept
 	{
 		m_diag_man->DiagnosticMessage(tok, "note", msg, 0);
 		if(ex) exit(EXIT_FAILURE);
 	}
 
-	void error_expected(const std::string& msg)
+	void error_expected(const GString& msg)
 	{
 		if(peek().has_value()) {
 			ParsingError("excepted " + msg + " but got " + tok_to_string(peek(0).value().type), -1);
@@ -297,7 +297,7 @@ public:
 		exit(EXIT_FAILURE);
 	}
 
-	std::vector<NodeExpr*> __getargs(const NodeExpr* __expr) {
+	GVector<NodeExpr*> __getargs(const NodeExpr* __expr) {
 		return std::get<NodeBinExprArgs*>(std::get<NodeBinExpr*>(__expr->var)->var)->args;
 	}
 
@@ -330,9 +330,9 @@ public:
 		return res;
 	}
 
-	std::vector<std::vector<Token>*>* parse_macro_args() {
-		std::vector<std::vector<Token>*>* __args = m_allocator->alloc<std::vector<std::vector<Token>*>>();
-		__args->push_back(m_allocator->alloc<std::vector<Token>>());
+	GVector<GVector<Token>*>* parse_macro_args() {
+		GVector<GVector<Token>*>* __args = m_allocator->alloc<GVector<GVector<Token>*>>();
+		__args->push_back(m_allocator->alloc<GVector<Token>>());
 		size_t nest_lvl = 0ULL;
 		while(true) {
 			if(peek().value().type == TokenType_t::open_paren) {
@@ -350,7 +350,7 @@ public:
 			}
 			Token cp = consume();
 			if(cp.type == TokenType_t::comma && nest_lvl == 1) {
-				__args->push_back(m_allocator->alloc<std::vector<Token>>());
+				__args->push_back(m_allocator->alloc<GVector<Token>>());
 			} else {
 				__args->operator[](__args->size() - 1)->push_back(cp);
 			}
@@ -359,10 +359,10 @@ public:
 		return __args;
 	}
 
-	void print_macro_args(std::vector<std::vector<Token>*>* __args) {
+	void print_macro_args(GVector<GVector<Token>*>* __args) {
 		for(int i = 0;i < static_cast<int>(__args->size());++i) {
 			std::cout << "-------------\n";
-			std::vector<Token>* L_args = __args->operator[](i);
+			GVector<Token>* L_args = __args->operator[](i);
 			for(int j = 0;j < static_cast<int>(L_args->size());++j) {
 				std::cout << L_args->operator[](j) << std::endl;
 			}
@@ -370,7 +370,7 @@ public:
 		}
 	}
 
-	std::optional<size_t> __macro_arg_pos(Macro& __macro, const std::string& __arg) {
+	std::optional<size_t> __macro_arg_pos(Macro& __macro, const GString& __arg) {
 		for(int i = 0;i < static_cast<int>(__macro.args.size());++i) {
 			if(__macro.args[i] == __arg) {
 				return i;
@@ -380,10 +380,10 @@ public:
 	}
 
 	void expand_macro(Macro& _macro,
-                          std::vector<std::vector<Token>*>* __args,
+                          GVector<GVector<Token>*>* __args,
                           Token& __at)
 	{
-	    std::vector<Token> expanded;
+	    GVector<Token> expanded;
 	    expanded.reserve(_macro.body.size() + 8);
 
 	    for (Token tok : _macro.body) {
@@ -737,7 +737,7 @@ public:
 			std::optional<Macro> __macro = macro_lookup(identif.value.value());
 			if(__macro.has_value()) {
 				if(__macro.value().is_pure) ParsingError("can't expand pure macro `" + __macro.value().name + "`");
-				std::vector<std::vector<Token>*>* __args = parse_macro_args();
+				GVector<GVector<Token>*>* __args = parse_macro_args();
 				Macro _macro = __macro.value();
 				expand_macro(_macro, __args, identif);
 				return parse_term();
@@ -774,7 +774,7 @@ public:
             peek(1).value().type == TokenType_t::double_colon)
         {
             Token first = try_consume_err(TokenType_t::ident);
-            std::vector<std::string> segments;
+            GVector<GString> segments;
             segments.push_back(first.value.value());
 
             while (peek().has_value() && peek().value().type == TokenType_t::double_colon) {
@@ -787,10 +787,10 @@ public:
                 ParsingError("invalid qualified name");
             }
 
-            std::string funcName = segments.back();
+            GString funcName = segments.back();
             segments.pop_back();
 
-            std::string nsName;
+            GString nsName;
             for (size_t i = 0; i < segments.size(); ++i) {
                 if (i) nsName += "::";
                 nsName += segments[i];
@@ -839,7 +839,7 @@ public:
             }
         }
 		if(auto ident = try_consume(TokenType_t::ident)) {
-			std::string tname = ident.value().value.value();
+			GString tname = ident.value().value.value();
 			auto expr_ident = m_allocator->emplace<NodeTermIdent>();
 			expr_ident->ident = ident.value();
 			auto term = m_allocator->emplace<NodeTerm>(expr_ident);
@@ -1281,10 +1281,10 @@ public:
 
 		    if (peek().has_value() && peek().value().type == TokenType_t::less) {
 		        consume();
-		        stmt_proc->templates = m_allocator->emplace<__stdvec<std::string>>();
+		        stmt_proc->templates = m_allocator->emplace<GVector<GString>>();
 		        while (peek().has_value() && peek().value().type != TokenType_t::above) {
 		            Token nm = try_consume_err(TokenType_t::ident);
-		            std::string tname = nm.value.value();
+		            GString tname = nm.value.value();
 		            stmt_proc->templates->push_back(tname);
 
 		            if (peek().has_value() && peek().value().type == TokenType_t::double_dot) {
@@ -1305,7 +1305,7 @@ public:
 		    }
 
 		    try_consume_err(TokenType_t::open_paren);
-			std::vector<std::pair<std::string, DataType>> pparams;
+			GVector<std::pair<GString, DataType>> pparams;
 			if(peek().has_value() && peek().value().type != TokenType_t::close_paren) {
 				for(int i = 0;peek().has_value() && peek().value().type != TokenType_t::close_paren;++i) {
 					DataType argtype = parse_type();
@@ -1327,7 +1327,7 @@ public:
 			stmt_proc->def = identif;
 			if(auto open_b = try_consume(TokenType_t::open_bracket)) {
 				while(peek().has_value() && peek().value().type != TokenType_t::close_bracket) {
-					std::string attr_name = try_consume_err(TokenType_t::ident).value.value();
+					GString attr_name = try_consume_err(TokenType_t::ident).value.value();
 					std::optional<ProcAttr> cur_attr = string_to_PA(attr_name);
 					if(!cur_attr.has_value()) {
 						ParsingError("unkown Procedure Attribute `" + attr_name + "`");
@@ -1376,7 +1376,7 @@ public:
 			std::optional<Macro> __macro = macro_lookup(identif.value.value());
 			if(__macro.has_value()) {
 				if(__macro.value().is_pure) ParsingError("can't expand pure macro `" + __macro.value().name + "`");
-				std::vector<std::vector<Token>*>* __args = parse_macro_args();
+				GVector<GVector<Token>*>* __args = parse_macro_args();
 				Macro _macro = __macro.value();
 				expand_macro(_macro, __args, identif);
 				return parse_stmt();
@@ -1486,13 +1486,13 @@ public:
 
 		if (auto inc = try_consume(TokenType_t::_include)) {
 		    Token str_tok = try_consume_err(TokenType_t::string_lit);
-		    std::string raw_fname = str_tok.value.value();
-		    std::string fname = raw_fname + ".bpm";
+		    GString raw_fname = str_tok.value.value();
+		    GString fname = raw_fname + ".bpm";
 
 		    std::filesystem::path current_source_file = inc->file;
 		    std::filesystem::path current_dir = current_source_file.parent_path();
-		    std::string relative_path = (current_dir / fname).string();
-		    std::string path;
+		    GString relative_path = GString((current_dir / fname).string().c_str());
+		    GString path;
 
 		    if (file_exists(relative_path)) path = std::filesystem::canonical(relative_path).string();
 		    else if (file_exists(fname))    path = std::filesystem::canonical(fname).string();
@@ -1508,10 +1508,10 @@ public:
 		        return {};
 		    }
 
-		    std::string contents;
+		    GString contents;
 		    {
-		        std::stringstream contents_stream;
-		        std::fstream input(path, std::ios::in);
+		        GStringStream contents_stream;
+		        std::fstream input(path.c_str(), std::ios::in);
 		        contents_stream << input.rdbuf();
 		        contents = contents_stream.str();
 		        input.close();
@@ -1606,7 +1606,7 @@ public:
 		if(auto _cns = try_consume(TokenType_t::_const)) {
 			auto stmt_const = m_allocator->emplace<NodeStmtConst>();
 			stmt_const->def = _cns.value();
-			std::string name = try_consume_err(TokenType_t::ident).value.value();
+			GString name = try_consume_err(TokenType_t::ident).value.value();
 			stmt_const->name = name;
 			try_consume_err(TokenType_t::eq);
 			if(const auto _expr = parse_expr()) {
@@ -1623,7 +1623,7 @@ public:
 		if(auto _tdef = try_consume(TokenType_t::_typedef)) {
 			auto stmt_tdef = m_allocator->emplace<NodeStmtTypedef>();
 			stmt_tdef->def = _tdef.value();
-			std::string name = try_consume_err(TokenType_t::ident).value.value();
+			GString name = try_consume_err(TokenType_t::ident).value.value();
 			stmt_tdef->name = name;
 			try_consume_err(TokenType_t::eq);
 			stmt_tdef->type = parse_type();
@@ -1716,7 +1716,7 @@ public:
 		        m.name = mnameTok.value.value();
 
 				try_consume_err(TokenType_t::open_paren);
-				std::vector<std::pair<std::string, DataType>> params;
+				GVector<std::pair<GString, DataType>> params;
 				if (peek().has_value() && peek().value().type != TokenType_t::close_paren) {
 				    while (true) {
 				        if (peek().has_value() &&
@@ -1729,7 +1729,7 @@ public:
 				        {
 				            Token selfTok = consume();
 				            BaseDataType bt;
-				            bt = std::string("self");
+				            bt = GString("self");
 				            DataType dt(bt);
 				            params.emplace_back(selfTok.value.value(), dt);
 				        } else {
@@ -1777,7 +1777,7 @@ public:
 
 			try_consume_err(TokenType_t::comma);
 			
-			std::string _err_str = try_consume_err(TokenType_t::string_lit).value.value();
+			GString _err_str = try_consume_err(TokenType_t::string_lit).value.value();
 			
 			stmt_st->msg = _err_str;
 
@@ -1856,9 +1856,9 @@ public:
 			Token _prep = consume();
 			if(_prep.type == TokenType_t::_define) {
 				m_preprocessor_stmt = true;
-				std::string mname = try_consume_err(TokenType_t::ident).value.value();
+				GString mname = try_consume_err(TokenType_t::ident).value.value();
 				bool pure = false;
-				std::vector<std::string> __args;
+				GVector<GString> __args;
 				if(peek().has_value() && peek().value().type == TokenType_t::semi) {
 					pure = true;
 				}
@@ -1866,7 +1866,7 @@ public:
 					if(peek().has_value() && peek().value().type == TokenType_t::open_paren) {
 						consume();
 						while(peek().has_value() && peek().value().type != TokenType_t::close_paren) {
-							std::string name = try_consume_err(TokenType_t::ident).value.value();
+							GString name = try_consume_err(TokenType_t::ident).value.value();
 							__args.push_back(name);
 						}
 						consume();
@@ -1917,7 +1917,7 @@ public:
             peek(1).value().type == TokenType_t::double_colon)
         {
             Token first = try_consume_err(TokenType_t::ident);
-            std::vector<std::string> segments;
+            GVector<GString> segments;
             segments.push_back(first.value.value());
 
             while (peek().has_value() && peek().value().type == TokenType_t::double_colon) {
@@ -1937,10 +1937,10 @@ public:
                 ParsingError("invalid qualified name");
             }
 
-            std::string funcName = segments.back();
+            GString funcName = segments.back();
             segments.pop_back();
 
-            std::string nsName;
+            GString nsName;
             for (size_t i = 0; i < segments.size(); ++i) {
                 if (i) nsName += "::";
                 nsName += segments[i];
@@ -2129,13 +2129,13 @@ public:
             
             int counter = 0;
             while(peek().has_value() && peek().value().type != TokenType_t::close_curly) {
-                std::string member_name = try_consume_err(TokenType_t::ident).value.value();
+                GString member_name = try_consume_err(TokenType_t::ident).value.value();
                 int value = counter;
                 
                 if (peek().has_value() && peek().value().type == TokenType_t::eq) {
                     consume();
                     Token val_tok = try_consume_err(TokenType_t::int_lit);
-                    value = std::stol(val_tok.value.value());
+                    value = std::stol(val_tok.value.value().c_str());
                     counter = value; 
                 }
                 
@@ -2340,8 +2340,8 @@ private:
     }
     ArenaAllocator* m_allocator = nullptr;
     DiagnosticManager* m_diag_man;
-	__stdset<std::string> m_includes;
-	__map<std::string, Macro> m_macroses;
+	GSet<GString> m_includes;
+	GMap<GString, Macro> m_macroses;
 	bool m_preprocessor_stmt = false;
 	size_t CTX_IOTA = 0ULL;
 };
