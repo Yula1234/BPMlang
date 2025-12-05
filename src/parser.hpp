@@ -220,7 +220,7 @@ public:
 	DataType parse_type() {
 	    Token __base = consume();
 	    if(!is_type_token(__base.type)) {
-	        ParsingError("excepted type");
+	        ParsingError("excepted type", -1);
 	    }
 	    
 	    BaseDataType type_base = uni_token_to_dt(__base);
@@ -1277,7 +1277,7 @@ public:
 		    consume();
 		    auto stmt_proc = m_allocator->emplace<NodeStmtProc>();
 		    Token identif = try_consume_err(TokenType_t::ident);
-		    stmt_proc->templates = NULL;
+		    stmt_proc->templates = nullptr;
 
 		    if (peek().has_value() && peek().value().type == TokenType_t::less) {
 		        consume();
