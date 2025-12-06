@@ -98,18 +98,6 @@ enum class TokenType_t {
     enum_,
 };
 
-GVector<GString>* split_string(const GString& str, const GString& delimiter) {
-    GVector<GString>* strings = g_GlobalArena->emplace<GVector<GString>>();
-    GString::size_type pos = 0;
-    GString::size_type prev = 0;
-    while((pos = str.find(delimiter, prev)) != GString::npos) {
-        strings->push_back(str.substr(prev, pos - prev));
-        prev = pos + delimiter.size();
-    }
-    strings->push_back(str.substr(prev));
-    return strings;
-}
-
 const GMap<TokenType_t, GString> map_tok2str {
     {TokenType_t::exit, "`exit`"},
     {TokenType_t::int_lit, "`int literal`"},

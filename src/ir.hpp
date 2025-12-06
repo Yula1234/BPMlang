@@ -39,7 +39,8 @@ enum class IROp {
     Ret,
     Label,
     Comment,
-    InlineAsm 
+    InlineAsm,
+    Leave,
 };
 
 struct MemRef {
@@ -159,10 +160,10 @@ struct IRGlobalVar {
 };
 
 struct IRProgram {
-    GVector<IRInstr>    instrs;
-    GVector<GString>   externs;  
+    GVector<IRInstr> instrs;
+    GVector<GString> externs;  
     GVector<IRStringLiteral> strings;
-    GVector<IRGlobalVar>   globals;  
+    GVector<IRGlobalVar> globals;  
 };
 
 
@@ -228,6 +229,10 @@ public:
         emit(IRInstr(IROp::Jne, target));
     }
 
+    void leave() {
+        emit(IRInstr(IROp::Leave));
+    }
+
     void ret() {
         emit(IRInstr(IROp::Ret));
     }
@@ -291,16 +296,13 @@ public:
     void emit_program(const IRProgram& p) {
         out << "format ELF\n\n";
         out << "section '.text' executable\n\n";
-        out << "public main as 'main'\n\n";
+        out << "public main\n\n";
     
         for (const auto& ins : p.instrs) {
             emit_instr(ins);
         }
         for (const auto& name : p.externs) {
-            if (name == "ExitProcess@4") {
-                out << "extrn 'ExitProcess' as ExitProcess\n";
-            }
-            else { out << "extrn '" << name << "' as " + name + "\n"; }
+            out << "extrn " << name << "\n";
         }
         out << "\n";
     
@@ -344,6 +346,9 @@ private:
             return;
         case IROp::Ret:
             out << "    ret\n";
+            return;
+        case IROp::Leave:
+            out << "    leave\n";
             return;
     
         case IROp::Store8: {
@@ -562,6 +567,7 @@ private:
         case IROp::Push:   return "push";
         case IROp::Pop:    return "pop";
         case IROp::Ret:    return "ret";
+        case IROp::Leave:    return "leave";
     
         case IROp::Label:     return "";
         case IROp::Comment:   return "";

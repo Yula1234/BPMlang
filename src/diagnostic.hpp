@@ -146,6 +146,14 @@ public:
 	    }
 	}
 
+	void DiagnosticMessage(const GString& header, const GString& msg) {
+		__red_console();
+        std::cerr << header << ": ";
+        __normal_console();
+        std::cerr << msg << std::endl;
+        exit(EXIT_FAILURE);
+	}
+
 	void DiagnosticMessage(Token tok,
                        const GString& header,
                        const GString& msg,

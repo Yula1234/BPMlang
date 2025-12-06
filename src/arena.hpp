@@ -146,3 +146,9 @@ using GIStringStream = std::basic_istringstream<
     std::char_traits<char>,
     GlobalArenaAllocator<char>
 >;
+
+template <typename T>
+using GDeque = std::deque<
+    T,
+    GlobalArenaAllocator<T>
+>;

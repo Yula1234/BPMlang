@@ -190,18 +190,18 @@ void __bpm_set_sigsegv_handler(void)
 int32_t __eh_proc_lvl_stack[1024];
 int32_t __eh_proc_lvl_top = -1;
 
-void __bpm_proc_enter(void) {
-    assert(__eh_proc_lvl_top + 1 < 1024);
+void __bpm_proc_enter(char* name) {
+    traceback_push(name);
     __eh_proc_lvl_stack[++__eh_proc_lvl_top] = __exception_bufs_lvl;
 }
 
 void __bpm_proc_leave(void) {
     assert(__eh_proc_lvl_top >= 0);
+    traceback_pop();
     int32_t base = __eh_proc_lvl_stack[__eh_proc_lvl_top--];
 
-    // Снимаем все EH-кадры, созданные в этой процедуре
     while (__exception_bufs_lvl > base) {
-        __bpm_end_catch();          // уменьшает __exception_handle_lvl
-        __exception_bufs_lvl--;     // уменьшаем уровень jmp_buf’ов
+        __bpm_end_catch();
+        __exception_bufs_lvl--;
     }
 }

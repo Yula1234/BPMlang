@@ -204,6 +204,10 @@ public:
         fs::path asm_file = "output.asm";
         fs::path obj_file = generate_temp_filename(".o").c_str();
 
+        if (find_flag(FlagType::sasm)) {
+            std::fstream file("output.asm", std::ios::out);
+            file << generated_asm;
+        }
 
         auto start_fasm = std::chrono::system_clock::now();
         if (!static_fasm::compile_via_fasm(generated_asm, obj_file)) {
@@ -214,12 +218,6 @@ public:
         if(timeflag) {
             std::chrono::duration<double> fasm_elapsed_seconds = end_fasm-start_fasm;
             printf("Fasm took: %fs\n", fasm_elapsed_seconds.count());
-        }
-
-
-        if (find_flag(FlagType::sasm)) {
-            std::fstream file("output.asm", std::ios::out);
-            file << generated_asm;
         }
 
         fs::path lib_core = fs::path(__PATH) / "lib" / "lib_core.o";

@@ -262,8 +262,15 @@ struct DataType {
 
     GString sign() const {
         GString res = node->data.sign();
-        for(const auto& arg : node->generics) {
-            res += "_" + arg.sign();
+        if(!node->generics.empty()) {
+        	res += "_";
+        	for(size_t i = 0;i < node->generics.size();i++) {
+        		res += node->generics[i].sign();
+        		if(i != node->generics.size() - 1) {
+        			res += "$";
+        		}
+        	}
+        	res += "_";
         }
         return res;
     }

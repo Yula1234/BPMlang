@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <functional>
 #include <random>
+#include <deque>
 #include <windows.h>
 
 namespace fs = std::filesystem;
@@ -49,6 +50,7 @@ bool __slashinpath;
 #include "datatype.hpp"
 #include "ast.hpp"
 #include "parser.hpp"
+#include "sema.hpp"
 #include "ir.hpp"
 #include "ir_opt.hpp"
 #include "generation.hpp"
@@ -88,23 +90,23 @@ int main(int argc, char* argv[]) {
 
     auto start_lexing = std::chrono::system_clock::now();
 
-    Tokenizer internal_tokenizer(std::move(INTERNAL_CODE::IMPLEMENTATION));
-    auto internal_res = internal_tokenizer.tokenize("<built-in>");
+    //Tokenizer internal_tokenizer(std::move(INTERNAL_CODE::IMPLEMENTATION));
+    //auto internal_res = internal_tokenizer.tokenize("<built-in>");
     
     Tokenizer user_tokenizer(std::move(user_code));
     auto user_res = user_tokenizer.tokenize(input_filename);
     
-    internal_res.tokens->insert(internal_res.tokens->end(), user_res.tokens->begin(), user_res.tokens->end());
+    //internal_res.tokens->insert(internal_res.tokens->end(), user_res.tokens->begin(), user_res.tokens->end());
 
     auto end_lexing = std::chrono::system_clock::now();
 
     DiagnosticManager dmanager{};
-    dmanager.save_file("<built-in>", std::move(*internal_res.lines));
+    //dmanager.save_file("<built-in>", std::move(*internal_res.lines));
     dmanager.save_file(std::move(input_filename), std::move(*user_res.lines));
 
     auto start_parsing = std::chrono::system_clock::now();
     
-    Parser parser(std::move(*internal_res.tokens), &dmanager, global_allocator); 
+    Parser parser(std::move(*user_res.tokens), &dmanager, global_allocator); 
     
     std::optional<NodeProg*> prog = parser.parse_prog();
 
@@ -117,7 +119,10 @@ int main(int argc, char* argv[]) {
 
     auto start_generation = std::chrono::system_clock::now();
 
-    Generator generator(prog.value(), &dmanager, global_allocator);
+    SemanticContext sema(prog.value(), &dmanager, global_allocator);
+    sema.analyze_prog();
+
+    Generator generator(prog.value(), &dmanager, global_allocator, &sema);
     if(auto _f_opt = argparser.find_flag(FlagType::optimize)) {
         generator.m_optimize = true;
     }
