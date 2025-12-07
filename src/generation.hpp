@@ -606,7 +606,7 @@ public:
 
             void operator()(const NodeStmtPushOnStack* stmt_push) const
             {
-
+                gen.gen_expr(stmt_push->expr);
             }
 
             void operator()(const NodeStmtIf* stmt_if) const
