@@ -482,23 +482,28 @@ public:
             }
 
             DataType operator()(const NodeTermCol* term_col) const {
-
+                return BaseDataTypeInt;
             }
 
             DataType operator()(const NodeTermLine* term_line) const {
-
+                return BaseDataTypeInt;
             }
 
             DataType operator()(const NodeTermPop* term_pop) const {
-
+                return BaseDataTypeInt;
             }
 
             DataType operator()(const NodeTermExprStmt* term_stmt) const {
- 
+                sema.m_sym_table.begin_scope();
+                sema.analyze_scope(term_stmt->scope);
+                sema.m_sym_table.end_scope();
+                return sema.analyze_expr(term_stmt->expr);
             }
 
             DataType operator()(const NodeTermFile* term_file) const {
-
+                BaseDataType rtype = BaseDataTypeChar;
+                rtype.ptrlvl += 1;
+                return rtype;
             }
 
             DataType operator()(const NodeTermCtEval* term_eval) const {

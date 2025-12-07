@@ -124,23 +124,24 @@ public:
             }
 
             void operator()(const NodeTermCol* term_col) const {
-
+                gen.push_imm(term_col->def.col);
             }
 
             void operator()(const NodeTermLine* term_line) const {
-
+                gen.push_imm(term_line->def.line);
             }
 
             void operator()(const NodeTermPop* term_pop) const {
-
+                static_cast<void>(term_pop);
             }
 
             void operator()(const NodeTermExprStmt* term_stmt) const {
-
+                gen.gen_scope(term_stmt->scope);
+                gen.gen_expr(term_stmt->expr);
             }
 
             void operator()(const NodeTermFile* term_file) const {
-
+                gen.gen_push_str(term_file->def.file);
             }
 
             void operator()(const NodeTermCtEval* term_eval) const {
