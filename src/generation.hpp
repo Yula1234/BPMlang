@@ -238,7 +238,7 @@ public:
 
                 if(term_call->args.has_value()) gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(procedure->params.size() * 4));
 
-                gen.m_builder.push(gen.reg(Reg::EAX));
+                if(term_call->as_expr) gen.m_builder.push(gen.reg(Reg::EAX));
             }
 
             void operator()(const NodeTermMtCall* term_call) const {
@@ -505,15 +505,17 @@ public:
                 }
                 symbol->return_label = gen.create_label();
 
-                for (int i = 0; i < static_cast<int>(symbol->params.size()); i++) {
-                    gen.m_builder.mov(
-                        gen.reg(Reg::EDX),
-                        gen.mem(MemRef::baseDisp(Reg::EBP, i * 4 + 8))
-                    );
-                    gen.m_builder.mov(
-                        gen.mem(MemRef::baseDisp(Reg::EBP, -(i * 4 + 4))),
-                        gen.reg(Reg::EDX)
-                    );
+                if(std::find(stmt_proc->attrs.begin(), stmt_proc->attrs.end(), ProcAttr::nostdargs) == stmt_proc->attrs.end()) {
+                    for (int i = 0; i < static_cast<int>(symbol->params.size()); i++) {
+                        gen.m_builder.mov(
+                            gen.reg(Reg::EDX),
+                            gen.mem(MemRef::baseDisp(Reg::EBP, i * 4 + 8))
+                        );
+                        gen.m_builder.mov(
+                            gen.mem(MemRef::baseDisp(Reg::EBP, -(i * 4 + 4))),
+                            gen.reg(Reg::EDX)
+                        );
+                    }
                 }
 
                 gen.gen_scope(stmt_proc->scope);
@@ -539,14 +541,25 @@ public:
                 gen.m_builder.jmp(gen.label(symbol->return_label));
             }
 
-            void operator()(const NodeStmtLet* stmt_let) const
+            void operator()(NodeStmtLet* stmt_let) const
             {
-               
-            }
-
-            void operator()(const NodeStmtLetNoAssign* stmt_let) const
-            {
-               
+                if(!stmt_let->expr.has_value()) return;
+                const auto& search = gen.m_sema->m_sym_table.m_mapped_let_symbols.find(stmt_let);
+                assert(search != gen.m_sema->m_sym_table.m_mapped_let_symbols.end());
+                TermIdentSymbol symbol = search->second;
+                assert(symbol.symbol != NULL);
+                gen.gen_expr(stmt_let->expr.value());
+                gen.m_builder.pop(gen.reg(Reg::EBX));
+                MemRef mem;
+                if(symbol.kind == TermIdentSymbolKind::LOCAL_VAR) {
+                    Variable* var = reinterpret_cast<Variable*>(symbol.symbol);
+                    mem = MemRef::baseDisp(Reg::EBP, -static_cast<int32_t>(var->stack_loc));
+                }
+                if(symbol.kind == TermIdentSymbolKind::GLOBAL_VAR) {
+                    GlobalVariable* var = reinterpret_cast<GlobalVariable*>(symbol.symbol);
+                    mem = gen.global_mem(var->mangled_symbol);
+                }
+                gen.m_builder.mov(gen.mem(mem), gen.reg(Reg::EBX));
             }
 
             void operator()(const NodeStmtCompileTimeIf* stmt_ctif) const
@@ -581,7 +594,8 @@ public:
 
             void operator()(NodeStmtCall* stmt_call) const
             {
-               
+                assert(stmt_call->resolved_expression != nullptr);
+                gen.gen_expr(stmt_call->resolved_expression);
             }
 
             void operator()(const NodeScope* scope) const

@@ -151,6 +151,7 @@ public:
     GMap<NodeStmtReturn*, Procedure*> m_mapped_return_symbols;
     GMap<NodeTermIdent*, TermIdentSymbol> m_mapped_ident_symbols;
     GMap<NodeTermCall*, Procedure*> m_mapped_calls_symbols;
+    GMap<NodeStmtLet*, TermIdentSymbol> m_mapped_let_symbols;
 
 	SemanticSymbolTable() = default;
 
@@ -229,6 +230,13 @@ public:
         NodeExpr* as_expr = m_allocator->emplace<NodeExpr>();
         as_expr->var = term_or_bin_expr;
         return as_expr;
+    }
+
+    template <typename T>
+    NodeTerm* as_term_pointer(T term) {
+        NodeTerm* as_term = m_allocator->emplace<NodeTerm>();
+        as_term->var = term;
+        return as_term;
     }
 
     NodeExpr* construct_args_from_vector(const Token& def, const GVector<NodeExpr*>& args) {
@@ -442,7 +450,7 @@ public:
         return result_proc;
     }
 
-    void define_local_variable(const GString& name, const DataType& type) {
+    Variable* define_local_variable(const GString& name, const DataType& type) {
         assert(m_cur_procedure != nullptr);
         Variable* to_insert = m_allocator->alloc<Variable>();
         to_insert->name = name;
@@ -450,6 +458,7 @@ public:
         m_cur_procedure->stack_allign += 4;
         to_insert->stack_loc = m_cur_procedure->stack_allign;
         m_sym_table.last_scope()->m_vars[name] = to_insert;
+        return to_insert;
     }
 
     DataType analyze_term(const NodeTerm* term, NodeExpr* base_expr, bool lvalue = false)
@@ -885,17 +894,24 @@ public:
                 sema.m_sym_table.m_mapped_return_symbols[stmt_return] = current_proc;
             }
 
-            void operator()(const NodeStmtLet* stmt_let) const
+            void operator()(NodeStmtLet* stmt_let) const
             {
                 assert(stmt_let->ident.value.has_value());
                 
                 const GString& name = stmt_let->ident.value.value();
-                DataType expression_type = sema.analyze_expr(stmt_let->expr);
+                DataType expression_type {};
                 std::optional<DataType> explicit_type = stmt_let->type;
+                if(stmt_let->expr.has_value()) {
+                    expression_type = sema.analyze_expr(stmt_let->expr.value());
+                } else if(explicit_type.has_value()) {
+                    expression_type = explicit_type.value();
+                } else {
+                    assert(false);
+                }
 
                 // TODO: NodeStmtLetNoAssign can be deleted, and here expr can be optional, for reduce code size.
                 
-                if(explicit_type.has_value()) {
+                if(explicit_type.has_value() && stmt_let->expr.has_value()) {
                     const DataType& explicit_type_unpacked = explicit_type.value();
                     if(!sema.types_equ(explicit_type_unpacked, expression_type)) {
                         sema.m_diag_man->DiagnosticMessage(stmt_let->ident, "error", "when defining the variable, the expected type was `" + explicit_type_unpacked.to_string() + "`, but the type `" + expression_type.to_string() + "` was obtained.", name.length() + 2);
@@ -909,6 +925,10 @@ public:
                     to_insert->type = expression_type;
                     to_insert->mangled_symbol = "_v_" + name;
                     sema.m_sym_table.m_gvars[name] = to_insert;
+
+                    sema.m_sym_table.m_mapped_let_symbols[stmt_let] = TermIdentSymbol {
+                        TermIdentSymbolKind::GLOBAL_VAR, reinterpret_cast<void*>(to_insert)
+                    };
                 } else {
                     if(sema.m_cur_namespace != nullptr && sema.m_cur_procedure == nullptr) {
                         GlobalVariable* to_insert = sema.m_allocator->alloc<GlobalVariable>();
@@ -916,15 +936,15 @@ public:
                         to_insert->type = expression_type;
                         to_insert->mangled_symbol = sema.m_cur_namespace->get_mangle() + "_v@" + name;
                         sema.m_cur_namespace->scope->m_gvars[name] = to_insert;
+                        sema.m_sym_table.m_mapped_let_symbols[stmt_let] = TermIdentSymbol {
+                            TermIdentSymbolKind::GLOBAL_VAR, reinterpret_cast<void*>(to_insert)
+                        };
                     } else {
-                        sema.define_local_variable(name, expression_type);
+                        sema.m_sym_table.m_mapped_let_symbols[stmt_let] = TermIdentSymbol {
+                            TermIdentSymbolKind::LOCAL_VAR, reinterpret_cast<void*>(sema.define_local_variable(name, expression_type))
+                        };
                     }
                 }
-            }
-
-            void operator()(const NodeStmtLetNoAssign* stmt_let) const
-            {
-
             }
 
             void operator()(const NodeStmtCompileTimeIf* stmt_ctif) const {
@@ -958,7 +978,14 @@ public:
 
             void operator()(NodeStmtCall* stmt_call) const
             {
-
+                NodeTermCall* call = sema.m_allocator->emplace<NodeTermCall>();
+                call->def = stmt_call->def;
+                call->name = stmt_call->name;
+                call->args = stmt_call->args;
+                call->targs = stmt_call->targs;
+                call->as_expr = false;
+                stmt_call->resolved_expression = sema.as_expr_pointer(sema.as_term_pointer(call));
+                sema.analyze_expr(stmt_call->resolved_expression);
             }
 
             void operator()(const NodeScope* scope) const

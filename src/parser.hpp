@@ -1173,49 +1173,29 @@ public:
 		}
 		if(auto _let = try_consume(TokenType_t::let)) {
 			Token name = try_consume_err(TokenType_t::ident);
-			if(peek().has_value() && peek().value().type == TokenType_t::double_dot) {
+			auto stmt_let = m_allocator->emplace<NodeStmtLet>();
+			stmt_let->type = std::nullopt;
+			auto stmt = m_allocator->emplace<NodeStmt>();
+			stmt->var = stmt_let;
+			if(auto _ = try_consume(TokenType_t::double_dot)) {
+				stmt_let->type = parse_type();
+			}
+			stmt_let->ident = name;
+			if(peek().has_value() && peek().value().type == TokenType_t::semi) {
+				stmt_let->expr = std::nullopt;
+				if(!stmt_let->type.has_value()) error_expected("type of initializer");
 				consume();
-				DataType tp = parse_type();
-				if(peek().has_value() && peek().value().type == TokenType_t::semi) {
-					auto stmt_let = m_allocator->emplace<NodeStmtLetNoAssign>();
-					stmt_let->type = tp;
-					stmt_let->ident = name;
-					try_consume_err(TokenType_t::semi);
-					auto stmt = m_allocator->emplace<NodeStmt>();
-					stmt->var = stmt_let;
-					return stmt;
-				} else {
-					try_consume_err(TokenType_t::eq);
-					auto stmt_let = m_allocator->emplace<NodeStmtLet>();
-					stmt_let->type = tp;
-					stmt_let->ident = name;
-					if (const auto expr = parse_expr()) {
-						stmt_let->expr = expr.value();
-					}
-					else {
-						error_expected("expression");
-					}
-					try_consume_err(TokenType_t::semi);
-					auto stmt = m_allocator->emplace<NodeStmt>();
-					stmt->var = stmt_let;
-					return stmt;
-				}
-			} else {
-				auto stmt_let = m_allocator->emplace<NodeStmtLet>();
-				stmt_let->type = std::nullopt;
-				stmt_let->ident = name;
-				try_consume_err(TokenType_t::eq);
-				if (const auto expr = parse_expr()) {
-					stmt_let->expr = expr.value();
-				}
-				else {
-					error_expected("expression");
-				}
-				try_consume_err(TokenType_t::semi);
-				auto stmt = m_allocator->emplace<NodeStmt>();
-				stmt->var = stmt_let;
 				return stmt;
 			}
+			try_consume_err(TokenType_t::eq);
+			if (const auto expr = parse_expr()) {
+				stmt_let->expr = expr.value();
+			}
+			else {
+				error_expected("expression");
+			}
+			try_consume_err(TokenType_t::semi);
+			return stmt;
 		}
 		if (peek().has_value() && peek().value().type == TokenType_t::open_curly) {
 			if (auto scope = parse_scope()) {

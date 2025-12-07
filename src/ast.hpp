@@ -29,6 +29,7 @@ struct NodeTermCall {
 	GString name;
 	std::optional<NodeExpr*> args;
 	GVector<DataType> targs;
+	bool as_expr = true;
 };
 
 struct NodeTermNmCall {
@@ -232,14 +233,9 @@ struct NodeStmtReturn {
 	std::optional<NodeExpr*> expr;
 };
 
-struct NodeStmtLetNoAssign {
-	Token ident;
-	DataType type;
-};
-
 struct NodeStmtLet {
 	Token ident;
-	NodeExpr* expr {};
+	std::optional<NodeExpr*> expr;
 	std::optional<DataType> type;
 };
 
@@ -304,6 +300,7 @@ struct NodeStmtCall {
 	GString name;
 	std::optional<NodeExpr*> args;
 	GVector<DataType> targs;
+	NodeExpr* resolved_expression = nullptr;
 };
 
 struct NodeStmtNmCall {
@@ -495,7 +492,7 @@ struct NodeStmt {
 				NodeStmtWhile*,NodeStmtReturn*,
 				NodeStmtStore*,NodeStmtBuffer*,
 				NodeStmtCextern*,NodeStmtStruct*,
-				NodeStmtDelete*,NodeStmtLetNoAssign*,
+				NodeStmtDelete*,
 				NodeStmtBreak*,NodeStmtIncBy*,
 				NodeStmtDecBy*,NodeStmtMulBy*,
 				NodeStmtDivBy*,NodeStmtInterface*,
