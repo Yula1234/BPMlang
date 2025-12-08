@@ -31,7 +31,7 @@ namespace fs = std::filesystem;
     with gcc (gcc -c ./lib/lib_core.c -o ./lib/lib_core.o -m32).
 */
 
-#include "arena.hpp"
+#include "common/arena.hpp"
 
 
 GString basepath;
@@ -42,17 +42,17 @@ bool __slashinpath;
     and standart libraries.
 */
 
-#include "fasm.hpp"
-#include "tcc_linker.hpp"
+#include "asmlink/fasm.hpp"
+#include "asmlink/tcc_linker.hpp"
 #include "argsparser.hpp"
 #include "tokenization.hpp"
 #include "diagnostic.hpp"
-#include "datatype.hpp"
-#include "ast.hpp"
+#include "common/datatype.hpp"
+#include "common/ast.hpp"
 #include "parser.hpp"
 #include "sema.hpp"
-#include "ir.hpp"
-#include "ir_opt.hpp"
+#include "IR/ir.hpp"
+#include "IR/ir_opt.hpp"
 #include "generation.hpp"
 
 
