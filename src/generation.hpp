@@ -119,7 +119,7 @@ public:
                 gen.push_imm(v);
             }
 
-            void operator()(const NodeTermType* tp) {
+            void operator()([[maybe_unused]] const NodeTermType* tp) {
 
             }
 
@@ -144,19 +144,19 @@ public:
                 gen.gen_push_str(term_file->def.file);
             }
 
-            void operator()(const NodeTermCtEval* term_eval) const {
+            void operator()([[maybe_unused]] const NodeTermCtEval* term_eval) const {
 
             }
 
-            void operator()(const NodeTermCtMdefined* term_mdef) const {
+            void operator()([[maybe_unused]] const NodeTermCtMdefined* term_mdef) const {
 
             }
 
-            void operator()(NodeTermSizeof* term_sizeof) const {
+            void operator()([[maybe_unused]] const NodeTermSizeof* term_sizeof) const {
 
             }
 
-            void operator()(const NodeTermRd* term_rd) const {
+            void operator()([[maybe_unused]] const NodeTermRd* term_rd) const {
 
             }
 
@@ -164,7 +164,7 @@ public:
                 gen.gen_expr(term_cast->expr, lvalue);
             }
 
-            void operator()(const NodeTermUnref* term_unref) const {
+            void operator()([[maybe_unused]] const NodeTermUnref* term_unref) const {
                 
             }
 
@@ -172,19 +172,19 @@ public:
                 gen.gen_expr(term_cast_to->expr, lvalue);
             }
 
-            void operator()(NodeTermTypeid* term_typeid) const {
+            void operator()([[maybe_unused]] const NodeTermTypeid* term_typeid) const {
                 
             }
 
-            void operator()(const NodeTermStrLit* term_str_lit) const {
+            void operator()([[maybe_unused]] const NodeTermStrLit* term_str_lit) const {
 
             }
 
-            void operator()(const NodeTermAmpersand* term_amp) const {
+            void operator()([[maybe_unused]] const NodeTermAmpersand* term_amp) const {
 
             }
 
-            void operator()(const NodeTermDrvalue* term_drval) const {
+            void operator()([[maybe_unused]] const NodeTermDrvalue* term_drval) const {
 
             }
 
@@ -215,15 +215,15 @@ public:
                 }
             }
 
-            void operator()(const NodeTermNmIdent* term_ident) const {
+            void operator()([[maybe_unused]] const NodeTermNmIdent* term_ident) const {
     
             }
 
-            void operator()(const NodeTermParen* term_paren) const {
+            void operator()([[maybe_unused]] const NodeTermParen* term_paren) const {
 
             }
 
-            void operator()(NodeTermNmCall* term_call) const {
+            void operator()([[maybe_unused]] const NodeTermNmCall* term_call) const {
 
             }
 
@@ -242,7 +242,7 @@ public:
                 if(term_call->as_expr) gen.m_builder.push(gen.reg(Reg::EAX));
             }
 
-            void operator()(const NodeTermMtCall* term_call) const {
+            void operator()([[maybe_unused]] const NodeTermMtCall* term_call) const {
                
             }
         };
@@ -411,7 +411,7 @@ public:
                 gen.push_reg(Reg::EDX);
             }
 
-            void operator()(const NodeBinExprDot* dot) const {
+            void operator()([[maybe_unused]] const NodeBinExprDot* dot) const {
                 
             }
 
@@ -420,7 +420,7 @@ public:
                     gen.gen_expr(args->args[i]);
                 }
             }
-            void operator()(const NodeBinExprIndex* idx) const {
+            void operator()([[maybe_unused]] const NodeBinExprIndex* idx) const {
                 
             }
         };
@@ -463,12 +463,12 @@ public:
             Generator& gen;
             const GString&  end_label;
 
-            void operator()(const NodeIfPredElif* elif) const
+            void operator()([[maybe_unused]] const NodeIfPredElif* elif) const
             {
 
             }
 
-            void operator()(const NodeIfPredElse* else_) const
+            void operator()([[maybe_unused]] const NodeIfPredElse* else_) const
             {
 
             }
@@ -563,32 +563,32 @@ public:
                 gen.m_builder.mov(gen.mem(mem), gen.reg(Reg::EBX));
             }
 
-            void operator()(const NodeStmtCompileTimeIf* stmt_ctif) const
+            void operator()([[maybe_unused]] const NodeStmtCompileTimeIf* stmt_ctif) const
+            {
+                 
+            }
+
+            void operator()([[maybe_unused]] const NodeStmtAssign* stmt_assign) const
             {
                 
             }
 
-            void operator()(const NodeStmtAssign* stmt_assign) const
+            void operator()([[maybe_unused]] const NodeStmtIncBy* stmt_assign) const
             {
                 
             }
 
-            void operator()(const NodeStmtIncBy* stmt_assign) const
+            void operator()([[maybe_unused]] const NodeStmtDecBy* stmt_assign) const
+            {
+
+            }
+
+            void operator()([[maybe_unused]] const NodeStmtMulBy* stmt_assign) const
             {
                 
             }
 
-            void operator()(const NodeStmtDecBy* stmt_assign) const
-            {
-
-            }
-
-            void operator()(const NodeStmtMulBy* stmt_assign) const
-            {
-                
-            }
-
-            void operator()(const NodeStmtDivBy* stmt_assign) const
+            void operator()([[maybe_unused]] const NodeStmtDivBy* stmt_assign) const
             {
                
             }
@@ -609,67 +609,67 @@ public:
                 gen.gen_expr(stmt_push->expr);
             }
 
-            void operator()(const NodeStmtIf* stmt_if) const
+            void operator()([[maybe_unused]] const NodeStmtIf* stmt_if) const
             {
                 
             }
 
-            void operator()(const NodeStmtWhile* stmt_while) const
+            void operator()([[maybe_unused]] const NodeStmtWhile* stmt_while) const
             {
                 
             }
 
-            void operator()(const NodeStmtBreak* stmt_break) const
+            void operator()([[maybe_unused]] const NodeStmtBreak* stmt_break) const
             {
                
             }
 
-            void operator()(const NodeStmtStore* stmt_store) const
+            void operator()([[maybe_unused]] const NodeStmtStore* stmt_store) const
             {
                 
             }
 
-            void operator()(const NodeStmtBuffer* stmt_buf) const
+            void operator()([[maybe_unused]] const NodeStmtBuffer* stmt_buf) const
             {
                
             }
 
-            void operator()(const NodeStmtAsm* stmt_asm) const
+            void operator()([[maybe_unused]] const NodeStmtAsm* stmt_asm) const
             {
                
             }
 
-            void operator()(const NodeStmtCextern* stmt_cextern) const
+            void operator()([[maybe_unused]] const NodeStmtCextern* stmt_cextern) const
             {
               
             }
 
-            void operator()(const NodeStmtStruct* stmt_struct) const
+            void operator()([[maybe_unused]] const NodeStmtStruct* stmt_struct) const
             {
                
             }
 
-            void operator()(const NodeStmtInterface* stmt_inter) const
+            void operator()([[maybe_unused]] const NodeStmtInterface* stmt_inter) const
             {
                 
             }
 
-            void operator()(const NodeStmtOninit* stmt_oninit) const
+            void operator()([[maybe_unused]] const NodeStmtOninit* stmt_oninit) const
             {
                
             }
 
-            void operator()(const NodeStmtStaticAssert* stmt_st) const
+            void operator()([[maybe_unused]] const NodeStmtStaticAssert* stmt_st) const
             {
                
             }
 
-            void operator()(const NodeStmtDelete* stmt_delete) const
+            void operator()([[maybe_unused]] const NodeStmtDelete* stmt_delete) const
             {
                 
             }
 
-            void operator()(const NodeStmtRaise* stmt_raise) const
+            void operator()([[maybe_unused]] const NodeStmtRaise* stmt_raise) const
             {
                
             }
@@ -679,44 +679,44 @@ public:
                 gen.gen_scope(stmt_space->scope);
             }
 
-            void operator()(NodeStmtImpl* stmt_impl) const
+            void operator()([[maybe_unused]] const NodeStmtImpl* stmt_impl) const
             {
                 
             }
 
-            void operator()(NodeStmtNmCall* stmt_call) const
+            void operator()([[maybe_unused]] const NodeStmtNmCall* stmt_call) const
             {
                
             }
 
-            void operator()(const NodeStmtMtCall* stmt_call) const
+            void operator()([[maybe_unused]] const NodeStmtMtCall* stmt_call) const
             {
                
             }
 
-            void operator()(const NodeStmtConst* stmt_const) const
+            void operator()([[maybe_unused]] const NodeStmtConst* stmt_const) const
             {
                
             }
 
-            void operator()(const NodeStmtTypedef* stmt_tdef) const
+            void operator()([[maybe_unused]] const NodeStmtTypedef* stmt_tdef) const
             {
               
             }
 
-            void operator()(const NodeStmtTry* stmt_try) const
+            void operator()([[maybe_unused]] const NodeStmtTry* stmt_try) const
             {
                 
             }
-            void operator()(const NodeStmtFor* stmt_for) const
+            void operator()([[maybe_unused]] const NodeStmtFor* stmt_for) const
             {
                 
             }
-            void operator()(const NodeStmtForeach* stmt_foreach) const
+            void operator()([[maybe_unused]] const NodeStmtForeach* stmt_foreach) const
             {
             
             }
-            void operator()(const NodeStmtEnum* stmt_enum) const
+            void operator()([[maybe_unused]] const NodeStmtEnum* stmt_enum) const
             {
    
             }

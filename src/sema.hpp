@@ -399,7 +399,7 @@ public:
     }
 
     Procedure* resolve_overloading(const Token& def, Procedure* procedure,
-                                    GVector<DataType> args, GVector<DataType> template_args)
+                                    GVector<DataType> args, [[maybe_unused]] GVector<DataType> template_args)
     {
         std::pair<bool, size_t> first_result = match_call_signature(args, procedure->params, procedure);
         if(first_result.first) return procedure;
@@ -481,15 +481,15 @@ public:
                 exit(EXIT_FAILURE);
             }
 
-            DataType operator()(const NodeTermCol* term_col) const {
+            DataType operator()([[maybe_unused]] const NodeTermCol* term_col) const {
                 return BaseDataTypeInt;
             }
 
-            DataType operator()(const NodeTermLine* term_line) const {
+            DataType operator()([[maybe_unused]] const NodeTermLine* term_line) const {
                 return BaseDataTypeInt;
             }
 
-            DataType operator()(const NodeTermPop* term_pop) const {
+            DataType operator()([[maybe_unused]] const NodeTermPop* term_pop) const {
                 return BaseDataTypeInt;
             }
 
@@ -500,25 +500,25 @@ public:
                 return sema.analyze_expr(term_stmt->expr);
             }
 
-            DataType operator()(const NodeTermFile* term_file) const {
+            DataType operator()([[maybe_unused]] const NodeTermFile* term_file) const {
                 BaseDataType rtype = BaseDataTypeChar;
                 rtype.ptrlvl += 1;
                 return rtype;
             }
 
-            DataType operator()(const NodeTermCtEval* term_eval) const {
+            DataType operator()([[maybe_unused]] const NodeTermCtEval* term_eval) const {
   
             }
 
-            DataType operator()(const NodeTermCtMdefined* term_mdef) const {
+            DataType operator()([[maybe_unused]] const NodeTermCtMdefined* term_mdef) const {
 
             }
 
-            DataType operator()(NodeTermSizeof* term_sizeof) const {
+            DataType operator()([[maybe_unused]] const NodeTermSizeof* term_sizeof) const {
 
             }
 
-            DataType operator()(const NodeTermRd* term_rd) const {
+            DataType operator()([[maybe_unused]] const NodeTermRd* term_rd) const {
 
             }
 
@@ -527,27 +527,27 @@ public:
                 return term_cast->type;
             }
 
-            DataType operator()(const NodeTermUnref* term_unref) const {
+            DataType operator()([[maybe_unused]] const NodeTermUnref* term_unref) const {
                 
             }
 
-            DataType operator()(const NodeTermCastTo* term_cast_to) const {
+            DataType operator()([[maybe_unused]] const NodeTermCastTo* term_cast_to) const {
    
             }
 
-            DataType operator()(NodeTermTypeid* term_typeid) const {
+            DataType operator()([[maybe_unused]] const NodeTermTypeid* term_typeid) const {
 
             }
 
-            DataType operator()(const NodeTermStrLit* term_str_lit) const {
+            DataType operator()([[maybe_unused]] const NodeTermStrLit* term_str_lit) const {
 
             }
 
-            DataType operator()(const NodeTermAmpersand* term_amp) const {
+            DataType operator()([[maybe_unused]] const NodeTermAmpersand* term_amp) const {
 
             }
 
-            DataType operator()(const NodeTermDrvalue* term_drval) const {
+            DataType operator()([[maybe_unused]] const NodeTermDrvalue* term_drval) const {
 
             }
 
@@ -573,11 +573,11 @@ public:
                 exit(EXIT_FAILURE);
             }
 
-            DataType operator()(const NodeTermParen* term_paren) const {
+            DataType operator()([[maybe_unused]] const NodeTermParen* term_paren) const {
 
             }
 
-            DataType operator()(NodeTermNmCall* term_call) const {
+            DataType operator()([[maybe_unused]] const NodeTermNmCall* term_call) const {
 
             }
 
@@ -619,10 +619,10 @@ public:
                 return proc->rettype;
             }
 
-            DataType operator()(const NodeTermMtCall* term_call) const {
+            DataType operator()([[maybe_unused]] const NodeTermMtCall* term_call) const {
 
             }
-            DataType operator()(const NodeTermNmIdent* nm_ident) const {
+            DataType operator()([[maybe_unused]] const NodeTermNmIdent* nm_ident) const {
 
             }
         };
@@ -720,10 +720,10 @@ public:
                 method_call->name = method_name;
             }
 
-            DataType operator()(const NodeBinExprArgs* args) const {
+            DataType operator()([[maybe_unused]] const NodeBinExprArgs* args) const {
 
             }
-            DataType operator()(const NodeBinExprIndex* idx) const {
+            DataType operator()([[maybe_unused]] const NodeBinExprIndex* idx) const {
 
             }
         };
@@ -761,12 +761,12 @@ public:
         struct PredVisitor {
             SemanticContext& sema;
 
-            void operator()(const NodeIfPredElif* elif) const
+            void operator()([[maybe_unused]] const NodeIfPredElif* elif) const
             {
 
             }
 
-            void operator()(const NodeIfPredElse* else_) const
+            void operator()([[maybe_unused]] const NodeIfPredElse* else_) const
             {
 
             }
@@ -952,31 +952,31 @@ public:
                 }
             }
 
-            void operator()(const NodeStmtCompileTimeIf* stmt_ctif) const {
+            void operator()([[maybe_unused]] const NodeStmtCompileTimeIf* stmt_ctif) const {
 
             }
 
-            void operator()(const NodeStmtAssign* stmt_assign) const
+            void operator()([[maybe_unused]] const NodeStmtAssign* stmt_assign) const
             {
 
             }
 
-            void operator()(const NodeStmtIncBy* stmt_assign) const
+            void operator()([[maybe_unused]] const NodeStmtIncBy* stmt_assign) const
             {
 
             }
 
-            void operator()(const NodeStmtDecBy* stmt_assign) const
+            void operator()([[maybe_unused]] const NodeStmtDecBy* stmt_assign) const
             {
 
             }
 
-            void operator()(const NodeStmtMulBy* stmt_assign) const
+            void operator()([[maybe_unused]] const NodeStmtMulBy* stmt_assign) const
             {
 
             }
 
-            void operator()(const NodeStmtDivBy* stmt_assign) const
+            void operator()([[maybe_unused]] const NodeStmtDivBy* stmt_assign) const
             {
 
             }
@@ -993,77 +993,77 @@ public:
                 sema.analyze_expr(stmt_call->resolved_expression);
             }
 
-            void operator()(const NodeScope* scope) const
+            void operator()([[maybe_unused]] const NodeScope* scope) const
             {
 
             }
 
-            void operator()(const NodeStmtPushOnStack* stmt_push) const
+            void operator()([[maybe_unused]] const NodeStmtPushOnStack* stmt_push) const
             {
 
             }
 
-            void operator()(const NodeStmtIf* stmt_if) const
+            void operator()([[maybe_unused]] const NodeStmtIf* stmt_if) const
             {
 
             }
 
-            void operator()(const NodeStmtWhile* stmt_while) const
+            void operator()([[maybe_unused]] const NodeStmtWhile* stmt_while) const
             {
 
             }
 
-            void operator()(const NodeStmtBreak* stmt_break) const
+            void operator()([[maybe_unused]] const NodeStmtBreak* stmt_break) const
             {
 
             }
 
-            void operator()(const NodeStmtStore* stmt_store) const
+            void operator()([[maybe_unused]] const NodeStmtStore* stmt_store) const
             {
 
             }
 
-            void operator()(const NodeStmtBuffer* stmt_buf) const
+            void operator()([[maybe_unused]] const NodeStmtBuffer* stmt_buf) const
             {
 
             }
 
-            void operator()(const NodeStmtAsm* stmt_asm) const
+            void operator()([[maybe_unused]] const NodeStmtAsm* stmt_asm) const
             {
 
             }
 
-            void operator()(const NodeStmtCextern* stmt_cextern) const
+            void operator()([[maybe_unused]] const NodeStmtCextern* stmt_cextern) const
             {
 
             }
 
-            void operator()(const NodeStmtStruct* stmt_struct) const
+            void operator()([[maybe_unused]] const NodeStmtStruct* stmt_struct) const
             {
 
             }
 
-            void operator()(const NodeStmtInterface* stmt_inter) const
+            void operator()([[maybe_unused]] const NodeStmtInterface* stmt_inter) const
             {
 
             }
 
-            void operator()(const NodeStmtOninit* stmt_oninit) const
+            void operator()([[maybe_unused]] const NodeStmtOninit* stmt_oninit) const
             {
 
             }
 
-            void operator()(const NodeStmtStaticAssert* stmt_st) const
-            {
-                
-            }
-
-            void operator()(const NodeStmtDelete* stmt_delete) const
+            void operator()([[maybe_unused]] const NodeStmtStaticAssert* stmt_st) const
             {
                 
             }
 
-            void operator()(const NodeStmtRaise* stmt_raise) const
+            void operator()([[maybe_unused]] const NodeStmtDelete* stmt_delete) const
+            {
+                
+            }
+
+            void operator()([[maybe_unused]] const NodeStmtRaise* stmt_raise) const
             {
                 
             }
@@ -1088,44 +1088,44 @@ public:
                 sema.m_cur_namespace = old_namespace;
             }
 
-            void operator()(NodeStmtImpl* stmt_impl) const
+            void operator()([[maybe_unused]] const NodeStmtImpl* stmt_impl) const
             {
                 
             }
 
-            void operator()(NodeStmtNmCall* stmt_call) const
+            void operator()([[maybe_unused]] const NodeStmtNmCall* stmt_call) const
             {
                 
             }
 
-            void operator()(const NodeStmtMtCall* stmt_call) const
+            void operator()([[maybe_unused]] const NodeStmtMtCall* stmt_call) const
             {
                 
             }
 
-            void operator()(const NodeStmtConst* stmt_const) const
+            void operator()([[maybe_unused]] const NodeStmtConst* stmt_const) const
             {
                 
             }
 
-            void operator()(const NodeStmtTypedef* stmt_tdef) const
+            void operator()([[maybe_unused]] const NodeStmtTypedef* stmt_tdef) const
             {
 
             }
 
-            void operator()(const NodeStmtTry* stmt_try) const
+            void operator()([[maybe_unused]] const NodeStmtTry* stmt_try) const
             {
                 
             }
-            void operator()(const NodeStmtFor* stmt_for) const
+            void operator()([[maybe_unused]] const NodeStmtFor* stmt_for) const
             {
                 
             }
-            void operator()(const NodeStmtForeach* stmt_foreach) const
+            void operator()([[maybe_unused]] const NodeStmtForeach* stmt_foreach) const
             {
                 
             }
-            void operator()(const NodeStmtEnum* stmt_enum) const
+            void operator()([[maybe_unused]] const NodeStmtEnum* stmt_enum) const
             {
                 
             }

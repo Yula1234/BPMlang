@@ -48,7 +48,7 @@ bool __slashinpath;
 #include "tokenization.hpp"
 #include "diagnostic.hpp"
 #include "common/datatype.hpp"
-#include "common/ast.hpp"
+#include "ast/ast.hpp"
 #include "parser.hpp"
 #include "sema.hpp"
 #include "IR/ir.hpp"
