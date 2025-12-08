@@ -509,3 +509,49 @@ struct NodeStmt {
 struct NodeProg {
 	GVector<NodeStmt*> stmts {};
 };
+
+template <typename T>
+struct remove_all_const {
+    using type = std::remove_const_t<T>;
+};
+
+template <typename T>
+struct remove_all_const<T*> {
+    using type = std::remove_const_t<T>*;
+};
+
+template <typename T>
+using remove_all_const_t = typename remove_all_const<T>::type;
+
+namespace AstConverter {
+
+	template <typename T>
+	inline NodeTerm* term(ArenaAllocator* arena, T some_term) {
+		NodeTerm* as_term = arena->emplace<NodeTerm>();
+		as_term->var = const_cast<remove_all_const_t<T>>(some_term);
+		return as_term;
+	}
+
+	template <typename T>
+	inline NodeBinExpr* bin_expr(ArenaAllocator* arena, T some_bin_expr, const Token& def) {
+		NodeBinExpr* as_bin_expr = arena->emplace<NodeBinExpr>();
+		as_bin_expr->var = const_cast<remove_all_const_t<T>>(some_bin_expr);
+		as_bin_expr->def = def;
+		return as_bin_expr;
+	}
+
+	template <typename T>
+	inline NodeExpr* expr(ArenaAllocator* arena, T some_expr) {
+		NodeExpr* as_expr = arena->emplace<NodeExpr>();
+		as_expr->var = const_cast<remove_all_const_t<T>>(some_expr);
+		return as_expr;
+	}
+
+	template <typename T>
+	inline NodeStmt* stmt(ArenaAllocator* arena, T some_stmt) {
+		NodeStmt* as_stmt = arena->emplace<NodeStmt>();
+		as_stmt->var = const_cast<remove_all_const_t<T>>(some_stmt);
+		return as_stmt;
+	}
+
+} // namespace AstConverter

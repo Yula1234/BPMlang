@@ -507,19 +507,19 @@ public:
             }
 
             DataType operator()([[maybe_unused]] const NodeTermCtEval* term_eval) const {
-  
+                return BaseDataTypeVoid;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermCtMdefined* term_mdef) const {
-
+                return BaseDataTypeVoid;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermSizeof* term_sizeof) const {
-
+                return BaseDataTypeVoid;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermRd* term_rd) const {
-
+                return BaseDataTypeVoid;
             }
 
             DataType operator()(const NodeTermCast* term_cast) const {
@@ -528,27 +528,27 @@ public:
             }
 
             DataType operator()([[maybe_unused]] const NodeTermUnref* term_unref) const {
-                
+                return BaseDataTypeVoid;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermCastTo* term_cast_to) const {
-   
+                return BaseDataTypeVoid;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermTypeid* term_typeid) const {
-
+                return BaseDataTypeVoid;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermStrLit* term_str_lit) const {
-
+                return BaseDataTypeVoid;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermAmpersand* term_amp) const {
-
+                return BaseDataTypeVoid;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermDrvalue* term_drval) const {
-
+                return BaseDataTypeVoid;
             }
 
             DataType operator()(NodeTermIdent* term_ident) const {
@@ -574,11 +574,11 @@ public:
             }
 
             DataType operator()([[maybe_unused]] const NodeTermParen* term_paren) const {
-
+                return BaseDataTypeVoid;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermNmCall* term_call) const {
-
+                return BaseDataTypeVoid;
             }
 
             DataType operator()(NodeTermCall* term_call) const {
@@ -620,10 +620,10 @@ public:
             }
 
             DataType operator()([[maybe_unused]] const NodeTermMtCall* term_call) const {
-
+                return BaseDataTypeVoid;
             }
             DataType operator()([[maybe_unused]] const NodeTermNmIdent* nm_ident) const {
-
+                return BaseDataTypeVoid;
             }
         };
 
@@ -718,13 +718,14 @@ public:
                 method_call->def = call->def;
                 method_call->mt = dot->lhs;
                 method_call->name = method_name;
+                return BaseDataTypeVoid;
             }
 
             DataType operator()([[maybe_unused]] const NodeBinExprArgs* args) const {
-
+                return BaseDataTypeVoid;
             }
             DataType operator()([[maybe_unused]] const NodeBinExprIndex* idx) const {
-
+                return BaseDataTypeVoid;
             }
         };
 

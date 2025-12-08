@@ -44,15 +44,23 @@ bool __slashinpath;
 
 #include "asmlink/fasm.hpp"
 #include "asmlink/tcc_linker.hpp"
+
 #include "argsparser.hpp"
+
 #include "tokenization.hpp"
 #include "diagnostic.hpp"
+
 #include "common/datatype.hpp"
+
 #include "ast/ast.hpp"
+#include "ast/ast_cloner.hpp"
 #include "parser.hpp"
+
 #include "sema.hpp"
+
 #include "IR/ir.hpp"
 #include "IR/ir_opt.hpp"
+
 #include "generation.hpp"
 
 
