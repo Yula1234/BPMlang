@@ -353,181 +353,321 @@ public:
         struct StmtVisitor {
             AstCloner& cloner;
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtExit* stmt_exit) const
+            NodeStmt* operator()(const NodeStmtExit* stmt_exit) const
             {
-                
+                NodeStmtExit* new_exit = cloner.m_allocator->emplace<NodeStmtExit>();
+                new_exit->def = stmt_exit->def;
+                new_exit->expr = cloner.clone_expr(stmt_exit->expr);
+                return AstConverter::stmt(cloner.m_allocator, stmt_exit);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtProc* stmt_proc)
+            NodeStmt* operator()(const NodeStmtProc* stmt_proc)
             {
-                return nullptr;
+                NodeStmtProc* new_proc = cloner.m_allocator->emplace<NodeStmtProc>();
+                new_proc->name = stmt_proc->name;
+                new_proc->def = stmt_proc->def;
+                new_proc->rettype = stmt_proc->rettype;
+                new_proc->attrs = stmt_proc->attrs;
+                new_proc->params = stmt_proc->params;
+                new_proc->scope = cloner.clone_scope(stmt_proc->scope);
+                new_proc->prototype = stmt_proc->prototype;
+                new_proc->templates = NULL;
+                if(stmt_proc->templates != NULL) {
+                    GVector<GString>* new_temps = cloner.m_allocator->emplace<GVector<GString>>();
+                    for(size_t i = 0;i < stmt_proc->templates->size();i++) {
+                        new_temps->push_back(stmt_proc->templates->operator[](i));
+                    }
+                    new_proc->templates = new_temps;
+                }
+                new_proc->constraints = stmt_proc->constraints;
+                return AstConverter::stmt(cloner.m_allocator, new_proc);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtReturn* stmt_return) const
+            NodeStmt* operator()(const NodeStmtReturn* stmt_return) const
             {
-                return nullptr;
+                NodeStmtReturn* new_return = cloner.m_allocator->emplace<NodeStmtReturn>();
+                new_return->def = stmt_return->def;
+                new_return->expr = std::nullopt;
+                if(stmt_return->expr.has_value()) new_return->expr = cloner.clone_expr(stmt_return->expr.value());
+                return AstConverter::stmt(cloner.m_allocator, new_return);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtLet* stmt_let) const
+            NodeStmt* operator()(const NodeStmtLet* stmt_let) const
             {
-                return nullptr;
+                NodeStmtLet* new_let = cloner.m_allocator->emplace<NodeStmtLet>();
+                new_let->ident = stmt_let->ident;
+                new_let->expr = std::nullopt;
+                new_let->type = std::nullopt;
+                if(stmt_let->expr.has_value()) new_let->expr = cloner.clone_expr(stmt_let->expr.value());
+                if(stmt_let->type.has_value()) new_let->type = stmt_let->type.value();
+                return AstConverter::stmt(cloner.m_allocator, new_let);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtCompileTimeIf* stmt_ctif) const
+            NodeStmt* operator()(const NodeStmtCompileTimeIf* stmt_ctif) const
             {
-                return nullptr;
+                NodeStmtCompileTimeIf* new_ctif = cloner.m_allocator->emplace<NodeStmtCompileTimeIf>();
+                new_ctif->def = stmt_ctif->def;
+                new_ctif->condition = cloner.clone_expr(stmt_ctif->condition);
+                new_ctif->_if = cloner.clone_scope(stmt_ctif->_if);
+                new_ctif->_else = std::nullopt;
+                if(stmt_ctif->_else.has_value()) new_ctif->_else = cloner.clone_scope(stmt_ctif->_else.value());
+                return AstConverter::stmt(cloner.m_allocator, new_ctif);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtAssign* stmt_assign) const
+            NodeStmt* operator()(const NodeStmtAssign* stmt_assign) const
             {
-                return nullptr;
+                NodeStmtAssign* new_assign = cloner.m_allocator->emplace<NodeStmtAssign>();
+                new_assign->expr = cloner.clone_expr(stmt_assign->expr);
+                new_assign->lvalue = cloner.clone_expr(stmt_assign->lvalue);
+                new_assign->def = stmt_assign->def;
+                return AstConverter::stmt(cloner.m_allocator, new_assign);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtIncBy* stmt_assign) const
+            NodeStmt* operator()(const NodeStmtIncBy* stmt_assign) const
             {
-                return nullptr;
+                NodeStmtIncBy* new_inc = cloner.m_allocator->emplace<NodeStmtIncBy>();
+                new_inc->def = stmt_assign->def;
+                new_inc->lvalue = cloner.clone_expr(stmt_assign->lvalue);
+                new_inc->expr = cloner.clone_expr(stmt_assign->expr);
+                return AstConverter::stmt(cloner.m_allocator, new_inc);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtDecBy* stmt_assign) const
+            NodeStmt* operator()(const NodeStmtDecBy* stmt_assign) const
             {
-                return nullptr;
+                NodeStmtDecBy* new_dec = cloner.m_allocator->emplace<NodeStmtDecBy>();
+                new_dec->def = stmt_assign->def;
+                new_dec->lvalue = cloner.clone_expr(stmt_assign->lvalue);
+                new_dec->expr = cloner.clone_expr(stmt_assign->expr);
+                return AstConverter::stmt(cloner.m_allocator, new_dec);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtMulBy* stmt_assign) const
+            NodeStmt* operator()(const NodeStmtMulBy* stmt_assign) const
             {
-                return nullptr;
+                NodeStmtMulBy* new_mul = cloner.m_allocator->emplace<NodeStmtMulBy>();
+                new_mul->def = stmt_assign->def;
+                new_mul->lvalue = cloner.clone_expr(stmt_assign->lvalue);
+                new_mul->expr = cloner.clone_expr(stmt_assign->expr);
+                return AstConverter::stmt(cloner.m_allocator, new_mul);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtDivBy* stmt_assign) const
+            NodeStmt* operator()(const NodeStmtDivBy* stmt_assign) const
             {
-                return nullptr;
+                NodeStmtDivBy* new_div = cloner.m_allocator->emplace<NodeStmtDivBy>();
+                new_div->def = stmt_assign->def;
+                new_div->lvalue = cloner.clone_expr(stmt_assign->lvalue);
+                new_div->expr = cloner.clone_expr(stmt_assign->expr);
+                return AstConverter::stmt(cloner.m_allocator, new_div);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtCall* stmt_call) const
+            NodeStmt* operator()(const NodeStmtCall* stmt_call) const
             {
-                return nullptr;
+                NodeStmtCall* new_call = cloner.m_allocator->emplace<NodeStmtCall>();
+                new_call->def = stmt_call->def;
+                new_call->name = stmt_call->name;
+                new_call->args = std::nullopt;
+                if(stmt_call->args.has_value()) new_call->args = cloner.clone_expr(stmt_call->args.value());
+                new_call->targs = stmt_call->targs;
+                new_call->resolved_expression = nullptr;
+                if(stmt_call->resolved_expression != nullptr) new_call->resolved_expression = cloner.clone_expr(stmt_call->resolved_expression);
+                return AstConverter::stmt(cloner.m_allocator, new_call);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeScope* scope) const
+            NodeStmt* operator()(const NodeScope* scope) const
             {
-                return nullptr;
+                return AstConverter::stmt(cloner.m_allocator, cloner.clone_scope(scope));
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtPushOnStack* stmt_push) const
+            NodeStmt* operator()(const NodeStmtPushOnStack* stmt_push) const
             {
-                return nullptr;
+                NodeStmtPushOnStack* new_push = cloner.m_allocator->emplace<NodeStmtPushOnStack>();
+                new_push->def = stmt_push->def;
+                new_push->expr = cloner.clone_expr(stmt_push->expr);
+                return AstConverter::stmt(cloner.m_allocator, new_push);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtIf* stmt_if) const
+            NodeStmt* operator()(const NodeStmtIf* stmt_if) const
             {
-                return nullptr;
+                NodeStmtIf* new_if = cloner.m_allocator->emplace<NodeStmtIf>();
+                new_if->expr = cloner.clone_expr(stmt_if->expr);
+                new_if->scope = cloner.clone_scope(stmt_if->scope);
+                new_if->pred = std::nullopt;
+                if(stmt_if->pred.has_value()) new_if->pred = cloner.clone_if_pred(stmt_if->pred.value());
+                return AstConverter::stmt(cloner.m_allocator, new_if);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtWhile* stmt_while) const
+            NodeStmt* operator()(const NodeStmtWhile* stmt_while) const
             {
-                return nullptr;
+                NodeStmtWhile* new_while = cloner.m_allocator->emplace<NodeStmtWhile>();
+                new_while->expr = cloner.clone_expr(stmt_while->expr);
+                new_while->scope = cloner.clone_scope(stmt_while->scope);
+                return AstConverter::stmt(cloner.m_allocator, new_while);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtBreak* stmt_break) const
+            NodeStmt* operator()(const NodeStmtBreak* stmt_break) const
             {
-                return nullptr;
+                return AstConverter::stmt(cloner.m_allocator, cloner.copy_simple(stmt_break));
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtStore* stmt_store) const
+            NodeStmt* operator()(const NodeStmtStore* stmt_store) const
             {
-                return nullptr;
+                NodeStmtStore* new_store = cloner.m_allocator->emplace<NodeStmtStore>();
+                new_store->def = stmt_store->def;
+                new_store->size = stmt_store->size;
+                new_store->ptr = cloner.clone_expr(stmt_store->ptr);
+                new_store->expr = cloner.clone_expr(stmt_store->expr);
+                return AstConverter::stmt(cloner.m_allocator, new_store);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtBuffer* stmt_buf) const
+            NodeStmt* operator()(const NodeStmtBuffer* stmt_buf) const
             {
-                return nullptr;
+                NodeStmtBuffer* new_buffer = cloner.m_allocator->emplace<NodeStmtBuffer>();
+                new_buffer->def = stmt_buf->def;
+                new_buffer->name = stmt_buf->name;
+                new_buffer->size = cloner.clone_expr(stmt_buf->size);
+                return AstConverter::stmt(cloner.m_allocator, new_buffer);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtAsm* stmt_asm) const
+            NodeStmt* operator()(const NodeStmtAsm* stmt_asm) const
             {
-                return nullptr;
+                return AstConverter::stmt(cloner.m_allocator, cloner.copy_simple(stmt_asm));
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtCextern* stmt_cextern) const
+            NodeStmt* operator()(const NodeStmtCextern* stmt_cextern) const
             {
-                return nullptr;
+                return AstConverter::stmt(cloner.m_allocator, cloner.copy_simple(stmt_cextern));
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtStruct* stmt_struct) const
+            NodeStmt* operator()(const NodeStmtStruct* stmt_struct) const
             {
-                return nullptr;
+                return AstConverter::stmt(cloner.m_allocator, cloner.copy_simple(stmt_struct));
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtInterface* stmt_inter) const
+            NodeStmt* operator()(const NodeStmtInterface* stmt_inter) const
             {
-                return nullptr;
+                return AstConverter::stmt(cloner.m_allocator, cloner.copy_simple(stmt_inter));
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtOninit* stmt_oninit) const
+            NodeStmt* operator()(const NodeStmtOninit* stmt_oninit) const
             {
-                return nullptr;
+                NodeStmtOninit* new_oninit = cloner.m_allocator->emplace<NodeStmtOninit>();
+                new_oninit->def = stmt_oninit->def;
+                new_oninit->scope = cloner.clone_scope(stmt_oninit->scope);
+                return AstConverter::stmt(cloner.m_allocator, new_oninit);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtStaticAssert* stmt_st) const
+            NodeStmt* operator()(const NodeStmtStaticAssert* stmt_st) const
             {
-                return nullptr;
+                NodeStmtStaticAssert* new_st = cloner.m_allocator->emplace<NodeStmtStaticAssert>();
+                new_st->def = stmt_st->def;
+                new_st->msg = stmt_st->msg;
+                new_st->condition = cloner.clone_expr(stmt_st->condition);
+                return AstConverter::stmt(cloner.m_allocator, new_st);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtDelete* stmt_delete) const
+            NodeStmt* operator()(const NodeStmtDelete* stmt_delete) const
             {
-                return nullptr;
+                NodeStmtDelete* new_delete = cloner.m_allocator->emplace<NodeStmtDelete>();
+                new_delete->def = stmt_delete->def;
+                new_delete->expr = cloner.clone_expr(stmt_delete->expr);
+                return AstConverter::stmt(cloner.m_allocator, new_delete);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtRaise* stmt_raise) const
+            NodeStmt* operator()(const NodeStmtRaise* stmt_raise) const
             {
-                return nullptr;
+                NodeStmtRaise* new_raise = cloner.m_allocator->emplace<NodeStmtRaise>();
+                new_raise->def = stmt_raise->def;
+                new_raise->expr = cloner.clone_expr(stmt_raise->expr);
+                return AstConverter::stmt(cloner.m_allocator, new_raise);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtNamespace* stmt_space) const
+            NodeStmt* operator()(const NodeStmtNamespace* stmt_space) const
             {
-                return nullptr;
+                NodeStmtNamespace* new_namespace = cloner.m_allocator->emplace<NodeStmtNamespace>();
+                new_namespace->def = stmt_space->def;
+                new_namespace->name = stmt_space->name;
+                new_namespace->scope = cloner.clone_scope(stmt_space->scope);
+                return AstConverter::stmt(cloner.m_allocator, new_namespace);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtImpl* stmt_impl) const
+            NodeStmt* operator()(const NodeStmtImpl* stmt_impl) const
             {
-                return nullptr;
+                NodeStmtImpl* new_impl = cloner.m_allocator->emplace<NodeStmtImpl>();
+                new_impl->def = stmt_impl->def;
+                new_impl->name = stmt_impl->name;
+                new_impl->temps = stmt_impl->temps;
+                new_impl->inst = stmt_impl->inst;
+                new_impl->scope = cloner.clone_scope(stmt_impl->scope);
+                return AstConverter::stmt(cloner.m_allocator, new_impl);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtNmCall* stmt_call) const
+            NodeStmt* operator()(const NodeStmtNmCall* stmt_call) const
             {
-                return nullptr;
+                NodeStmtNmCall* new_call = cloner.m_allocator->emplace<NodeStmtNmCall>();
+                new_call->def = stmt_call->def;
+                new_call->name = stmt_call->name;
+                new_call->nm = stmt_call->nm;
+                new_call->targs = stmt_call->targs;
+                new_call->args = std::nullopt;
+                if(stmt_call->args.has_value()) new_call->args = cloner.clone_expr(stmt_call->args.value());
+                return AstConverter::stmt(cloner.m_allocator, new_call);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtMtCall* stmt_call) const
+            NodeStmt* operator()(const NodeStmtMtCall* stmt_call) const
             {
-                return nullptr;
+                NodeStmtMtCall* new_call = cloner.m_allocator->emplace<NodeStmtMtCall>();
+                new_call->def = stmt_call->def;
+                new_call->name = stmt_call->name;
+                new_call->targs = stmt_call->targs;
+                new_call->mt = cloner.clone_expr(stmt_call->mt);
+                new_call->args = std::nullopt;
+                if(stmt_call->args.has_value()) new_call->args = cloner.clone_expr(stmt_call->args.value());
+                return AstConverter::stmt(cloner.m_allocator, new_call);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtConst* stmt_const) const
+            NodeStmt* operator()(const NodeStmtConst* stmt_const) const
             {
-                return nullptr;
+                NodeStmtConst* new_const = cloner.m_allocator->emplace<NodeStmtConst>();
+                new_const->def = stmt_const->def;
+                new_const->name = stmt_const->name;
+                new_const->expr = cloner.clone_expr(stmt_const->expr);
+                return AstConverter::stmt(cloner.m_allocator, new_const);
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtTypedef* stmt_tdef) const
+            NodeStmt* operator()(const NodeStmtTypedef* stmt_tdef) const
             {
-                return nullptr;
+                return AstConverter::stmt(cloner.m_allocator, cloner.copy_simple(stmt_tdef));
             }
 
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtTry* stmt_try) const
+            NodeStmt* operator()(const NodeStmtTry* stmt_try) const
             {
-                return nullptr; 
+                NodeStmtTry* new_try = cloner.m_allocator->emplace<NodeStmtTry>();
+                new_try->def = stmt_try->def;
+                new_try->name = stmt_try->name;
+                new_try->type = stmt_try->type;
+                new_try->_try = cloner.clone_scope(stmt_try->_try);
+                new_try->_catch = cloner.clone_scope(stmt_try->_catch);
+                return AstConverter::stmt(cloner.m_allocator, new_try);
             }
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtFor* stmt_for) const
+            NodeStmt* operator()(const NodeStmtFor* stmt_for) const
             {
-                return nullptr;
+                NodeStmtFor* new_for = cloner.m_allocator->emplace<NodeStmtFor>();
+                new_for->init = cloner.clone_stmt(stmt_for->init);
+                new_for->cond = cloner.clone_expr(stmt_for->cond);
+                new_for->step = cloner.clone_stmt(stmt_for->step);
+                new_for->scope = cloner.clone_scope(stmt_for->scope);
+                return AstConverter::stmt(cloner.m_allocator, new_for);
             }
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtForeach* stmt_foreach) const
+            NodeStmt* operator()(const NodeStmtForeach* stmt_foreach) const
             {
-                return nullptr;
+                NodeStmtForeach* new_foreach = cloner.m_allocator->emplace<NodeStmtForeach>();
+                new_foreach->var_name = stmt_foreach->var_name;
+                new_foreach->expr = cloner.clone_expr(stmt_foreach->expr);
+                new_foreach->scope = cloner.clone_scope(stmt_foreach->scope);
+                return AstConverter::stmt(cloner.m_allocator, new_foreach);
             }
-            NodeStmt* operator()([[maybe_unused]] const NodeStmtEnum* stmt_enum) const
+            NodeStmt* operator()(const NodeStmtEnum* stmt_enum) const
             {
-                return nullptr;
+                return AstConverter::stmt(cloner.m_allocator, cloner.copy_simple(stmt_enum));
             }
         };
 
