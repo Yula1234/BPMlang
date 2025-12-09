@@ -817,7 +817,11 @@ public:
         }
 
         if(procedure->from->prototype || procedure->from->templates != nullptr) return;
-
+        // TODO: When you call analyze_procedure from analyze_prog
+        // the m_cur_namespace variable is likely nullptr
+        // if a template was defined within namespace A
+        // and a global variable from A (without the A:: prefix) is used within the template
+        // the analyzer may not find it because it doesn't know what's "inside" namespace A.
         m_cur_procedure = procedure;
         m_sym_table.begin_scope();
         for(size_t i = 0;i < procedure->params.size();i++) {
