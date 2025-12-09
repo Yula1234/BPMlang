@@ -490,6 +490,7 @@ public:
 
             void operator()(NodeStmtProc* stmt_proc)
             {
+                if(stmt_proc->templates != NULL || stmt_proc->prototype) return;
                 const auto& search = gen.m_sema->m_sym_table.m_mapped_procs_symbols.find(stmt_proc);
                 assert(search != gen.m_sema->m_sym_table.m_mapped_procs_symbols.end());
                 Procedure* symbol = search->second;

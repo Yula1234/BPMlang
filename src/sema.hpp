@@ -1,5 +1,7 @@
 #pragma once
 
+struct Namespace;
+
 struct Procedure {
 	GString name;
 	GVector<std::pair<GString, DataType>> params;
@@ -13,6 +15,7 @@ struct Procedure {
     NodeStmtProc* from;
     GString mangled_symbol;
     GVector<Procedure*> overloads;
+    Namespace* nmspace;
     GString return_label;
 };
 
@@ -201,10 +204,6 @@ public:
 };
 
 
-
-
-
-
 class SemanticContext {
 public:
 
@@ -218,7 +217,7 @@ public:
     DiagnosticManager* m_diag_man;
     ArenaAllocator* m_allocator;
 
-	explicit SemanticContext(NodeProg* prog, DiagnosticManager* dman, ArenaAllocator* arena) {
+	explicit SemanticContext(NodeProg* prog, DiagnosticManager* dman, ArenaAllocator* arena) : m_template_instantiator(arena, dman, *this) {
 		m_diag_man = dman;
 		m_prog = prog;
 		m_allocator = arena;
@@ -603,6 +602,10 @@ public:
                     args_types.push_back(sema.analyze_expr(args[i]));
                 }
 
+                if(proc->templates != NULL) {
+                    proc = sema.m_template_instantiator.instantiate_procedure(proc, term_call->targs, term_call->def);
+                }
+
                 if(!proc->overloads.empty()) {
                     proc = sema.resolve_overloading(term_call->def, proc, args_types, term_call->targs);
                 } else {
@@ -783,6 +786,48 @@ public:
         }
     }
 
+    Procedure* construct_procedure_from_stmt(NodeStmtProc* stmt_proc) {
+        Procedure* cproc = m_allocator->emplace<Procedure>();
+        m_sym_table.m_mapped_procs_symbols[stmt_proc] = cproc;
+        cproc->name = stmt_proc->name;
+        cproc->params = stmt_proc->params;
+        cproc->rettype = stmt_proc->rettype;
+        cproc->stack_allign = 0;
+        cproc->attrs = stmt_proc->attrs;
+        cproc->def = stmt_proc->def;
+        cproc->overload = false;
+        cproc->prototype = stmt_proc->prototype;
+        cproc->templates = stmt_proc->templates;
+        cproc->from = stmt_proc;
+
+        GString mangled_symbol = stmt_proc->name;
+        for(size_t i = 0ULL;i < stmt_proc->params.size();i += 1) {
+            mangled_symbol += stmt_proc->params[i].second.sign();
+        }
+        mangled_symbol += "@" + std::to_string(stmt_proc->params.size());
+        cproc->mangled_symbol = mangled_symbol;
+        cproc->nmspace = m_cur_namespace;
+        return cproc;
+    }
+
+    void analyze_procedure(Procedure* procedure) {
+        if(procedure->nmspace != nullptr) {
+            procedure->mangled_symbol = procedure->nmspace->get_mangle() + procedure->mangled_symbol;
+            procedure->name = procedure->nmspace->get_path() + procedure->from->name;
+        }
+
+        if(procedure->from->prototype || procedure->from->templates != nullptr) return;
+
+        m_cur_procedure = procedure;
+        m_sym_table.begin_scope();
+        for(size_t i = 0;i < procedure->params.size();i++) {
+            define_local_variable(procedure->params[i].first, procedure->params[i].second);
+        }
+        analyze_scope(procedure->from->scope);
+        m_sym_table.end_scope();
+        m_cur_procedure = nullptr;
+    }
+
     void analyze_stmt(NodeStmt* stmt)
     {
         struct StmtVisitor {
@@ -803,47 +848,16 @@ public:
                 const GString& name = stmt_proc->name;
                 if(sema.m_cur_procedure != nullptr) {
                     sema.m_diag_man->DiagnosticMessage(stmt_proc->def, "error", "defining a procedure within another procedure is prohibited", 0);
-                    sema.m_diag_man->DiagnosticMessage(sema.m_cur_procedure->def, "note", "you are trying to define the `" + name + "` procedure while in the`" + sema.m_cur_procedure->name + "` procedure.", 0);
+                    sema.m_diag_man->DiagnosticMessage(sema.m_cur_procedure->def, "note", "you are trying to define the `" + name + "` procedure while in the `" + sema.m_cur_procedure->name + "` procedure.", 0);
                     exit(EXIT_FAILURE);
                 }
 
-                SemanticScope* current_scope = nullptr;
-                std::optional<Procedure*> existing_procedure = sema.m_sym_table.proc_lookup(name);
-                
-                if(sema.m_cur_namespace != nullptr) {
-                    assert(sema.m_cur_namespace->scope != nullptr);
-                    current_scope = sema.m_cur_namespace->scope;
-                } else {
-                    current_scope = sema.m_sym_table.last_scope();
-                }
+                SemanticScope* current_scope = sema.m_sym_table.last_scope();
+                std::optional<Procedure*> existing_procedure = current_scope->proc_lookup(name);
 
-                Procedure* cproc = sema.m_allocator->emplace<Procedure>();
-                sema.m_sym_table.m_mapped_procs_symbols[stmt_proc] = cproc;
-                cproc->name = name;
-                cproc->params = stmt_proc->params;
-                cproc->rettype = stmt_proc->rettype;
-                cproc->stack_allign = 0;
-                cproc->attrs = stmt_proc->attrs;
-                cproc->def = stmt_proc->def;
-                cproc->overload = false;
-                cproc->prototype = stmt_proc->prototype;
-                cproc->templates = stmt_proc->templates;
-                cproc->from = stmt_proc;
+                Procedure* cproc = sema.construct_procedure_from_stmt(stmt_proc);
 
                 if(name == "main" && sema.m_sym_table.m_scopes.size() == 1 && sema.m_cur_namespace == nullptr) sema.m_entry_point = cproc;
-
-                GString mangled_symbol = name;
-                for(size_t i = 0ULL;i < stmt_proc->params.size();i += 1) {
-                    mangled_symbol += stmt_proc->params[i].second.sign();
-                }
-                mangled_symbol += "@" + std::to_string(stmt_proc->params.size());
-
-                if(sema.m_cur_namespace != nullptr) {
-                    cproc->mangled_symbol = sema.m_cur_namespace->get_mangle() + mangled_symbol;
-                    cproc->name = sema.m_cur_namespace->get_path() + name;
-                } else {
-                    cproc->mangled_symbol = mangled_symbol;
-                }
 
                 if(existing_procedure.has_value()) {
                     Procedure* existing_proc = existing_procedure.value();
@@ -861,16 +875,7 @@ public:
                     current_scope->m_procs[name] = cproc;
                 }
 
-                if(stmt_proc->prototype || stmt_proc->templates != nullptr) return;
-
-                sema.m_cur_procedure = cproc;
-                sema.m_sym_table.begin_scope();
-                for(size_t i = 0;i < cproc->params.size();i++) {
-                    sema.define_local_variable(cproc->params[i].first, cproc->params[i].second);
-                }
-                sema.analyze_scope(stmt_proc->scope);
-                sema.m_sym_table.end_scope();
-                sema.m_cur_procedure = nullptr;
+                sema.analyze_procedure(cproc);
             }
 
             void operator()(NodeStmtReturn* stmt_return) const
@@ -1139,12 +1144,26 @@ public:
     void analyze_prog()
 	{
         m_sym_table.begin_scope();
+        
         for (NodeStmt* stmt : m_prog->stmts) {
             analyze_stmt(stmt);
         }
+        
         if(m_entry_point == nullptr) {
             m_diag_man->DiagnosticMessage("error", "your program does not define the main function, which is required.");
             exit(EXIT_FAILURE);
+        }
+
+        while (!m_template_instantiator.m_pending_bodies.empty()) {
+            auto item = m_template_instantiator.m_pending_bodies.front();
+            m_template_instantiator.m_pending_bodies.pop_front();
+
+            Procedure* proc = item.proc_symbol;
+            NodeStmtProc* node = item.ast_node;
+
+            analyze_procedure(proc);
+
+            m_prog->stmts.push_back(m_allocator->emplace<NodeStmt>(node));
         }
 	}
 
@@ -1184,4 +1203,75 @@ private:
         {DefBinaryOpKind::LOGIC_OR, "m_logic_or"},
         {DefBinaryOpKind::ABOVE, "m_above"},
     };
+
+    class TemplateInstantiator {
+    public:
+
+        struct PendingBody {
+            NodeStmtProc* ast_node;
+            Procedure* proc_symbol;
+        };
+
+        GDeque<PendingBody> m_pending_bodies;
+    
+        ArenaAllocator* m_allocator = nullptr;
+        DiagnosticManager* m_diag_man = nullptr;
+        AstCloner m_ast_cloner;
+        SemanticContext& m_sema;
+
+        GMap<GString, Procedure*> m_instantiated_procs;
+    
+        explicit TemplateInstantiator(ArenaAllocator* arena, DiagnosticManager* dman, SemanticContext& sema) : m_ast_cloner(arena), m_sema(sema) {
+            m_allocator = arena;
+            m_diag_man = dman;
+        }
+    
+        Procedure* instantiate_procedure(Procedure* template_procedure, const GVector<DataType>& template_args, const Token& call_site) {
+            GString new_signature = template_procedure->name + "<";
+            for(size_t i = 0;i < template_args.size();i++) {
+                new_signature += template_args[i].to_string();
+                if(i != template_args.size() - 1) {
+                    new_signature += ", ";
+                }
+            }
+            new_signature += ">";
+    
+            const auto& search = m_instantiated_procs.find(new_signature);
+            if(search != m_instantiated_procs.end()) return search->second;
+    
+            if (template_procedure->templates->size() != template_args.size()) {
+                m_diag_man->DiagnosticMessage(call_site, "error", 
+                    "template types expects " + GString(std::to_string(template_procedure->templates->size()).c_str()) + 
+                    " arguments, but got " + GString(std::to_string(template_args.size()).c_str()), 0);
+                exit(EXIT_FAILURE);
+            }
+    
+            GMap<GString, DataType> template_map;
+            for (size_t i = 0; i < template_args.size(); ++i) {
+                template_map[template_procedure->templates->at(i)] = template_args[i];
+            }
+    
+            NodeStmt* clonned_base_stmt = m_ast_cloner.clone_stmt(m_allocator->emplace<NodeStmt>(template_procedure->from));
+            NodeStmtProc* clonned_base = std::get<NodeStmtProc*>(clonned_base_stmt->var);
+            clonned_base->templates = NULL;
+    
+            TypeSubstitutor substitutor(template_map);
+    
+            substitutor.substitute_stmt(clonned_base_stmt);
+
+            Procedure* new_proc = m_sema.construct_procedure_from_stmt(clonned_base);
+            new_proc->name = new_signature;
+
+            m_sema.m_sym_table.m_mapped_procs_symbols[clonned_base] = new_proc;
+
+            m_instantiated_procs[new_signature] = new_proc;
+
+            m_pending_bodies.push_back({clonned_base, new_proc});
+
+            return new_proc;
+    
+        }
+    };
+
+    TemplateInstantiator m_template_instantiator;
 };
