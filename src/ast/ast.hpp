@@ -554,4 +554,11 @@ namespace AstConverter {
 		return as_stmt;
 	}
 
+	template <typename T>
+	inline NodeIfPred* if_pred(ArenaAllocator* arena, T some_pred) {
+		NodeIfPred* as_pred = arena->emplace<NodeIfPred>();
+		as_pred->var = const_cast<remove_all_const_t<T>>(some_pred);
+		return as_pred;
+	}
+
 } // namespace AstConverter

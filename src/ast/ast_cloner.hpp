@@ -16,6 +16,10 @@ public:
 
     NodeTerm* clone_term(const NodeTerm* term)
     {
+        if(term == nullptr) {
+            return nullptr;
+        }
+
         struct TermVisitor {
             AstCloner& cloner;
 
@@ -23,96 +27,157 @@ public:
             	return AstConverter::term(cloner.m_allocator, cloner.copy_simple(term_int_lit));
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermType* tp) {
-            	return nullptr;
+            NodeTerm* operator()(const NodeTermType* tp) {
+            	return AstConverter::term(cloner.m_allocator, cloner.copy_simple(tp));
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermCol* term_col) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermCol* term_col) const {
+                return AstConverter::term(cloner.m_allocator, cloner.copy_simple(term_col));
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermLine* term_line) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermLine* term_line) const {
+                return AstConverter::term(cloner.m_allocator, cloner.copy_simple(term_line));
             }
 
             NodeTerm* operator()([[maybe_unused]] const NodeTermPop* term_pop) const {
-                return nullptr;
+                return AstConverter::term(cloner.m_allocator, cloner.m_allocator->emplace<NodeTermPop>());
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermExprStmt* term_stmt) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermExprStmt* term_stmt) const {
+                NodeTermExprStmt* new_expr = cloner.m_allocator->emplace<NodeTermExprStmt>();
+                new_expr->def = term_stmt->def;
+                new_expr->scope = cloner.clone_scope(term_stmt->scope);
+                new_expr->expr = cloner.clone_expr(term_stmt->expr);
+                return AstConverter::term(cloner.m_allocator, new_expr);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermFile* term_file) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermFile* term_file) const {
+                return AstConverter::term(cloner.m_allocator, cloner.copy_simple(term_file));
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermCtEval* term_eval) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermCtEval* term_eval) const {
+                NodeTermCtEval* new_ct_eval = cloner.m_allocator->emplace<NodeTermCtEval>();
+                new_ct_eval->def = term_eval->def;
+                new_ct_eval->expr = cloner.clone_expr(term_eval->expr);
+                return AstConverter::term(cloner.m_allocator, new_ct_eval);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermCtMdefined* term_mdef) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermCtMdefined* term_mdef) const {
+                return AstConverter::term(cloner.m_allocator, cloner.copy_simple(term_mdef));
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermSizeof* term_sizeof) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermSizeof* term_sizeof) const {
+                NodeTermSizeof* new_szof = cloner.m_allocator->emplace<NodeTermSizeof>();
+                new_szof->def = term_sizeof->def;
+                new_szof->type = term_sizeof->type;
+                if(term_sizeof->expr.has_value()) new_szof->expr = cloner.clone_expr(term_sizeof->expr.value());
+                else new_szof->expr = std::nullopt;
+                return AstConverter::term(cloner.m_allocator, new_szof);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermRd* term_rd) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermRd* term_rd) const {
+                NodeTermRd* new_rd = cloner.m_allocator->emplace<NodeTermRd>();
+                new_rd->def = term_rd->def;
+                new_rd->size = term_rd->size;
+                new_rd->expr = cloner.clone_expr(term_rd->expr);
+                return AstConverter::term(cloner.m_allocator, new_rd);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermCast* term_cast) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermCast* term_cast) const {
+                NodeTermCast* new_cast = cloner.m_allocator->emplace<NodeTermCast>();
+                new_cast->def = term_cast->def;
+                new_cast->type = term_cast->type;
+                new_cast->expr = cloner.clone_expr(term_cast->expr);
+                return AstConverter::term(cloner.m_allocator, new_cast);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermUnref* term_unref) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermUnref* term_unref) const {
+                NodeTermUnref* new_unref = cloner.m_allocator->emplace<NodeTermUnref>();
+                new_unref->def = term_unref->def;
+                new_unref->expr = cloner.clone_expr(term_unref->expr);
+                return AstConverter::term(cloner.m_allocator, new_unref);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermCastTo* term_cast_to) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermCastTo* term_cast_to) const {
+                NodeTermCastTo* new_cast_to = cloner.m_allocator->emplace<NodeTermCastTo>();
+                new_cast_to->def = term_cast_to->def;
+                new_cast_to->to = cloner.clone_expr(term_cast_to->to);
+                new_cast_to->expr = cloner.clone_expr(term_cast_to->expr);
+                return AstConverter::term(cloner.m_allocator, new_cast_to);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermTypeid* term_typeid) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermTypeid* term_typeid) const {
+                NodeTermTypeid* new_typeid = cloner.m_allocator->emplace<NodeTermTypeid>();
+                new_typeid->def = term_typeid->def;
+                if(term_typeid->ptype.has_value()) new_typeid->ptype = term_typeid->ptype.value();
+                else new_typeid->ptype = std::nullopt;
+                new_typeid->expr = cloner.clone_expr(term_typeid->expr);
+                return AstConverter::term(cloner.m_allocator, new_typeid);
             }
 
             NodeTerm* operator()(const NodeTermStrLit* term_str_lit) const {
             	return AstConverter::term(cloner.m_allocator, cloner.copy_simple(term_str_lit));
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermAmpersand* term_amp) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermAmpersand* term_amp) const {
+                NodeTermAmpersand* new_amp = cloner.m_allocator->emplace<NodeTermAmpersand>();
+                new_amp->def = term_amp->def;
+                new_amp->expr = cloner.clone_expr(term_amp->expr);
+                return AstConverter::term(cloner.m_allocator, new_amp);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermDrvalue* term_drval) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermDrvalue* term_drval) const {
+                NodeTermDrvalue* new_drval = cloner.m_allocator->emplace<NodeTermDrvalue>();
+                new_drval->def = term_drval->def;
+                new_drval->expr = cloner.clone_expr(term_drval->expr);
+                return AstConverter::term(cloner.m_allocator, new_drval);
             }
 
             NodeTerm* operator()(const NodeTermIdent* term_ident) const {
             	return AstConverter::term(cloner.m_allocator, cloner.copy_simple(term_ident));
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermNmIdent* term_ident) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermNmIdent* term_ident) const {
+                return AstConverter::term(cloner.m_allocator, cloner.copy_simple(term_ident));
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermParen* term_paren) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermParen* term_paren) const {
+                NodeTermParen* new_paren = cloner.m_allocator->emplace<NodeTermParen>();
+                new_paren->expr = cloner.clone_expr(term_paren->expr);
+                return AstConverter::term(cloner.m_allocator, new_paren);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermNmCall* term_call) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermNmCall* term_call) const {
+                NodeTermNmCall* new_nm_call = cloner.m_allocator->emplace<NodeTermNmCall>();
+                new_nm_call->def = term_call->def;
+                new_nm_call->name = term_call->name;
+                new_nm_call->nm = term_call->nm;
+                if(term_call->args.has_value()) new_nm_call->args = cloner.clone_expr(term_call->args.value());
+                else new_nm_call->args = std::nullopt;
+                new_nm_call->targs = term_call->targs;
+                return AstConverter::term(cloner.m_allocator, new_nm_call);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermCall* term_call) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermCall* term_call) const {
+                NodeTermCall* new_call = cloner.m_allocator->emplace<NodeTermCall>();
+                new_call->def = term_call->def;
+                new_call->name = term_call->name;
+                if(term_call->args.has_value()) new_call->args = cloner.clone_expr(term_call->args.value());
+                else new_call->args = std::nullopt;
+                new_call->targs = term_call->targs;
+                new_call->as_expr = term_call->as_expr;
+                return AstConverter::term(cloner.m_allocator, new_call);
             }
 
-            NodeTerm* operator()([[maybe_unused]] const NodeTermMtCall* term_call) const {
-                return nullptr;
+            NodeTerm* operator()(const NodeTermMtCall* term_call) const {
+                NodeTermMtCall* new_mt_call = cloner.m_allocator->emplace<NodeTermMtCall>();
+                new_mt_call->def = term_call->def;
+                new_mt_call->mt = cloner.clone_expr(term_call->mt);
+                new_mt_call->name = term_call->name;
+                if(term_call->args.has_value()) new_mt_call->args = cloner.clone_expr(term_call->args.value());
+                else new_mt_call->args = std::nullopt;
+                new_mt_call->targs = term_call->targs;
+                return AstConverter::term(cloner.m_allocator, new_mt_call);
             }
         };
 
@@ -120,73 +185,90 @@ public:
         return std::visit(visitor, term->var);
     }
 
+    template <typename T>
+    NodeBinExpr* default_clone_bin_expr(T some_bin_expr, const NodeBinExpr* base) {
+        remove_all_const_t<T> new_bin_expr = m_allocator->emplace<std::remove_pointer_t<remove_all_const_t<T>>>();
+        new_bin_expr->lhs = clone_expr(some_bin_expr->lhs);
+        new_bin_expr->rhs = clone_expr(some_bin_expr->rhs);
+        return AstConverter::bin_expr(m_allocator, new_bin_expr, base->def);
+    }
+
     NodeBinExpr* clone_bin_expr(const NodeBinExpr* bin_expr)
     {
+        if(bin_expr == nullptr) {
+            return nullptr;
+        }
         struct BinExprVisitor {
             AstCloner& cloner;
             const NodeBinExpr* base;
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprSub* sub) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprSub* sub) const {
+                return cloner.default_clone_bin_expr(sub, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprAdd* add) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprAdd* add) const {
+                return cloner.default_clone_bin_expr(add, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprMulti* multi) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprMulti* multi) const {
+                return cloner.default_clone_bin_expr(multi, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprDiv* div) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprDiv* div) const {
+                return cloner.default_clone_bin_expr(div, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprShl* shl) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprShl* shl) const {
+                return cloner.default_clone_bin_expr(shl, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprShr* shr) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprShr* shr) const {
+                return cloner.default_clone_bin_expr(shr, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprMod* md) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprMod* md) const {
+                return cloner.default_clone_bin_expr(md, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprEqEq* eqeq) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprEqEq* eqeq) const {
+                return cloner.default_clone_bin_expr(eqeq, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprNotEq* nq) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprNotEq* nq) const {
+                return cloner.default_clone_bin_expr(nq, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprLess* less) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprLess* less) const {
+                return cloner.default_clone_bin_expr(less, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprAnd* band) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprAnd* band) const {
+                return cloner.default_clone_bin_expr(band, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprOr* bor) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprOr* bor) const {
+                return cloner.default_clone_bin_expr(bor, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprAbove* above) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprAbove* above) const {
+                return cloner.default_clone_bin_expr(above, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprDot* dot) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprDot* dot) const {
+                return cloner.default_clone_bin_expr(dot, base);
             }
 
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprArgs* args) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprArgs* args) const {
+                NodeBinExprArgs* new_args = cloner.m_allocator->emplace<NodeBinExprArgs>();
+                GVector<NodeExpr*> n_args {};
+                for(NodeExpr* arg : args->args) {
+                    n_args.push_back(cloner.clone_expr(arg));
+                }
+                new_args->args = n_args;
+                return AstConverter::bin_expr(cloner.m_allocator, new_args, base->def);
             }
-            NodeBinExpr* operator()([[maybe_unused]] const NodeBinExprIndex* idx) const {
-                return nullptr;
+            NodeBinExpr* operator()(const NodeBinExprIndex* idx) const {
+                return cloner.default_clone_bin_expr(idx, base);
             }
         };
 
@@ -196,17 +278,20 @@ public:
 
     NodeExpr* clone_expr(const NodeExpr* expr)
     {
+        if(expr == nullptr) {
+            return nullptr;
+        }
         struct ExprVisitor {
             AstCloner& cloner;
 
-            NodeExpr* operator()([[maybe_unused]] const NodeTerm* term) const
+            NodeExpr* operator()(const NodeTerm* term) const
             {
-                return nullptr;
+                return AstConverter::expr(cloner.m_allocator, cloner.clone_term(term));
             }
 
-            NodeExpr* operator()([[maybe_unused]] const NodeBinExpr* bin_expr) const
+            NodeExpr* operator()(const NodeBinExpr* bin_expr) const
             {
-                return nullptr;
+                return AstConverter::expr(cloner.m_allocator, cloner.clone_bin_expr(bin_expr));
             }
         };
 
@@ -214,24 +299,45 @@ public:
         return std::visit(visitor, expr->var);
     }
 
-    NodeScope* gen_scope([[maybe_unused]] const NodeScope* scope)
+    NodeScope* clone_scope(const NodeScope* scope)
     {
-        return nullptr;
+        if(scope == nullptr) {
+            return nullptr;
+        }
+        NodeScope* new_scope = m_allocator->emplace<NodeScope>();
+        GVector<NodeStmt*> stmts;
+
+        for(const NodeStmt* stmt : scope->stmts) {
+            stmts.push_back(clone_stmt(stmt));
+        }
+
+        new_scope->stmts = stmts;
+        return new_scope;
     }
 
     NodeIfPred* clone_if_pred(const NodeIfPred* pred)
     {
+        if(pred == nullptr) {
+            return nullptr;
+        }
         struct PredVisitor {
             AstCloner& cloner;
 
-            NodeIfPred* operator()([[maybe_unused]] const NodeIfPredElif* elif) const
+            NodeIfPred* operator()(const NodeIfPredElif* elif) const
             {
-                return nullptr;
+                NodeIfPredElif* new_elif = cloner.m_allocator->emplace<NodeIfPredElif>();
+                new_elif->expr = cloner.clone_expr(elif->expr);
+                new_elif->scope = cloner.clone_scope(elif->scope);
+                if(elif->pred.has_value()) new_elif->pred = cloner.clone_if_pred(elif->pred.value());
+                else new_elif->pred = std::nullopt;
+                return AstConverter::if_pred(cloner.m_allocator, new_elif);
             }
 
-            NodeIfPred* operator()([[maybe_unused]] const NodeIfPredElse* else_) const
+            NodeIfPred* operator()(const NodeIfPredElse* else_) const
             {
-                return nullptr;
+                NodeIfPredElse* new_else = cloner.m_allocator->emplace<NodeIfPredElse>();
+                new_else->scope = cloner.clone_scope(else_->scope);
+                return AstConverter::if_pred(cloner.m_allocator, new_else);
             }
         };
 
@@ -241,12 +347,15 @@ public:
 
     NodeStmt* clone_stmt(const NodeStmt* stmt)
     {
+        if(stmt == nullptr) {
+            return nullptr;
+        }
         struct StmtVisitor {
             AstCloner& cloner;
 
             NodeStmt* operator()([[maybe_unused]] const NodeStmtExit* stmt_exit) const
             {
-                return nullptr;
+                
             }
 
             NodeStmt* operator()([[maybe_unused]] const NodeStmtProc* stmt_proc)
