@@ -50,11 +50,14 @@ bool __slashinpath;
 #include "tokenization.hpp"
 #include "diagnostic.hpp"
 
-#include "common/datatype.hpp"
+#include "types/datatype.hpp"
 
 #include "ast/ast.hpp"
+
 #include "ast/ast_cloner.hpp"
+
 #include "parser.hpp"
+#include "types/type_substitutor.hpp"
 
 #include "sema.hpp"
 
