@@ -674,4 +674,12 @@ public:
         StmtVisitor visitor{ *this };
         return std::visit(visitor, stmt->var);
     }
+
+    NodeProg* clone_prog(NodeProg* prog) {
+        NodeProg* new_prog = m_allocator->emplace<NodeProg>();
+        for(NodeStmt* stmt : prog->stmts) {
+            new_prog->stmts.push_back(stmt);
+        }
+        return new_prog;
+    }
 };
