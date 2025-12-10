@@ -153,18 +153,19 @@ public:
 
     GlobalArenaAllocator() noexcept = default;
 
+    using is_always_equal = std::true_type; 
+    using propagate_on_container_copy_assignment = std::false_type;
+    using propagate_on_container_move_assignment = std::false_type;
+    using propagate_on_container_swap = std::false_type;
+
+
     template <typename U>
     GlobalArenaAllocator(const GlobalArenaAllocator<U>&) noexcept {}
 
     [[nodiscard]] 
     FORCE_INLINE
     T* allocate(std::size_t n) {
-#ifdef NDEBUG
         return g_GlobalArena->alloc<T>(n);
-#else
-        assert(g_GlobalArena != nullptr);
-        return g_GlobalArena->alloc<T>(n);
-#endif
     }
 
     FORCE_INLINE

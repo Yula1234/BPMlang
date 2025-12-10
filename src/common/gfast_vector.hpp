@@ -150,11 +150,7 @@ public:
         return *this;
     }
 
-    ~GFastVector() {
-        if constexpr (!std::is_trivially_destructible_v<T>) {
-            destroy_range(m_begin, m_end);
-        }
-    }
+    ~GFastVector() noexcept {}
 
     [[nodiscard]] G_ALWAYS_INLINE reference operator[](size_type index) noexcept {
         return m_begin[index];
