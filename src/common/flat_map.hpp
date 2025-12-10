@@ -5,18 +5,18 @@
 template <typename Key, typename Value, typename Hasher = std::hash<Key>, typename Equal = std::equal_to<Key>>
 class GFlatMap {
 public:
-    using value_type = std::pair<Key, Value>;
+    using value_type = std::pair<const Key, Value>;
     
     using HashAllocator = GlobalArenaAllocator<size_t>;
     using DataAllocator = GlobalArenaAllocator<value_type>;
 
+    using ByteAllocator = GlobalArenaAllocator<char>;
+
 private:
     static FORCE_INLINE size_t mix(size_t h) {
-        h ^= h >> 16;
-        h *= 0x85ebca6b;
-        h ^= h >> 13;
-        h *= 0xc2b2ae35;
-        h ^= h >> 16;
+        h *= 0xcc9e2d51;
+        h = (h << 15) | (h >> 17);
+        h *= 0x1b873593;
         return LIKELY(h != 0) ? h : 1;
     }
 
@@ -249,11 +249,11 @@ private:
 
     void destroy() {
         if (m_hashes) {
-            for (size_t i = 0; i < m_capacity; ++i) {
-                if (m_hashes[i] != 0) m_data[i].~value_type();
+            if constexpr (!std::is_trivially_destructible_v<value_type>) {
+                for (size_t i = 0; i < m_capacity; ++i) {
+                    if (m_hashes[i] != 0) m_data[i].~value_type();
+                }
             }
-            HashAllocator().deallocate(m_hashes, m_capacity);
-            DataAllocator().deallocate(m_data, m_capacity);
             m_hashes = nullptr;
             m_data = nullptr;
             m_size = 0;
@@ -265,14 +265,19 @@ private:
         size_t new_cap = 16;
         while (new_cap < cap) new_cap <<= 1;
         
-        m_hashes = HashAllocator().allocate(new_cap);
-        std::memset(m_hashes, 0, new_cap * sizeof(size_t));
+        size_t hashes_size_bytes = new_cap * sizeof(size_t);
+        size_t data_size_bytes = new_cap * sizeof(value_type);
         
-        m_data = DataAllocator().allocate(new_cap);
+        char* raw_mem = ByteAllocator().allocate(hashes_size_bytes + data_size_bytes);
+        
+        m_hashes = reinterpret_cast<size_t*>(raw_mem);
+        m_data = reinterpret_cast<value_type*>(raw_mem + hashes_size_bytes);
+        
+        std::memset(m_hashes, 0, hashes_size_bytes);
         
         m_capacity = new_cap;
         m_mask = new_cap - 1;
-        m_threshold = new_cap >> 1;
+        m_threshold = (new_cap * 3) >> 2;
     }
 
     void rehash(size_t new_cap) {
@@ -280,24 +285,28 @@ private:
         value_type* old_data = m_data;
         size_t old_cap = m_capacity;
 
-        m_hashes = HashAllocator().allocate(new_cap);
-        std::memset(m_hashes, 0, new_cap * sizeof(size_t));
-        m_data = DataAllocator().allocate(new_cap);
-        
-        m_capacity = new_cap;
-        m_mask = new_cap - 1;
-        m_threshold = new_cap >> 1;
+        allocate(new_cap);
         m_size = 0;
 
         if (old_hashes) {
+            const size_t mask = m_mask;
+
             for (size_t i = 0; i < old_cap; ++i) {
                 if (old_hashes[i] != 0) {
-                    insert_move_direct(old_hashes[i], std::move(old_data[i]));
-                    old_data[i].~value_type();
+                    size_t h = old_hashes[i];
+                    size_t idx = h & mask;
+                    while (m_hashes[idx] != 0) {
+                        idx = (idx + 1) & mask;
+                    }
+                    m_hashes[idx] = h;
+                    new (&m_data[idx]) value_type(std::move(old_data[i]));
+                    m_size++;
+
+                    if constexpr (!std::is_trivially_destructible_v<value_type>) {
+                        old_data[i].~value_type();
+                    }
                 }
             }
-            HashAllocator().deallocate(old_hashes, old_cap);
-            DataAllocator().deallocate(old_data, old_cap);
         }
     }
 
