@@ -1,255 +1,51 @@
 #pragma once
 
 enum class TokenType_t {
-    exit,
-    int_lit,
-    semi,
-    open_paren,
-    close_paren,
-    ident,
-    let,
-    _type,
-    less,
-    eqeq,
-    eq,
-    plus,
-    star,
-    minus,
-    fslash,
-    above,
-    open_curly,
-    close_curly,
-    if_,
-    elif,
-    else_,
-    proc,
-    in,
-    string_lit,
-    comma,
-    int_type,
-    double_dot,
-    wwhile,
-    _return,
-    arrow,
-    void_type,
-    ptr_type,
-    any_type,
-    char_type,
-    proc_ptr,
-    store8,
-    store16,
-    store32,
-    read8,
-    read16,
-    read32,
-    ampersand,
-    _include,
-    _not_eq,
-    buffer,
-    mod,
-    _asm,
-    cextern,
-    open_bracket,
-    close_bracket,
-    _const,
-    cast,
-    _struct,
-    _delete,
-    dot,
-    _break,
-    plus_eq,
-    minus_eq,
-    star_eq,
-    fslash_eq,
-    _static_assert,
-    double_ampersand,
-    double_stick,
-    hash_sign,
-    _define,
-    dollar,
-    _interface,
-    _sizeof,
-    _typeid,
-    oninit,
-    shift_left,
-    shift_right,
-    pushonstack,
-    _line,
-    _col,
-    _file,
-    empty_stmt,
-    expr_stmt,
-    popfromstack,
-    cast_to,
-    ct_eval,
-    _namespace,
-    double_colon,
-    ct_mdefined,
-    tilda,
-    _typedef,
-    _constexpr,
-    impl,
-    raise,
-    _try,
-    _catch,
-    __drvalue,
-    for_,
-    foreach_,
-    enum_,
+    exit, int_lit, semi, open_paren, close_paren, ident, let, _type, less, eqeq, eq,
+    plus, star, minus, fslash, above, open_curly, close_curly, if_, elif, else_,
+    proc, in, string_lit, comma, int_type, double_dot, wwhile, _return, arrow,
+    void_type, ptr_type, any_type, char_type, proc_ptr, store8, store16, store32,
+    read8, read16, read32, ampersand, _include, _not_eq, buffer, mod, _asm,
+    cextern, open_bracket, close_bracket, _const, cast, _struct, _delete, dot,
+    _break, plus_eq, minus_eq, star_eq, fslash_eq, _static_assert, double_ampersand,
+    double_stick, hash_sign, _define, dollar, _interface, _sizeof, _typeid, oninit,
+    shift_left, shift_right, pushonstack, _line, _col, _file, empty_stmt, expr_stmt,
+    popfromstack, cast_to, ct_eval, _namespace, double_colon, ct_mdefined, tilda,
+    _typedef, _constexpr, impl, raise, _try, _catch, __drvalue, for_, foreach_, enum_
 };
 
-const GMap<TokenType_t, GString> map_tok2str {
-    {TokenType_t::exit, "`exit`"},
-    {TokenType_t::int_lit, "`int literal`"},
-    {TokenType_t::semi, "`;`"},
-    {TokenType_t::open_paren, "`(`"},
-    {TokenType_t::close_paren, "`)`"},
-    {TokenType_t::ident, "identifier"},
-    {TokenType_t::let, "`let`"},
-    {TokenType_t::eq, "`=`"},
-    {TokenType_t::eqeq, "`==`"},
-    {TokenType_t::plus, "`+`"},
-    {TokenType_t::star, "`*`"},
-    {TokenType_t::minus, "`-`"},
-    {TokenType_t::fslash, "`/`"},
-    {TokenType_t::open_curly, "`{`"},
-    {TokenType_t::close_curly, "`}`"},
-    {TokenType_t::if_, "`if`"},
-    {TokenType_t::elif, "`elif`"},
-    {TokenType_t::else_, "`else`"},
-    {TokenType_t::proc, "`proc`"},
-    {TokenType_t::in, "`in`"},
-    {TokenType_t::string_lit, "`string literal`"},
-    {TokenType_t::less, "`<`"},
-    {TokenType_t::above, "`>`"},
-    {TokenType_t::comma, "`,`"},
-    {TokenType_t::int_type, "`int`"},
-    {TokenType_t::void_type, "`void`"},
-    {TokenType_t::double_dot, "`:`"},
-    {TokenType_t::wwhile, "`while`"},
-    {TokenType_t::_return, "`return`"},
-    {TokenType_t::arrow, "`->`"},
-    {TokenType_t::ptr_type, "`ptr`"},
-    {TokenType_t::char_type, "`char`"},
-    {TokenType_t::any_type, "`any`"},
-    {TokenType_t::store8, "`store8`"},
-    {TokenType_t::store16, "`store16`"},
-    {TokenType_t::store32, "`store32`"},
-    {TokenType_t::read8, "`rd8`"},
-    {TokenType_t::read16, "`rd16`"},
-    {TokenType_t::read32, "`rd32`"},
-    {TokenType_t::ampersand, "`&`"},
-    {TokenType_t::_include, "`include`"},
-    {TokenType_t::_not_eq, "`!=`"},
-    {TokenType_t::buffer, "`buffer`"},
-    {TokenType_t::mod, "`%`"},
-    {TokenType_t::_asm, "`asm`"},
-    {TokenType_t::cextern, "`cextern`"},
-    {TokenType_t::open_bracket, "`[`"},
-    {TokenType_t::close_bracket, "`]`"},
-    {TokenType_t::_const, "`const`"},
-    {TokenType_t::cast, "`cast`"},
-    {TokenType_t::_struct, "`struct`"},
-    {TokenType_t::_delete, "`delete`"},
-    {TokenType_t::dot, "`.`"},
-    {TokenType_t::_break, "`break`"},
-    {TokenType_t::plus_eq, "`+=`"},
-    {TokenType_t::minus_eq, "`-=`"},
-    {TokenType_t::star_eq, "`*=`"},
-    {TokenType_t::fslash_eq, "`/=`"},
-    {TokenType_t::_static_assert, "`static_assert`"},
-    {TokenType_t::double_ampersand, "`&&`"},
-    {TokenType_t::double_stick, "`||`"},
-    {TokenType_t::hash_sign, "`#`"},
-    {TokenType_t::_define, "`define`"},
-    {TokenType_t::dollar, "`$`"},
-    {TokenType_t::_interface, "`interface`"},
-    {TokenType_t::_sizeof, "`sizeof`"},
-    {TokenType_t::_typeid, "`typeid`"},
-    {TokenType_t::oninit, "`oninit`"},
-    {TokenType_t::shift_left, "`<<`"},
-    {TokenType_t::shift_right, "`>>`"},
-    {TokenType_t::pushonstack, "`pushonstack`"},
-    {TokenType_t::_line, "`__LINE__`"},
-    {TokenType_t::_col, "`__COL__`"},
-    {TokenType_t::_file, "`__FILE__`"},
-    {TokenType_t::empty_stmt, "`__empty_stmt`"},
-    {TokenType_t::_type, "`ct_type`"},
-    {TokenType_t::expr_stmt, "`__expr_stmt`"},
-    {TokenType_t::popfromstack, "`__popfromstack`"},
-    {TokenType_t::cast_to, "`cast_to`"},
-    {TokenType_t::ct_eval, "`ct_eval`"},
-    {TokenType_t::_namespace, "`namespace`"},
-    {TokenType_t::double_colon, "`::`"},
-    {TokenType_t::ct_mdefined, "`ct_mdefined`"},
-    {TokenType_t::tilda, "`~`"},
-    {TokenType_t::_typedef, "`typedef`"},
-    {TokenType_t::_constexpr, "`constexpr`"},
-    {TokenType_t::proc_ptr, "`ProcPtr`"},
-    {TokenType_t::impl, "`impl`"},
-    {TokenType_t::raise, "`raise`"},
-    {TokenType_t::_try, "`try`"},
-    {TokenType_t::_catch, "`catch`"},
-    {TokenType_t::__drvalue, "`__disable_rvalue__`"},
-    {TokenType_t::for_, "`for`"},
-    {TokenType_t::foreach_, "`foreach`"},
-    {TokenType_t::enum_, "`enum`"},
+static const char* const token_names[] = {
+    "`exit`", "`int literal`", "`;`", "`(`", "`)`", "identifier", "`let`", "`ct_type`",
+    "`<`", "`==`", "`=`", "`+`", "`*`", "`-`", "`/`", "`>`", "`{`", "`}`",
+    "`if`", "`elif`", "`else`", "`proc`", "`in`", "`string literal`", "`,`",
+    "`int`", "`:`", "`while`", "`return`", "`->`", "`void`", "`ptr`", "`any`", "`char`",
+    "`ProcPtr`", "`store8`", "`store16`", "`store32`", "`rd8`", "`rd16`", "`rd32`",
+    "`&`", "`include`", "`!=`", "`buffer`", "`%`", "`asm`", "`cextern`", "`[`", "`]`",
+    "`const`", "`cast`", "`struct`", "`delete`", "`.`", "`break`", "`+=`", "`-=`",
+    "`*=`", "`/=`", "`static_assert`", "`&&`", "`||`", "`#`", "`define`", "`$`",
+    "`interface`", "`sizeof`", "`typeid`", "`oninit`", "`<<`", "`>>`", "`pushonstack`",
+    "`__LINE__`", "`__COL__`", "`__FILE__`", "`__empty_stmt`", "`__expr_stmt`",
+    "`__popfromstack`", "`cast_to`", "`ct_eval`", "`namespace`", "`::`", "`ct_mdefined`",
+    "`~`", "`typedef`", "`constexpr`", "`impl`", "`raise`", "`try`", "`catch`",
+    "`__disable_rvalue__`", "`for`", "`foreach`", "`enum`"
 };
 
-GString tok_to_string(const TokenType_t type)
-{
-    const auto& search = map_tok2str.find(type);
-    assert(search != map_tok2str.end());
-    return search->second;
+inline GString tok_to_string(const TokenType_t type) {
+    return token_names[static_cast<size_t>(type)];
 }
 
-inline std::optional<int> bin_prec(const TokenType_t type)
-{
+inline std::optional<int> bin_prec(const TokenType_t type) {
     switch (type) {
-    // ||
-    case TokenType_t::double_stick:
-        return 0;
-
-    // &&
-    case TokenType_t::double_ampersand:
-        return 1;
-
-    // != ==
-    case TokenType_t::eqeq:
-    case TokenType_t::_not_eq:
-        return 2;
-
-    // < >
-    case TokenType_t::less:
-    case TokenType_t::above:
-        return 3;
-
-    // << >>
-    case TokenType_t::shift_left:
-    case TokenType_t::shift_right:
-        return 4;
-
-    // + -
-    case TokenType_t::plus:
-    case TokenType_t::minus:
-        return 5;
-
-    // * / %
-    case TokenType_t::star:
-    case TokenType_t::fslash:
-    case TokenType_t::mod:
-        return 6;
-
-    // []
-    case TokenType_t::open_bracket:
-        return 100; 
-
-    // .
-    case TokenType_t::dot:
-        return 10000; 
-
-    default:
-        return {};
+        case TokenType_t::double_stick: return 0;
+        case TokenType_t::double_ampersand: return 1;
+        case TokenType_t::eqeq: case TokenType_t::_not_eq: return 2;
+        case TokenType_t::less: case TokenType_t::above: return 3;
+        case TokenType_t::shift_left: case TokenType_t::shift_right: return 4;
+        case TokenType_t::plus: case TokenType_t::minus: return 5;
+        case TokenType_t::star: case TokenType_t::fslash: case TokenType_t::mod: return 6;
+        case TokenType_t::open_bracket: return 100;
+        case TokenType_t::dot: return 10000;
+        default: return {};
     }
 }
 
@@ -260,13 +56,11 @@ struct Token {
     std::optional<GString> value {};
     GString file;
     std::optional<Token*> expand;
+
     friend std::ostream& operator<<(std::ostream& out, const Token& tok) {
-        out << "Token(.type = " << tok_to_string(tok.type);
-        out << ", .line = " << tok.line;
-        out << ", .col = " << tok.col;
-        if(tok.value.has_value()) {
-            out << ", .value = " << tok.value.value();
-        }
+        out << "Token(.type = " << tok_to_string(tok.type)
+            << ", .line = " << tok.line << ", .col = " << tok.col;
+        if (tok.value.has_value()) out << ", .value = " << tok.value.value();
         out << ")";
         return out;
     }
@@ -277,20 +71,9 @@ void putloc(const Token& tok) {
 }
 
 GString loc_of(const Token& tok) {
-    static char buffer[2048];
-    sprintf(buffer, "%s %d:%d", tok.file.c_str(), tok.line, tok.col);
-    GString str(buffer);
-    return str;
-}
-
-bool is_valid_id(const char c) {
-    switch(c) {
-    case '_':
-        return true;
-    default:
-        return false;
-    }
-    return false;
+    char buffer[512];
+    std::snprintf(buffer, sizeof(buffer), "%s %d:%d", tok.file.c_str(), tok.line, tok.col);
+    return GString(buffer);
 }
 
 struct TokenizerResult {
@@ -298,530 +81,275 @@ struct TokenizerResult {
     GVector<GString>* lines;
 };
 
+static constexpr std::array<uint8_t, 256> char_map = []() {
+    std::array<uint8_t, 256> t = {};
+    t[' '] = t['\t'] = t['\r'] = t['\v'] = t['\f'] = 1;
+    t['\n'] = 2;
+    for (int i = '0'; i <= '9'; ++i) t[i] = 3;
+    for (int i = 'a'; i <= 'z'; ++i) t[i] = 4;
+    for (int i = 'A'; i <= 'Z'; ++i) t[i] = 4;
+    t['_'] = 4;
+    return t;
+}();
+
 class Tokenizer {
 public:
-    explicit Tokenizer(GString src)
-        : m_src(std::move(src))
-    {
+    explicit Tokenizer(GString src) : m_src(std::move(src)) {
+        if (keywords.empty()) init_keywords();
         lines = split_string(m_src, "\n");
     }
 
-    TokenizerResult tokenize(const GString& file)
-    {
+    TokenizerResult tokenize(const GString& file) {
         GVector<Token>* tokens = g_GlobalArena->emplace<GVector<Token>>();
-        GString buf;
-        int line_count = 1;
-        while (peek().has_value()) {
-            if (std::isalpha(peek().value()) || is_valid_id(peek().value())) {
-                buf.push_back(consume());
-                while (peek().has_value() && (std::isalnum(peek().value()) || is_valid_id(peek().value()))) {
-                    buf.push_back(consume());
-                }
-                if (buf == "exit") {
-                    tokens->push_back({ .type = TokenType_t::exit, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "let") {
-                    tokens->push_back({ .type = TokenType_t::let, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "if") {
-                    tokens->push_back({ .type = TokenType_t::if_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "elif") {
-                    tokens->push_back({ .type = TokenType_t::elif, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "else") {
-                    tokens->push_back({ .type = TokenType_t::else_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "proc") {
-                    tokens->push_back({ .type = TokenType_t::proc, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "int") {
-                    tokens->push_back({ .type = TokenType_t::int_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "void") {
-                    tokens->push_back({ .type = TokenType_t::void_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "ptr") {
-                    tokens->push_back({ .type = TokenType_t::ptr_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "char") {
-                    tokens->push_back({ .type = TokenType_t::char_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "any") {
-                    tokens->push_back({ .type = TokenType_t::any_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "while") {
-                    tokens->push_back({ .type = TokenType_t::wwhile, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "return") {
-                    tokens->push_back({ .type = TokenType_t::_return, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "store8") {
-                    tokens->push_back({ .type = TokenType_t::store8, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "store16") {
-                    tokens->push_back({ .type = TokenType_t::store16, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "store32") {
-                    tokens->push_back({ .type = TokenType_t::store32, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "rd8") {
-                    tokens->push_back({ .type = TokenType_t::read8, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "rd16") {
-                    tokens->push_back({ .type = TokenType_t::read16, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "rd32") {
-                    tokens->push_back({ .type = TokenType_t::read32, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "include") {
-                    tokens->push_back({ .type = TokenType_t::_include, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "buffer") {
-                    tokens->push_back({ .type = TokenType_t::buffer, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "asm") {
-                    tokens->push_back({ .type = TokenType_t::_asm, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "cextern") {
-                    tokens->push_back({ .type = TokenType_t::cextern, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "const") {
-                    tokens->push_back({ .type = TokenType_t::_const, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "cast") {
-                    tokens->push_back({ .type = TokenType_t::cast, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "struct") {
-                    tokens->push_back({ .type = TokenType_t::_struct, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "delete") {
-                    tokens->push_back({ .type = TokenType_t::_delete, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "break") {
-                    tokens->push_back({ .type = TokenType_t::_break, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "static_assert") {
-                    tokens->push_back({ .type = TokenType_t::_static_assert, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "define") {
-                    tokens->push_back({ .type = TokenType_t::_define, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "interface") {
-                    tokens->push_back({ .type = TokenType_t::_interface, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "sizeof") {
-                    tokens->push_back({ .type = TokenType_t::_sizeof, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "typeid") {
-                    tokens->push_back({ .type = TokenType_t::_typeid, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "__oninit") {
-                    tokens->push_back({ .type = TokenType_t::oninit, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "__pushonstack") {
-                    tokens->push_back({ .type = TokenType_t::pushonstack, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "__popfromstack") {
-                    tokens->push_back({ .type = TokenType_t::popfromstack, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "__LINE__") {
-                    tokens->push_back({ .type = TokenType_t::_line, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "__COL__") {
-                    tokens->push_back({ .type = TokenType_t::_col, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "__FILE__") {
-                    tokens->push_back({ .type = TokenType_t::_file, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "__empty_stmt") {
-                    tokens->push_back({ .type = TokenType_t::empty_stmt, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "ct_type") {
-                    tokens->push_back({ .type = TokenType_t::_type, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "__expr_stmt") {
-                    tokens->push_back({ .type = TokenType_t::expr_stmt, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "cast_to") {
-                    tokens->push_back({ .type = TokenType_t::cast_to, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "ct_eval") {
-                    tokens->push_back({ .type = TokenType_t::ct_eval, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "namespace") {
-                    tokens->push_back({ .type = TokenType_t::_namespace, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "ct_mdefined") {
-                    tokens->push_back({ .type = TokenType_t::ct_mdefined, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "typedef") {
-                    tokens->push_back({ .type = TokenType_t::_typedef, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "constexpr") {
-                    tokens->push_back({ .type = TokenType_t::_constexpr, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "ProcPtr") {
-                    tokens->push_back({ .type = TokenType_t::proc_ptr, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "impl") {
-                    tokens->push_back({ .type = TokenType_t::impl, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "raise") {
-                    tokens->push_back({ .type = TokenType_t::raise, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "try") {
-                    tokens->push_back({ .type = TokenType_t::_try, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "catch") {
-                    tokens->push_back({ .type = TokenType_t::_catch, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "__disable_rvalue__") {
-                    tokens->push_back({ .type = TokenType_t::__drvalue, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "foreach") {
-                    tokens->push_back({ .type = TokenType_t::foreach_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "for") {
-                    tokens->push_back({ .type = TokenType_t::for_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else if (buf == "enum") {
-                    tokens->push_back({ .type = TokenType_t::enum_, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
-                else {
-                    tokens->push_back({ .type = TokenType_t::ident, .line =  line_count, .col =  m_col - static_cast<int>(buf.size()), .value = buf, .file = file, .expand = std::nullopt });
-                    buf.clear();
-                }
+        tokens->reserve(m_src.size() / 4);
+
+        const char* curr = m_src.c_str();
+        const char* const end = curr + m_src.size();
+        const char* line_start = curr;
+        int line = 1;
+
+        while (curr < end) {
+            const uint8_t type = char_map[static_cast<uint8_t>(*curr)];
+
+            if (type == 1) { 
+                ++curr; 
+                continue; 
             }
-            else if (std::isdigit(peek().value())) {
-                buf.push_back(consume());
-                while (peek().has_value() && std::isdigit(peek().value())) {
-                    buf.push_back(consume());
+            
+            if (type == 2) { 
+                ++line;
+                ++curr;
+                line_start = curr;
+                continue;
+            }
+
+            const int col = static_cast<int>(curr - line_start) + 1;
+
+            if (type == 4) {
+                const char* start = curr;
+                do { ++curr; } while (curr < end && char_map[static_cast<uint8_t>(*curr)] >= 3);
+                
+                GString text(start, curr - start);
+                auto it = keywords.find(text);
+                if (it != keywords.end()) {
+                    tokens->push_back({it->second, line, col, {}, file, {}});
+                } else {
+                    tokens->push_back({TokenType_t::ident, line, col, std::move(text), file, {}});
                 }
-                tokens->push_back({ .type = TokenType_t::int_lit, .line = line_count, .col = m_col - static_cast<int>(buf.size()), .value = buf, .file = file, .expand = std::nullopt });
-                buf.clear();
+                continue;
             }
-            else if (peek().value() == '-' && peek(1).has_value() && peek(1).value() == '>') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::arrow, .line =  line_count, .col = m_col - 2, .file = file, .expand = std::nullopt });
+
+            if (type == 3) {
+                const char* start = curr;
+                do { ++curr; } while (curr < end && char_map[static_cast<uint8_t>(*curr)] == 3);
+                tokens->push_back({TokenType_t::int_lit, line, col, GString(start, curr - start), file, {}});
+                continue;
             }
-            else if (peek().value() == '<' && peek(1).has_value() && peek(1).value() == '<') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::shift_left, .line =  line_count, .col = m_col - 2, .file = file, .expand = std::nullopt });
-            }
-            else if (peek().value() == '>' && peek(1).has_value() && peek(1).value() == '>') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::shift_right, .line =  line_count, .col = m_col - 2, .file = file, .expand = std::nullopt });
-            }
-            else if (peek().value() == '&' && peek(1).has_value() && peek(1).value() == '&') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::double_ampersand, .line =  line_count, .col = m_col - 2, .file = file, .expand = std::nullopt });
-            }
-            else if (peek().value() == '|' && peek(1).has_value() && peek(1).value() == '|') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::double_stick, .line =  line_count, .col = m_col - 2, .file = file, .expand = std::nullopt });
-            }
-            else if (peek().value() == ':' && peek(1).has_value() && peek(1).value() == ':') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::double_colon, .line =  line_count, .col = m_col - 2, .file = file, .expand = std::nullopt });
-            }
-            else if (peek().value() == '+' && peek(1).has_value() && peek(1).value() == '=') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::plus_eq, .line =  line_count, .col = m_col - 2, .file = file, .expand = std::nullopt });
-            }
-            else if (peek().value() == '-' && peek(1).has_value() && peek(1).value() == '=') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::minus_eq, .line =  line_count, .col = m_col - 2, .file = file, .expand = std::nullopt });
-            }
-            else if (peek().value() == '*' && peek(1).has_value() && peek(1).value() == '=') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::star_eq, .line =  line_count, .col = m_col - 2, .file = file, .expand = std::nullopt });
-            }
-            else if (peek().value() == '/' && peek(1).has_value() && peek(1).value() == '=') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::fslash_eq, .line =  line_count, .col = m_col - 2, .file = file, .expand = std::nullopt });
-            }
-            else if (peek().value() == '/' && peek(1).has_value() && peek(1).value() == '/') {
-                consume();
-                consume();
-                while (peek().has_value() && peek().value() != '\n') {
-                    consume();
-                }
-            }
-            else if (peek().value() == '/' && peek(1).has_value() && peek(1).value() == '*') {
-                consume();
-                consume();
-                while (peek().has_value()) {
-                    if (peek().value() == '*' && peek(1).has_value() && peek(1).value() == '/') {
-                        break;
+
+            const char c = *curr;
+            switch (c) {
+                case '(': tokens->push_back({TokenType_t::open_paren, line, col, {}, file, {}}); ++curr; break;
+                case ')': tokens->push_back({TokenType_t::close_paren, line, col, {}, file, {}}); ++curr; break;
+                case '{': tokens->push_back({TokenType_t::open_curly, line, col, {}, file, {}}); ++curr; break;
+                case '}': tokens->push_back({TokenType_t::close_curly, line, col, {}, file, {}}); ++curr; break;
+                case '[': tokens->push_back({TokenType_t::open_bracket, line, col, {}, file, {}}); ++curr; break;
+                case ']': tokens->push_back({TokenType_t::close_bracket, line, col, {}, file, {}}); ++curr; break;
+                case ';': tokens->push_back({TokenType_t::semi, line, col, {}, file, {}}); ++curr; break;
+                case ',': tokens->push_back({TokenType_t::comma, line, col, {}, file, {}}); ++curr; break;
+                case '.': tokens->push_back({TokenType_t::dot, line, col, {}, file, {}}); ++curr; break;
+                case '~': tokens->push_back({TokenType_t::tilda, line, col, {}, file, {}}); ++curr; break;
+                case '$': tokens->push_back({TokenType_t::dollar, line, col, {}, file, {}}); ++curr; break;
+                case '#': tokens->push_back({TokenType_t::hash_sign, line, col, {}, file, {}}); ++curr; break;
+                case '%': tokens->push_back({TokenType_t::mod, line, col, {}, file, {}}); ++curr; break;
+
+                case '=':
+                    if (curr + 1 < end && curr[1] == '=') {
+                        tokens->push_back({TokenType_t::eqeq, line, col, {}, file, {}}); curr += 2;
+                    } else {
+                        tokens->push_back({TokenType_t::eq, line, col, {}, file, {}}); ++curr;
                     }
-                    consume();
-                }
-                if (peek().has_value()) {
-                    consume();
-                }
-                if (peek().has_value()) {
-                    consume();
-                }
-            }
-            else if(peek().value() == '"') {
-                consume();
-                buf.clear();
-                while(peek().has_value() && peek().value() != '"') {
-                    buf.push_back(consume());
-                    if(peek().has_value() && peek(0).value() == '\\' &&
-                        peek(1).has_value() && peek(1).value() == '"') {
-                        consume();
-                        consume();
-                        buf.push_back('"');
+                    break;
+                case '+':
+                    if (curr + 1 < end && curr[1] == '=') {
+                        tokens->push_back({TokenType_t::plus_eq, line, col, {}, file, {}}); curr += 2;
+                    } else {
+                        tokens->push_back({TokenType_t::plus, line, col, {}, file, {}}); ++curr;
                     }
-                }
-                consume();
-                for(int i = 0;i < static_cast<int>(buf.size());++i) {
-                    if(buf[i] == '\\') {
-                        if(buf[i+1] == 'n') {
-                            buf.erase(buf.begin()+i);
-                            buf[i] = '\n';
-                        }
-                        else if(buf[i+1] == 't') {
-                            buf.erase(buf.begin()+i);
-                            buf[i] = '\t';
-                        }
-                        else if(buf[i+1] == '"') {
-                            buf.erase(buf.begin()+i);
-                            buf[i] = '"';
-                        }
+                    break;
+                case '-':
+                    if (curr + 1 < end) {
+                        const char n = curr[1];
+                        if (n == '>') { tokens->push_back({TokenType_t::arrow, line, col, {}, file, {}}); curr += 2; }
+                        else if (n == '=') { tokens->push_back({TokenType_t::minus_eq, line, col, {}, file, {}}); curr += 2; }
+                        else { tokens->push_back({TokenType_t::minus, line, col, {}, file, {}}); ++curr; }
+                    } else {
+                        tokens->push_back({TokenType_t::minus, line, col, {}, file, {}}); ++curr;
                     }
-                }
-                tokens->push_back({ .type = TokenType_t::string_lit, .line = line_count , .col = m_col - static_cast<int>(buf.size()), .value = buf, .file = file, .expand = std::nullopt });
-                buf.clear();
-            }
-            else if(peek().value() == '\'') {
-                consume();
-                buf.clear();
-                while(peek().has_value() && peek().value() != '\'') {
-                    buf.push_back(consume());
-                }
-                consume();
-                for(int i = 0;i < static_cast<int>(buf.size());++i) {
-                    if(buf[i] == '\\') {
-                        if(buf[i+1] == 'n') {
-                            buf.erase(buf.begin()+i);
-                            buf[i] = '\n';
-                        }
-                        else if(buf[i+1] == 't') {
-                            buf.erase(buf.begin()+i);
-                            buf[i] = '\t';
-                        }
-                        else if(buf[i+1] == '"') {
-                            buf.erase(buf.begin()+i);
-                            buf[i] = '"';
-                        }
+                    break;
+                case '*':
+                    if (curr + 1 < end && curr[1] == '=') {
+                        tokens->push_back({TokenType_t::star_eq, line, col, {}, file, {}}); curr += 2;
+                    } else {
+                        tokens->push_back({TokenType_t::star, line, col, {}, file, {}}); ++curr;
                     }
+                    break;
+                case '!':
+                    if (curr + 1 < end && curr[1] == '=') {
+                        tokens->push_back({TokenType_t::_not_eq, line, col, {}, file, {}}); curr += 2;
+                    } else {
+                         std::cerr << "Unexpected token '!' at " << file.c_str() << " " << line << ":" << col << std::endl; exit(1);
+                    }
+                    break;
+                case '<':
+                    if (curr + 1 < end && curr[1] == '<') {
+                        tokens->push_back({TokenType_t::shift_left, line, col, {}, file, {}}); curr += 2;
+                    } else {
+                        tokens->push_back({TokenType_t::less, line, col, {}, file, {}}); ++curr;
+                    }
+                    break;
+                case '>':
+                    if (curr + 1 < end && curr[1] == '>') {
+                        tokens->push_back({TokenType_t::shift_right, line, col, {}, file, {}}); curr += 2;
+                    } else {
+                        tokens->push_back({TokenType_t::above, line, col, {}, file, {}}); ++curr;
+                    }
+                    break;
+                case '&':
+                    if (curr + 1 < end && curr[1] == '&') {
+                        tokens->push_back({TokenType_t::double_ampersand, line, col, {}, file, {}}); curr += 2;
+                    } else {
+                        tokens->push_back({TokenType_t::ampersand, line, col, {}, file, {}}); ++curr;
+                    }
+                    break;
+                case '|':
+                    if (curr + 1 < end && curr[1] == '|') {
+                        tokens->push_back({TokenType_t::double_stick, line, col, {}, file, {}}); curr += 2;
+                    } else {
+                         std::cerr << "Unexpected token '|' at " << file.c_str() << " " << line << ":" << col << std::endl; exit(1);
+                    }
+                    break;
+                case ':':
+                    if (curr + 1 < end && curr[1] == ':') {
+                        tokens->push_back({TokenType_t::double_colon, line, col, {}, file, {}}); curr += 2;
+                    } else {
+                        tokens->push_back({TokenType_t::double_dot, line, col, {}, file, {}}); ++curr;
+                    }
+                    break;
+                case '/':
+                    if (curr + 1 < end) {
+                        const char n = curr[1];
+                        if (n == '/') {
+                            curr += 2;
+                            while (curr < end && *curr != '\n') ++curr;
+                        } else if (n == '*') {
+                            curr += 2;
+                            while (curr + 1 < end) {
+                                if (*curr == '*' && curr[1] == '/') { curr += 2; break; }
+                                if (*curr == '\n') { ++line; line_start = curr + 1; }
+                                ++curr;
+                            }
+                        } else if (n == '=') {
+                            tokens->push_back({TokenType_t::fslash_eq, line, col, {}, file, {}}); curr += 2;
+                        } else {
+                            tokens->push_back({TokenType_t::fslash, line, col, {}, file, {}}); ++curr;
+                        }
+                    } else {
+                        tokens->push_back({TokenType_t::fslash, line, col, {}, file, {}}); ++curr;
+                    }
+                    break;
+                case '"': {
+                    ++curr;
+                    const char* start = curr;
+                    GString buf;
+                    while (curr < end) {
+                        if (*curr == '"') break;
+                        if (*curr == '\\') {
+                            buf.append(start, curr - start);
+                            ++curr;
+                            if (curr >= end) break;
+                            switch (*curr) {
+                                case 'n': buf += '\n'; break;
+                                case 't': buf += '\t'; break;
+                                case '"': buf += '"'; break;
+                                case '\\': buf += '\\'; break;
+                                default: buf += *curr; break;
+                            }
+                            ++curr;
+                            start = curr;
+                            continue;
+                        }
+                        if (*curr == '\n') { ++line; line_start = curr + 1; }
+                        ++curr;
+                    }
+                    if (buf.empty()) {
+                        tokens->push_back({TokenType_t::string_lit, line, col, GString(start, curr - start), file, {}});
+                    } else {
+                        buf.append(start, curr - start);
+                        tokens->push_back({TokenType_t::string_lit, line, col, std::move(buf), file, {}});
+                    }
+                    if (curr < end) ++curr;
+                    break;
                 }
-                tokens->push_back({ .type = TokenType_t::int_lit, .line = line_count , .col = m_col - static_cast<int>(buf.size()), .value = GString(std::to_string(static_cast<int>(buf[0])).c_str()), .file = file, .expand = std::nullopt });
-                buf.clear();
-            }
-            else if (peek().value() == '(') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::open_paren, .line =  line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == ')') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::close_paren, .line =  line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '~') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::tilda, .line =  line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '[') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::open_bracket, .line =  line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == ']') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::close_bracket, .line =  line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == ';') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::semi, .line =  line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '=' && peek(1).has_value() && peek(1).value() == '=') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::eqeq, .line = line_count, .col = m_col - 2, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '!' && peek(1).has_value() && peek(1).value() == '=') {
-                consume();
-                consume();
-                tokens->push_back({ .type = TokenType_t::_not_eq, .line = line_count, .col = m_col - 2, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '=') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::eq, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '+') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::plus, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '*') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::star, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '-') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::minus, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '%') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::mod, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == ',') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::comma, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '.') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::dot, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '&') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::ampersand, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '#') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::hash_sign, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '$') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::dollar, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == ':') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::double_dot, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '/') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::fslash, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '<') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::less, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '>') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::above, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '{') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::open_curly, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '}') {
-                consume();
-                tokens->push_back({ .type = TokenType_t::close_curly, .line = line_count, .col = m_col - 1, .file = file, .expand = {} });
-            }
-            else if (peek().value() == '\n') {
-                consume();
-                m_col = 1;
-                line_count++;
-            }
-            else if (std::isspace(peek().value())) {
-                consume();
-            }
-            else {
-                std::cerr << "Invalid token " << peek().value() << "." << std::endl;
-                exit(EXIT_FAILURE);
+                case '\'': {
+                    ++curr;
+                    GString buf;
+                    if (curr < end && *curr == '\\') {
+                        ++curr;
+                        if (curr < end) {
+                            char v = *curr;
+                            if (v == 'n') v = '\n'; else if (v == 't') v = '\t'; else if (v == '"') v = '"'; else if (v == '\'') v = '\'';
+                            buf = std::to_string(static_cast<int>(v));
+                            ++curr;
+                        }
+                    } else if (curr < end) {
+                        buf = std::to_string(static_cast<int>(*curr));
+                        ++curr;
+                    }
+                    if (curr < end && *curr == '\'') ++curr;
+                    tokens->push_back({TokenType_t::int_lit, line, col, std::move(buf), file, {}});
+                    break;
+                }
+                default:
+                    std::cerr << "Invalid token '" << c << "' at " << file.c_str() << " " << line << ":" << col << std::endl;
+                    exit(EXIT_FAILURE);
             }
         }
-        m_index = 0;
         return {.tokens = tokens, .lines = lines};
     }
 
     GVector<GString>* lines;
 
 private:
-    [[nodiscard]] std::optional<char> peek(const size_t offset = 0) const
-    {
-        if (m_index + offset >= m_src.length()) {
-            return {};
-        }
-        return m_src.at(m_index + offset);
-    }
-
-    char consume()
-    {
-        m_col++;
-        return m_src.at(m_index++);
-    }
-
     const GString m_src;
-    size_t m_index = 0;
-    int m_col = 1;
+    static GFlatMap<GString, TokenType_t> keywords;
+
+    static void init_keywords() {
+        keywords.reserve(128);
+        keywords = {
+            {"exit", TokenType_t::exit}, {"let", TokenType_t::let}, {"if", TokenType_t::if_},
+            {"elif", TokenType_t::elif}, {"else", TokenType_t::else_}, {"proc", TokenType_t::proc},
+            {"int", TokenType_t::int_type}, {"void", TokenType_t::void_type}, {"ptr", TokenType_t::ptr_type},
+            {"char", TokenType_t::char_type}, {"any", TokenType_t::any_type}, {"while", TokenType_t::wwhile},
+            {"return", TokenType_t::_return}, {"store8", TokenType_t::store8}, {"store16", TokenType_t::store16},
+            {"store32", TokenType_t::store32}, {"rd8", TokenType_t::read8}, {"rd16", TokenType_t::read16},
+            {"rd32", TokenType_t::read32}, {"include", TokenType_t::_include}, {"buffer", TokenType_t::buffer},
+            {"asm", TokenType_t::_asm}, {"cextern", TokenType_t::cextern}, {"const", TokenType_t::_const},
+            {"cast", TokenType_t::cast}, {"struct", TokenType_t::_struct}, {"delete", TokenType_t::_delete},
+            {"break", TokenType_t::_break}, {"static_assert", TokenType_t::_static_assert},
+            {"define", TokenType_t::_define}, {"interface", TokenType_t::_interface},
+            {"sizeof", TokenType_t::_sizeof}, {"typeid", TokenType_t::_typeid}, {"__oninit", TokenType_t::oninit},
+            {"__pushonstack", TokenType_t::pushonstack}, {"__popfromstack", TokenType_t::popfromstack},
+            {"__LINE__", TokenType_t::_line}, {"__COL__", TokenType_t::_col}, {"__FILE__", TokenType_t::_file},
+            {"__empty_stmt", TokenType_t::empty_stmt}, {"ct_type", TokenType_t::_type},
+            {"__expr_stmt", TokenType_t::expr_stmt}, {"cast_to", TokenType_t::cast_to},
+            {"ct_eval", TokenType_t::ct_eval}, {"namespace", TokenType_t::_namespace},
+            {"ct_mdefined", TokenType_t::ct_mdefined}, {"typedef", TokenType_t::_typedef},
+            {"constexpr", TokenType_t::_constexpr}, {"ProcPtr", TokenType_t::proc_ptr},
+            {"impl", TokenType_t::impl}, {"raise", TokenType_t::raise}, {"try", TokenType_t::_try},
+            {"catch", TokenType_t::_catch}, {"__disable_rvalue__", TokenType_t::__drvalue},
+            {"foreach", TokenType_t::foreach_}, {"for", TokenType_t::for_}, {"enum", TokenType_t::enum_}
+        };
+    }
 };
+
+GFlatMap<GString, TokenType_t> Tokenizer::keywords;

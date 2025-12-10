@@ -22,6 +22,7 @@
 #include <random>
 #include <deque>
 #include <future>
+#include <array>
 #include <windows.h>
 
 #define __GFLAT_MAP__
