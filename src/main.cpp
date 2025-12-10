@@ -24,6 +24,8 @@
 #include <future>
 #include <windows.h>
 
+#define __GFLAT_MAP__
+
 namespace fs = std::filesystem;
 
 /*

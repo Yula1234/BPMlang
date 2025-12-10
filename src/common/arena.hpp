@@ -162,16 +162,25 @@ public:
     template<class U> bool operator!=(const GlobalArenaAllocator<U>&) const noexcept { return false; }
 };
 
+
+
 template <typename T>
 using GVector = std::vector<T, GlobalArenaAllocator<T>>;
 
 using GString = std::basic_string<char, std::char_traits<char>, GlobalArenaAllocator<char>>;
 
+
+#if defined(__GFLAT_MAP__)
+#include "flat_map.hpp"
+template <typename Key, typename Value, typename Hasher = std::hash<Key>, typename Equal = std::equal_to<Key>>
+using GMap = GFlatMap<Key, Value, Hasher, Equal>;
+#else
 template <typename Key, typename Value>
 using GMap = std::unordered_map<
     Key, Value, std::hash<Key>, std::equal_to<Key>, 
     GlobalArenaAllocator<std::pair<const Key, Value>>
 >;
+#endif
 
 template <typename Key, typename Hash = std::hash<Key>, typename KeyEqual = std::equal_to<Key>>
 using GSet = std::unordered_set<Key, Hash, KeyEqual, GlobalArenaAllocator<Key>>;
