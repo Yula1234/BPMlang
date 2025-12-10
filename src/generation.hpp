@@ -465,12 +465,22 @@ public:
 
             void operator()([[maybe_unused]] const NodeIfPredElif* elif) const
             {
-
+                gen.gen_expr(elif->expr);
+                gen.pop_reg(Reg::EAX);
+                const GString label = gen.create_label();
+                gen.m_builder.emit(IRInstr(IROp::Test, gen.reg(Reg::EAX), gen.reg(Reg::EAX)));
+                gen.m_builder.jz(gen.label(label));
+                gen.gen_scope(elif->scope);
+                gen.m_builder.jmp(gen.label(end_label));
+                gen.m_builder.label(label);
+                if (elif->pred.has_value()) {
+                    gen.gen_if_pred(elif->pred.value(), end_label);
+                }
             }
 
             void operator()([[maybe_unused]] const NodeIfPredElse* else_) const
             {
-
+                gen.gen_scope(else_->scope);
             }
         };
 
@@ -610,9 +620,23 @@ public:
                 gen.gen_expr(stmt_push->expr);
             }
 
-            void operator()([[maybe_unused]] const NodeStmtIf* stmt_if) const
+            void operator()(const NodeStmtIf* stmt_if) const
             {
-                
+                gen.gen_expr(stmt_if->expr);
+                gen.pop_reg(Reg::EAX);
+                const GString label = gen.create_label();
+                gen.m_builder.emit(IRInstr(IROp::Test, gen.reg(Reg::EAX), gen.reg(Reg::EAX)));
+                gen.m_builder.jz(gen.label(label));
+                gen.gen_scope(stmt_if->scope);
+                if (stmt_if->pred.has_value()) {
+                    const GString end_label = gen.create_label();
+                    gen.m_builder.jmp(gen.label(end_label));
+                    gen.m_builder.label(label);
+                    gen.gen_if_pred(stmt_if->pred.value(), end_label);
+                    gen.m_builder.label(end_label);
+                } else {
+                    gen.m_builder.label(label);
+                }
             }
 
             void operator()([[maybe_unused]] const NodeStmtWhile* stmt_while) const

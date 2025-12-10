@@ -459,6 +459,12 @@ public:
         m_sym_table.last_scope()->m_vars[name] = to_insert;
         return to_insert;
     }
+    
+    void analyze_scope_with_begin_scope(NodeScope* scope) {
+        m_sym_table.begin_scope();
+        analyze_scope(scope);
+        m_sym_table.end_scope();
+    }
 
     DataType analyze_term(const NodeTerm* term, NodeExpr* base_expr, bool lvalue = false)
     {
@@ -765,14 +771,16 @@ public:
         struct PredVisitor {
             SemanticContext& sema;
 
-            void operator()([[maybe_unused]] const NodeIfPredElif* elif) const
+            void operator()(const NodeIfPredElif* elif) const
             {
-
+                sema.analyze_expr(elif->expr);
+                sema.analyze_scope_with_begin_scope(elif->scope);
+                if(elif->pred.has_value()) sema.analyze_if_pred(elif->pred.value());
             }
 
-            void operator()([[maybe_unused]] const NodeIfPredElse* else_) const
+            void operator()(const NodeIfPredElse* else_) const
             {
-
+                sema.analyze_scope_with_begin_scope(else_->scope);
             }
         };
 
@@ -1013,9 +1021,13 @@ public:
                 sema.analyze_expr(stmt_push->expr);
             }
 
-            void operator()([[maybe_unused]] const NodeStmtIf* stmt_if) const
+            void operator()(const NodeStmtIf* stmt_if) const
             {
-
+                sema.analyze_expr(stmt_if->expr);
+                sema.m_sym_table.begin_scope();
+                sema.analyze_scope(stmt_if->scope);
+                sema.m_sym_table.end_scope();
+                if(stmt_if->pred.has_value()) sema.analyze_if_pred(stmt_if->pred.value());
             }
 
             void operator()([[maybe_unused]] const NodeStmtWhile* stmt_while) const
