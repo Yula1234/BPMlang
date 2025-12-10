@@ -55,7 +55,7 @@ public:
         return MemRef::baseDisp(Reg::EBP, -static_cast<int32_t>(stack_loc));
     }
     inline MemRef global_mem(const GString& name) const {
-        return MemRef::sym("v_" + name);
+        return MemRef::sym(name);
     }
 
     inline void push_reg(Reg r)                { m_builder.push(reg(r)); }
@@ -778,10 +778,11 @@ public:
     	    });
     	}
 	
-    	//for (auto&& p : m_global_vars) {
-    	//    main_ir.globals.push_back({ p.second.name });
-    	//}
-	    if (m_optimize) {
+    	for (auto&& p : m_sema->m_sym_table.m_gvars) {
+    	    main_ir.globals.push_back({ p.second->mangled_symbol });
+    	}
+	    
+        if (m_optimize) {
             iropt::optimize_ir(main_ir);
         }
     	GStringStream result_ss;

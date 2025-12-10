@@ -329,7 +329,7 @@ public:
         out << "    __BpmSigSegvExceptionTypeId: rd 1\n";
     
         for (const auto& g : p.globals) {
-            out << "    v_" << g.name << ": rd 1\n";
+            out << "    " << g.name << ": rd 1\n";
         }
     }
 

@@ -935,7 +935,7 @@ public:
                 }
 
                 if(sema.m_sym_table.m_scopes.size() == 1) { // means that this gonna be global variable
-                    GlobalVariable* to_insert = sema.m_allocator->alloc<GlobalVariable>();
+                    GlobalVariable* to_insert = sema.m_allocator->emplace<GlobalVariable>();
                     to_insert->name = name;
                     to_insert->type = expression_type;
                     to_insert->mangled_symbol = "_v_" + name;
@@ -946,7 +946,7 @@ public:
                     };
                 } else {
                     if(sema.m_cur_namespace != nullptr && sema.m_cur_procedure == nullptr) {
-                        GlobalVariable* to_insert = sema.m_allocator->alloc<GlobalVariable>();
+                        GlobalVariable* to_insert = sema.m_allocator->emplace<GlobalVariable>();
                         to_insert->name = name;
                         to_insert->type = expression_type;
                         to_insert->mangled_symbol = sema.m_cur_namespace->get_mangle() + "_v@" + name;
