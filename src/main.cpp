@@ -21,6 +21,7 @@
 #include <functional>
 #include <random>
 #include <deque>
+#include <future>
 #include <windows.h>
 
 namespace fs = std::filesystem;

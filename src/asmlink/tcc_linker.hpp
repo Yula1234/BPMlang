@@ -106,13 +106,32 @@ LIBTCCAPI void *tcc_get_symbol(TCCState *s, const char *name);
 
 
 
+#include <future>
+
 class TccLinker {
 private:
-
     std::string cachedLibPath;
+    std::future<TCCState*> warmState;
 
     static void error_handler(void* /*opaque*/, const char* msg) {
         std::cerr << "Linker Error: " << msg << std::endl;
+    }
+
+    TCCState* preload_task() {
+        TCCState* s = tcc_new();
+        if (!s) return nullptr;
+
+        tcc_set_error_func(s, nullptr, error_handler);
+        tcc_set_output_type(s, TCC_OUTPUT_EXE);
+        
+        tcc_set_lib_path(s, cachedLibPath.c_str());
+        tcc_add_library_path(s, cachedLibPath.c_str());
+
+        tcc_add_library(s, "msvcrt");
+        tcc_add_library(s, "kernel32");
+        tcc_add_library(s, "tcc1-32");
+
+        return s;
     }
 
 public:
@@ -123,37 +142,32 @@ public:
         std::replace(cachedLibPath.begin(), cachedLibPath.end(), '\\', '/');
     }
 
-    bool link(const std::string& outputFile, const GVector<GString>& inputFiles) 
-    {
+    void start_preload() {
+        warmState = std::async(std::launch::async, &TccLinker::preload_task, this);
+    }
 
-        TCCState* s = tcc_new();
-        if (!s) {
+    bool link(const std::string& outputFile, const GVector<GString>& inputFiles) {
+        if (!warmState.valid()) {
+            start_preload(); 
+        }
+
+        TCCState* s = warmState.get();
+        
+        if (UNLIKELY(!s)) {
             std::cerr << "Error: Could not create TCC state.\n";
             return false;
         }
 
-        tcc_set_error_func(s, nullptr, error_handler);
-        tcc_set_output_type(s, TCC_OUTPUT_EXE);
-
-        tcc_set_lib_path(s, cachedLibPath.c_str());
-        
-        tcc_add_library_path(s, cachedLibPath.c_str());
-
         for (const auto& file : inputFiles) {
-            if (tcc_add_file(s, file.c_str()) == -1) {
+            if (UNLIKELY(tcc_add_file(s, file.c_str()) == -1)) {
                 tcc_delete(s);
                 return false;
             }
         }
 
-        tcc_add_library(s, "msvcrt");
-        tcc_add_library(s, "kernel32");
-        tcc_add_library(s, "tcc1-32");
-
         int result = tcc_output_file(s, outputFile.c_str());
 
         tcc_delete(s);
-
         return (result == 0);
     }
 };

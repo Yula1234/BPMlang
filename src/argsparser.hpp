@@ -209,6 +209,13 @@ public:
             file << generated_asm;
         }
 
+        static TccLinker linker;
+        fs::path bin_dir = fs::path(__PATH); 
+        fs::path tcc_lib_dir = fs::absolute(bin_dir / "lib" / "tcc");
+        std::string tcc_lib_str = fs::absolute(tcc_lib_dir).string();
+        linker.init(tcc_lib_str);
+        linker.start_preload();
+
         auto start_fasm = std::chrono::system_clock::now();
         if (!static_fasm::compile_via_fasm(generated_asm, obj_file)) {
             return EXIT_FAILURE;
@@ -229,14 +236,6 @@ public:
 
 
         auto start_link = std::chrono::system_clock::now();
-
-        fs::path bin_dir = fs::path(__PATH); 
-        fs::path tcc_lib_dir = fs::absolute(bin_dir / "lib" / "tcc");
-
-        std::string tcc_lib_str = fs::absolute(tcc_lib_dir).string();
-
-        static TccLinker linker;
-        linker.init(tcc_lib_str);
 
         GVector<GString> input_objs;
         input_objs.push_back(GString(obj_file.string().c_str()));
