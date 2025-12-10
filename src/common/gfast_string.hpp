@@ -91,19 +91,14 @@ public:
         }
     }
 
-    // LTO-Safe Copy Constructor
     GFastString(const GFastString& other) {
-        // Shallow copy first. This tricks LTO into knowing 'this' is initialized if 'other' was.
         std::memcpy(this, &other, sizeof(GFastString));
         
-        // Now perform deep copy if necessary
         if (m_size > 0 && m_data) {
-            // Allocate new memory for our own copy
             init_alloc(m_size);
             std::memcpy(m_data, other.m_data, m_size);
             m_data[m_size] = '\0';
         } else {
-            // Reset to clean state if empty or invalid
             m_data = nullptr;
             m_size = 0;
             m_cap = 0;
