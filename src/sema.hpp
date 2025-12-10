@@ -418,7 +418,7 @@ public:
                         deduced_map[(*cand->templates)[i]] = template_args_explicit[i];
                     }
                 } else {
-                    deduced_map = template_deduction(args, cand->params, cand->templates, def);
+                    deduced_map = template_deduction(args, cand->params, cand->templates, def, cand);
                     if (deduced_map.empty()) continue;
                 }
                 apply_template_substitution(check_params, deduced_map);
@@ -549,7 +549,7 @@ public:
     GMap<GString, DataType> template_deduction(
         const GVector<DataType>& args_types, 
         const GVector<std::pair<GString, DataType>>& params, 
-        const GVector<GString>* templates, const Token& def) 
+        const GVector<GString>* templates, const Token& def, const Procedure* proc) 
     {
         GMap<GString, DataType> deduced_map;
 
@@ -570,6 +570,7 @@ public:
         for (const GString& t_name : *templates) {
             if (deduced_map.find(t_name) == deduced_map.end()) {
                 m_diag_man->DiagnosticMessage(def, "error", "could not deduce template parameter `" + t_name + "`", 0);
+                m_diag_man->DiagnosticMessage(proc->from->def, "note", "template procedure defined here", 0);
                 exit(EXIT_FAILURE);
             }
         }
@@ -744,7 +745,7 @@ public:
                 }
 
                 if (proc->templates != NULL && term_call->targs.empty() && proc->overloads.empty()) {
-                    GMap<GString, DataType> deduced = sema.template_deduction(args_types, proc->params, proc->templates, term_call->def);
+                    GMap<GString, DataType> deduced = sema.template_deduction(args_types, proc->params, proc->templates, term_call->def, proc);
                     
                     if (!deduced.empty()) {
                         for (const GString& t_name : *proc->templates) {
