@@ -402,56 +402,51 @@ public:
     {
         GVector<Procedure*> candidates { procedure };
         candidates.insert(candidates.end(), procedure->overloads.begin(), procedure->overloads.end());
-
+        GVector<std::pair<Procedure*, GMap<GString, DataType>>> ideals {};
         for (Procedure* cand : candidates) {
+            if (cand->params.size() != args.size()) continue;
             bool is_template = (cand->templates != nullptr && !cand->templates->empty());
             
             if (is_template && !template_args_explicit.empty()) {
                 if (template_args_explicit.size() != cand->templates->size()) continue;
             }
-
             GVector<std::pair<GString, DataType>> check_params = cand->params;
-
+            GMap<GString, DataType> deduced_map;
             if (is_template) {
-                GMap<GString, DataType> deduced_map;
-
                 if (!template_args_explicit.empty()) {
                     for (size_t i = 0; i < template_args_explicit.size(); ++i) {
                         deduced_map[(*cand->templates)[i]] = template_args_explicit[i];
                     }
                 } else {
-                    deduced_map = template_deduction(args, cand->params, cand->templates);
+                    deduced_map = template_deduction(args, cand->params, cand->templates, def);
                     if (deduced_map.empty()) continue;
                 }
-
                 apply_template_substitution(check_params, deduced_map);
             }
-
             std::pair<bool, size_t> match = match_call_signature(args, check_params, cand);
-            
             if (match.first) {   
                 if (is_template) {
-                    GVector<DataType> final_targs;
-                    GMap<GString, DataType> deduced_map;
-                     if (!template_args_explicit.empty()) {
-                        for (size_t i = 0; i < template_args_explicit.size(); ++i) {
-                            deduced_map[(*cand->templates)[i]] = template_args_explicit[i];
-                        }
-                    } else {
-                        deduced_map = template_deduction(args, cand->params, cand->templates);
-                    }
-                    
-                    for(const GString& tname : *cand->templates) {
-                        final_targs.push_back(deduced_map[tname]);
-                    }
-
-                    return m_template_instantiator.instantiate_procedure(cand, final_targs, def);
+                    ideals.push_back({cand, deduced_map});
                 } else {
                     return cand;
                 }
             }
         }
+        while(!ideals.empty()) {
+            auto current = ideals.back();
+            Procedure* cand = current.first;
+            ideals.pop_back();
+            if(cand->params.size() == args.size()) {
+                GVector<DataType> final_targs;
 
+                GMap<GString, DataType>& deduced_map = current.second;
+                
+                for(const GString& tname : *cand->templates) {
+                    final_targs.push_back(deduced_map[tname]);
+                }
+                return m_template_instantiator.instantiate_procedure(cand, final_targs, def);
+            }
+        }
         GString call_signature = procedure->name + "(";
         if(!args.empty()) {
             for(size_t i = 0;i < args.size();i++) {
@@ -554,7 +549,7 @@ public:
     GMap<GString, DataType> template_deduction(
         const GVector<DataType>& args_types, 
         const GVector<std::pair<GString, DataType>>& params, 
-        const GVector<GString>* templates) 
+        const GVector<GString>* templates, const Token& def) 
     {
         GMap<GString, DataType> deduced_map;
 
@@ -567,14 +562,14 @@ public:
             const DataType& formal = params[i].second;
 
             if (!deduce_recursive(formal, actual, templates, deduced_map)) {
-                m_diag_man->DiagnosticMessage("error", "template deduction failed for argument " + std::to_string(i+1));
+                m_diag_man->DiagnosticMessage(def, "error", "template deduction failed for argument " + std::to_string(i+1), 0);
                 exit(EXIT_FAILURE);
             }
         }
 
         for (const GString& t_name : *templates) {
             if (deduced_map.find(t_name) == deduced_map.end()) {
-                m_diag_man->DiagnosticMessage("error", "could not deduce template parameter `" + t_name + "`");
+                m_diag_man->DiagnosticMessage(def, "error", "could not deduce template parameter `" + t_name + "`", 0);
                 exit(EXIT_FAILURE);
             }
         }
@@ -749,7 +744,7 @@ public:
                 }
 
                 if (proc->templates != NULL && term_call->targs.empty()) {
-                    GMap<GString, DataType> deduced = sema.template_deduction(args_types, proc->params, proc->templates);
+                    GMap<GString, DataType> deduced = sema.template_deduction(args_types, proc->params, proc->templates, term_call->def);
                     
                     if (!deduced.empty()) {
                         for (const GString& t_name : *proc->templates) {
