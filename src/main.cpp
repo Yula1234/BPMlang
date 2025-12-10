@@ -137,6 +137,7 @@ int main(int argc, char* argv[]) {
     if(auto _f_opt = argparser.find_flag(FlagType::optimize)) {
         generator.m_optimize = true;
     }
+
     const GString& generated_asm = generator.gen_prog();
 
     auto end_generation = std::chrono::system_clock::now();
@@ -150,5 +151,7 @@ int main(int argc, char* argv[]) {
         printf("Generation took: %fs\n", elapsed_seconds.count());
     }
     auto fexit_status = argparser.compile(start_all, generated_asm);
+
+    //std::cout << "Used memory: " << global_allocator->used() - 1024 * 1024 * 16 << std::endl;
     return fexit_status;
 }

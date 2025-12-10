@@ -1,80 +1,138 @@
 #pragma once
 
+
+#if defined(_WIN32) || defined(_WIN64)
+   
+#else
+    #include <sys/mman.h>
+    #include <unistd.h>
+    #ifndef MAP_HUGETLB
+        #define MAP_HUGETLB 0x40000
+    #endif
+    #ifndef MAP_POPULATE
+        #define MAP_POPULATE 0x08000
+    #endif
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+    #define LIKELY(x) __builtin_expect(!!(x), 1)
+    #define UNLIKELY(x) __builtin_expect(!!(x), 0)
+    #define FORCE_INLINE __attribute__((always_inline)) inline
+#elif defined(_MSC_VER)
+    #define LIKELY(x) (x)
+    #define UNLIKELY(x) (x)
+    #define FORCE_INLINE __forceinline
+#else
+    #define LIKELY(x) (x)
+    #define UNLIKELY(x) (x)
+    #define FORCE_INLINE inline
+#endif
+
 class ArenaAllocator {
 public:
     explicit ArenaAllocator(const size_t max_num_bytes)
         : m_size { max_num_bytes }
-        , m_buffer { new std::byte[max_num_bytes] }
-        , m_offset { m_buffer }
+        , m_buffer { nullptr }
+        , m_cursor { nullptr }
+        , m_limit { nullptr }
     {
+        allocate_os_memory(max_num_bytes);
+        m_cursor = m_buffer;
+        m_limit  = m_buffer + max_num_bytes;
     }
 
-    ArenaAllocator(ArenaAllocator& other)
-    :   m_size(other.m_size),
-        m_buffer(other.m_buffer),
-        m_offset(other.m_offset)
-    {
-    }
+    ArenaAllocator(const ArenaAllocator&) = delete;
     ArenaAllocator& operator=(const ArenaAllocator&) = delete;
 
     ArenaAllocator(ArenaAllocator&& other) noexcept
         : m_size { std::exchange(other.m_size, 0) }
         , m_buffer { std::exchange(other.m_buffer, nullptr) }
-        , m_offset { std::exchange(other.m_offset, nullptr) }
+        , m_cursor { std::exchange(other.m_cursor, nullptr) }
+        , m_limit { std::exchange(other.m_limit, nullptr) }
     {
     }
 
-    ArenaAllocator& operator=(ArenaAllocator&& other) noexcept
-    {
-        std::swap(m_size, other.m_size);
-        std::swap(m_buffer, other.m_buffer);
-        std::swap(m_offset, other.m_offset);
-        return *this;
+    ~ArenaAllocator() {
+        free_os_memory();
     }
 
     template <typename T>
-    [[nodiscard]] T* alloc(size_t count = 1)
-    {
-        size_t remaining_num_bytes = m_size - static_cast<size_t>(m_offset - m_buffer);
-        auto pointer = static_cast<void*>(m_offset);
-        
-        size_t size_to_alloc = sizeof(T) * count;
+    [[nodiscard]] 
+    FORCE_INLINE
+    T* alloc(size_t count = 1) {
+        const uintptr_t align_mask = alignof(T) - 1;
+        const uintptr_t size = sizeof(T) * count;
 
-        const auto aligned_address = std::align(alignof(T), size_to_alloc, pointer, remaining_num_bytes);
-        
-        if (aligned_address == nullptr) {
-            throw std::bad_alloc {};
+        uintptr_t current_addr = reinterpret_cast<uintptr_t>(m_cursor);
+        uintptr_t aligned_addr = (current_addr + align_mask) & ~align_mask;
+        uintptr_t next_cursor  = aligned_addr + size;
+
+        if (UNLIKELY(next_cursor > reinterpret_cast<uintptr_t>(m_limit))) {
+            throw std::bad_alloc{}; 
         }
 
-        m_offset = static_cast<std::byte*>(aligned_address) + size_to_alloc;
-        
-        return static_cast<T*>(aligned_address);
+        m_cursor = reinterpret_cast<std::byte*>(next_cursor);
+        return reinterpret_cast<T*>(aligned_addr);
     }
 
     template <typename T, typename... Args>
-    [[nodiscard]] T* emplace(Args&&... args)
-    {
-        const auto allocated_memory = alloc<T>();
-        return new (allocated_memory) T { std::forward<Args>(args)... };
+    [[nodiscard]] 
+    FORCE_INLINE
+    T* emplace(Args&&... args) {
+        T* ptr = alloc<T>();
+        new (ptr) T(std::forward<Args>(args)...);
+        return ptr;
     }
 
-    ~ArenaAllocator()
-    {
-        // No destructors are called for the stored objects. Thus, memory
-        // leaks are possible (e.g. when storing std::vector objects or
-        // other non-trivially destructable objects in the allocator).
-        // Although this could be changed, it would come with additional
-        // runtime overhead and therefore is not implemented.
-        delete[] m_buffer;
-    }
+    [[nodiscard]] size_t freely() const noexcept { return static_cast<size_t>(m_limit - m_cursor); }
+    [[nodiscard]] size_t used() const noexcept { return static_cast<size_t>(m_cursor - m_buffer); }
+    
+    void reset() noexcept { m_cursor = m_buffer; }
 
 private:
     size_t m_size;
     std::byte* m_buffer;
-    std::byte* m_offset;
+    std::byte* m_cursor;
+    std::byte* m_limit;
+
+    void allocate_os_memory(size_t size) {
+#if defined(_WIN32) || defined(_WIN64)
+        void* ptr = VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if (!ptr) throw std::bad_alloc{};
+        
+        m_buffer = static_cast<std::byte*>(ptr);
+        
+        volatile std::byte* touch = m_buffer;
+        const size_t page_size = 4096;
+        for (size_t i = 0; i < size; i += page_size) {
+            touch[i] = std::byte{0};
+        }
+#else
+        void* ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE, 
+                         MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE | MAP_HUGETLB, -1, 0);
+
+        if (ptr == MAP_FAILED) {
+             ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE, 
+                         MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
+        }
+        
+        if (ptr == MAP_FAILED) throw std::bad_alloc{};
+        m_buffer = static_cast<std::byte*>(ptr);
+#endif
+    }
+
+    void free_os_memory() {
+        if (!m_buffer) return;
+#if defined(_WIN32) || defined(_WIN64)
+        VirtualFree(m_buffer, 0, MEM_RELEASE);
+#else
+        munmap(m_buffer, m_size);
+#endif
+    }
 };
 
-ArenaAllocator* g_GlobalArena = new ArenaAllocator((1024 * 1024) * 256);
+static uint8_t arena_obj_mem[sizeof(ArenaAllocator)];
+inline ArenaAllocator* g_GlobalArena = new (arena_obj_mem) ArenaAllocator((1024 * 1024) * 256);
 
 template <typename T>
 class GlobalArenaAllocator {
@@ -86,22 +144,23 @@ public:
     template <typename U>
     GlobalArenaAllocator(const GlobalArenaAllocator<U>&) noexcept {}
 
-    [[nodiscard]] T* allocate(std::size_t n) {
-        assert(g_GlobalArena != nullptr && "Global arena is not initialized!");
-        
+    [[nodiscard]] 
+    FORCE_INLINE
+    T* allocate(std::size_t n) {
+#ifdef NDEBUG
         return g_GlobalArena->alloc<T>(n);
+#else
+        assert(g_GlobalArena != nullptr);
+        return g_GlobalArena->alloc<T>(n);
+#endif
     }
 
-    void deallocate(T*, std::size_t) noexcept {
-    }
+    FORCE_INLINE
+    void deallocate(T*, std::size_t) noexcept {}
 
-    template<class U>
-    bool operator==(const GlobalArenaAllocator<U>&) const noexcept { return true; }
-
-    template<class U>
-    bool operator!=(const GlobalArenaAllocator<U>&) const noexcept { return false; }
+    template<class U> bool operator==(const GlobalArenaAllocator<U>&) const noexcept { return true; }
+    template<class U> bool operator!=(const GlobalArenaAllocator<U>&) const noexcept { return false; }
 };
-
 
 template <typename T>
 using GVector = std::vector<T, GlobalArenaAllocator<T>>;
@@ -110,45 +169,16 @@ using GString = std::basic_string<char, std::char_traits<char>, GlobalArenaAlloc
 
 template <typename Key, typename Value>
 using GMap = std::unordered_map<
-    Key, 
-    Value, 
-    std::hash<Key>, 
-    std::equal_to<Key>, 
+    Key, Value, std::hash<Key>, std::equal_to<Key>, 
     GlobalArenaAllocator<std::pair<const Key, Value>>
 >;
 
-template <
-    typename Key,
-    typename Hash = std::hash<Key>,
-    typename KeyEqual = std::equal_to<Key>
->
-using GSet = std::unordered_set<
-    Key, 
-    Hash, 
-    KeyEqual, 
-    GlobalArenaAllocator<Key>
->;
+template <typename Key, typename Hash = std::hash<Key>, typename KeyEqual = std::equal_to<Key>>
+using GSet = std::unordered_set<Key, Hash, KeyEqual, GlobalArenaAllocator<Key>>;
 
-using GStringStream = std::basic_stringstream<
-    char,
-    std::char_traits<char>,
-    GlobalArenaAllocator<char>
->;
-
-using GOStringStream = std::basic_ostringstream<
-    char,
-    std::char_traits<char>,
-    GlobalArenaAllocator<char>
->;
-
-using GIStringStream = std::basic_istringstream<
-    char,
-    std::char_traits<char>,
-    GlobalArenaAllocator<char>
->;
+using GStringStream  = std::basic_stringstream<char, std::char_traits<char>, GlobalArenaAllocator<char>>;
+using GOStringStream = std::basic_ostringstream<char, std::char_traits<char>, GlobalArenaAllocator<char>>;
+using GIStringStream = std::basic_istringstream<char, std::char_traits<char>, GlobalArenaAllocator<char>>;
 
 template <typename T>
-using GDeque = std::deque<
-    T,
-    GlobalArenaAllocator<T>
->;
+using GDeque = std::deque<T, GlobalArenaAllocator<T>>;

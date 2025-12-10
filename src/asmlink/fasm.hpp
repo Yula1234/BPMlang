@@ -230,11 +230,7 @@ extern "C" {
 extern "C" intptr_t _get_osfhandle(int fd);
 
 inline bool compile_via_fasm(const GString& source_code, const fs::path& obj_file_path) {
-    static char* fasm_memory = nullptr;
-
-    if (__builtin_expect(!fasm_memory, 0)) {
-        fasm_memory = g_GlobalArena->alloc<char>(FASM_MEMORY_SIZE);
-    }
+    char* fasm_memory = g_GlobalArena->alloc<char>(FASM_MEMORY_SIZE);
 
     fasm_Assemble(
         source_code.c_str(), 
