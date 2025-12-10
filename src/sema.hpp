@@ -398,55 +398,86 @@ public:
     }
 
     Procedure* resolve_overloading(const Token& def, Procedure* procedure,
-                                    GVector<DataType> args, [[maybe_unused]] GVector<DataType> template_args)
+                                    GVector<DataType> args, GVector<DataType> template_args_explicit)
     {
-        std::pair<bool, size_t> first_result = match_call_signature(args, procedure->params, procedure);
-        if(first_result.first) return procedure;
+        GVector<Procedure*> candidates { procedure };
+        candidates.insert(candidates.end(), procedure->overloads.begin(), procedure->overloads.end());
 
-        Procedure* result_proc = nullptr;
-
-        GVector<Procedure*> candidates {procedure};
-
-        for(size_t i = 0;i < procedure->overloads.size();i++) {
-            Procedure* current = procedure->overloads[i];
-            candidates.push_back(current);
-            std::pair<bool, size_t> matches = match_call_signature(args, current->params, current);
-            if(matches.first) {
-                result_proc = current;
-                break;
+        for (Procedure* cand : candidates) {
+            bool is_template = (cand->templates != nullptr && !cand->templates->empty());
+            
+            if (is_template && !template_args_explicit.empty()) {
+                if (template_args_explicit.size() != cand->templates->size()) continue;
             }
-        }
 
-        if(result_proc == nullptr) {
-            GString call_signature = procedure->name + "(";
-            if(!args.empty()) {
-                for(size_t i = 0;i < args.size();i++) {
-                    call_signature += args[i].to_string();
-                    if(i != args.size() - 1) {
-                        call_signature += ", ";
+            GVector<std::pair<GString, DataType>> check_params = cand->params;
+
+            if (is_template) {
+                GMap<GString, DataType> deduced_map;
+
+                if (!template_args_explicit.empty()) {
+                    for (size_t i = 0; i < template_args_explicit.size(); ++i) {
+                        deduced_map[(*cand->templates)[i]] = template_args_explicit[i];
                     }
+                } else {
+                    deduced_map = template_deduction(args, cand->params, cand->templates);
+                    if (deduced_map.empty()) continue;
                 }
+
+                apply_template_substitution(check_params, deduced_map);
             }
-            call_signature += ")";
-            m_diag_man->DiagnosticMessage(def, "error", "could not find candidates for calling the procedure " + call_signature + ".", 0);
-            for(size_t i = 0;i < candidates.size();i++) {
-                Procedure* current = candidates[i];
-                GString candidate_signature = current->name + "(";
-                if(!current->params.empty()) {
-                    for(size_t j = 0;j < current->params.size();j++) {
-                        candidate_signature += current->params[j].second.to_string();
-                        if(j != current->params.size() - 1) {
-                            candidate_signature += ", ";
+
+            std::pair<bool, size_t> match = match_call_signature(args, check_params, cand);
+            
+            if (match.first) {   
+                if (is_template) {
+                    GVector<DataType> final_targs;
+                    GMap<GString, DataType> deduced_map;
+                     if (!template_args_explicit.empty()) {
+                        for (size_t i = 0; i < template_args_explicit.size(); ++i) {
+                            deduced_map[(*cand->templates)[i]] = template_args_explicit[i];
                         }
+                    } else {
+                        deduced_map = template_deduction(args, cand->params, cand->templates);
                     }
+                    
+                    for(const GString& tname : *cand->templates) {
+                        final_targs.push_back(deduced_map[tname]);
+                    }
+
+                    return m_template_instantiator.instantiate_procedure(cand, final_targs, def);
+                } else {
+                    return cand;
                 }
-                candidate_signature += ")";
-                m_diag_man->DiagnosticMessage(current->def, "note", "candidate " + candidate_signature, 0);
             }
-            exit(EXIT_FAILURE);
         }
 
-        return result_proc;
+        GString call_signature = procedure->name + "(";
+        if(!args.empty()) {
+            for(size_t i = 0;i < args.size();i++) {
+                call_signature += args[i].to_string();
+                if(i != args.size() - 1) {
+                    call_signature += ", ";
+                }
+            }
+        }
+        call_signature += ")";
+        m_diag_man->DiagnosticMessage(def, "error", "could not find candidates for calling the procedure " + call_signature + ".", 0);
+        for(size_t i = 0;i < candidates.size();i++) {
+            Procedure* current = candidates[i];
+            GString candidate_signature = current->name + "(";
+            if(!current->params.empty()) {
+                for(size_t j = 0;j < current->params.size();j++) {
+                    candidate_signature += current->params[j].second.to_string();
+                    if(j != current->params.size() - 1) {
+                        candidate_signature += ", ";
+                    }
+                }
+            }
+            candidate_signature += ")";
+            m_diag_man->DiagnosticMessage(current->def, "note", "candidate " + candidate_signature, 0);
+        }
+        exit(EXIT_FAILURE);
     }
 
     Variable* define_local_variable(const GString& name, const DataType& type) {
@@ -464,6 +495,115 @@ public:
         m_sym_table.begin_scope();
         analyze_scope(scope);
         m_sym_table.end_scope();
+    }
+
+    bool deduce_recursive(const DataType& formal, const DataType& actual, 
+                          const GVector<GString>* templates, 
+                          GMap<GString, DataType>& deduced) 
+    {
+        GString formal_name;
+        if (formal.is_object()) {
+            formal_name = formal.getobjectname();
+        } else if (formal.is_simple()) {
+             formal_name = formal.to_string();
+        }
+
+        bool is_template_param = false;
+        if (!formal_name.empty()) {
+            for (const GString& t_name : *templates) {
+                if (formal_name == t_name) {
+                    is_template_param = true;
+                    break;
+                }
+            }
+        }
+        if (is_template_param) {
+            if (formal.root().ptrlvl > actual.root().ptrlvl) return false;
+
+            DataType deduced_type = actual;
+            deduced_type.root().ptrlvl -= formal.root().ptrlvl;
+            
+            const auto& it = deduced.find(formal_name);
+            if (it != deduced.end()) {
+                if (!types_equ(it->second, deduced_type)) return false;
+            } else {
+                deduced[formal_name] = deduced_type;
+            }
+            return true;
+        }
+
+        if (formal.root().ptrlvl != actual.root().ptrlvl) return false;
+        
+        if (formal.is_object() && actual.is_object()) {
+            if (formal.getobjectname() != actual.getobjectname()) return false;
+
+            const auto& f_gens = formal.node->generics;
+            const auto& a_gens = actual.node->generics;
+
+            if (f_gens.size() != a_gens.size()) return false;
+
+            for (size_t i = 0; i < f_gens.size(); ++i) {
+                if (!deduce_recursive(f_gens[i], a_gens[i], templates, deduced)) return false;
+            }
+            return true;
+        }
+        
+        return types_equ(formal, actual);
+    }
+
+    GMap<GString, DataType> template_deduction(
+        const GVector<DataType>& args_types, 
+        const GVector<std::pair<GString, DataType>>& params, 
+        const GVector<GString>* templates) 
+    {
+        GMap<GString, DataType> deduced_map;
+
+        if (templates == nullptr || templates->empty()) return deduced_map;
+
+        size_t count = std::min(args_types.size(), params.size());
+
+        for (size_t i = 0; i < count; ++i) {
+            const DataType& actual = args_types[i];
+            const DataType& formal = params[i].second;
+
+            if (!deduce_recursive(formal, actual, templates, deduced_map)) {
+                m_diag_man->DiagnosticMessage("error", "template deduction failed for argument " + std::to_string(i+1));
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        for (const GString& t_name : *templates) {
+            if (deduced_map.find(t_name) == deduced_map.end()) {
+                m_diag_man->DiagnosticMessage("error", "could not deduce template parameter `" + t_name + "`");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        return deduced_map;
+    }
+
+    void apply_template_substitution(
+        GVector<std::pair<GString, DataType>>& params, 
+        const GMap<GString, DataType>& temps)          
+    {
+        for (auto& param : params) {
+            std::function<void(DataType&)> sub = [&](DataType& type) {
+                if (type.is_object()) {
+                    auto it = temps.find(type.getobjectname());
+                    if (it != temps.end()) {
+                        DataType new_type = it->second;
+                        if(type.root().ptrlvl > 0) new_type.root().ptrlvl += type.root().ptrlvl;
+                        type = new_type;
+                        return;
+                    }
+                }
+                for (auto& g : type.node->generics) {
+                    sub(g);
+                }
+            };
+            
+            sub(param.second);
+        }
     }
 
     DataType analyze_term(const NodeTerm* term, NodeExpr* base_expr, bool lvalue = false)
@@ -606,6 +746,16 @@ public:
                 GVector<DataType> args_types;
                 for(size_t i = 0;i < args.size();i++) {
                     args_types.push_back(sema.analyze_expr(args[i]));
+                }
+
+                if (proc->templates != NULL && term_call->targs.empty()) {
+                    GMap<GString, DataType> deduced = sema.template_deduction(args_types, proc->params, proc->templates);
+                    
+                    if (!deduced.empty()) {
+                        for (const GString& t_name : *proc->templates) {
+                            term_call->targs.push_back(deduced[t_name]);
+                        }
+                    }
                 }
 
                 if(proc->templates != NULL) {
@@ -940,7 +1090,7 @@ public:
                     }
                 }
 
-                if(sema.m_sym_table.m_scopes.size() == 1) { // means that this gonna be global variable
+                if(sema.m_sym_table.m_scopes.size() == 1) {
                     GlobalVariable* to_insert = sema.m_allocator->emplace<GlobalVariable>();
                     to_insert->name = name;
                     to_insert->type = expression_type;
