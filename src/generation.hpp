@@ -579,9 +579,16 @@ public:
                  
             }
 
-            void operator()([[maybe_unused]] const NodeStmtAssign* stmt_assign) const
+            void operator()(const NodeStmtAssign* stmt_assign) const
             {
-                
+                gen.gen_expr(stmt_assign->lvalue, true);
+                gen.gen_expr(stmt_assign->expr);
+                gen.pop_reg(Reg::EBX);
+                gen.pop_reg(Reg::EAX);
+                gen.m_builder.mov(
+                    gen.mem(MemRef::baseDisp(Reg::EAX, 0)),
+                    gen.reg(Reg::EBX)
+                );
             }
 
             void operator()([[maybe_unused]] const NodeStmtIncBy* stmt_assign) const

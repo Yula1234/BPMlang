@@ -974,9 +974,14 @@ public:
 
             }
 
-            void operator()([[maybe_unused]] const NodeStmtAssign* stmt_assign) const
+            void operator()(const NodeStmtAssign* stmt_assign) const
             {
-
+                DataType lvalue_type = sema.analyze_expr(stmt_assign->lvalue, true);
+                DataType rvalue_type = sema.analyze_expr(stmt_assign->expr);
+                if(lvalue_type != rvalue_type) {
+                    sema.m_diag_man->DiagnosticMessage(stmt_assign->def, "error", "the assignment expected an type `" + lvalue_type.to_string() + "`, but got a type `" + rvalue_type.to_string() + "`", 0);
+                    exit(EXIT_FAILURE);
+                }
             }
 
             void operator()([[maybe_unused]] const NodeStmtIncBy* stmt_assign) const
