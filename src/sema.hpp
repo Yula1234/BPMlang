@@ -743,7 +743,7 @@ public:
                     args_types.push_back(sema.analyze_expr(args[i]));
                 }
 
-                if (proc->templates != NULL && term_call->targs.empty()) {
+                if (proc->templates != NULL && term_call->targs.empty() && proc->overloads.empty()) {
                     GMap<GString, DataType> deduced = sema.template_deduction(args_types, proc->params, proc->templates, term_call->def);
                     
                     if (!deduced.empty()) {
@@ -753,7 +753,7 @@ public:
                     }
                 }
 
-                if(proc->templates != NULL) {
+                if(proc->templates != NULL && proc->overloads.empty()) {
                     proc = sema.m_template_instantiator.instantiate_procedure(proc, term_call->targs, term_call->def);
                 }
 
