@@ -130,7 +130,7 @@ public:
     }
 
     void print_help() {
-        std::cout << "Usage: " << fs::path(m_binary_name).filename().string() << " <input.bpm> [options]\n\n";
+        std::cout << "Usage: " << fs::path(m_binary_name.c_str()).filename().string() << " <input.bpm> [options]\n\n";
         std::cout << "Options:\n";
         for (const auto& def : m_defs) {
             std::cout << "  " << def.short_name << ", " << def.long_name;
@@ -231,7 +231,7 @@ public:
         fs::path output_exe = "out.exe";
         
         if (auto o_flag = find_flag(FlagType::output)) {
-            output_exe = o_flag->value.value();
+            output_exe = o_flag->value.value().c_str();
         }
 
 

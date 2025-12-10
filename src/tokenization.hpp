@@ -321,7 +321,7 @@ public:
 
 private:
     const GString m_src;
-    static GFlatMap<GString, TokenType_t> keywords;
+    static GMap<GString, TokenType_t> keywords;
 
     static void init_keywords() {
         keywords.reserve(128);
@@ -352,4 +352,4 @@ private:
     }
 };
 
-GFlatMap<GString, TokenType_t> Tokenizer::keywords;
+GMap<GString, TokenType_t> Tokenizer::keywords;

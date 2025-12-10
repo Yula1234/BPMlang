@@ -86,6 +86,18 @@ public:
 
     [[nodiscard]] size_t freely() const noexcept { return static_cast<size_t>(m_limit - m_cursor); }
     [[nodiscard]] size_t used() const noexcept { return static_cast<size_t>(m_cursor - m_buffer); }
+
+    [[nodiscard]] FORCE_INLINE bool try_expand(void* old_ptr, size_t old_size, size_t new_size) noexcept {
+        std::byte* old_byte_ptr = static_cast<std::byte*>(old_ptr);
+        if (LIKELY(old_byte_ptr + old_size == m_cursor)) {
+            size_t needed = new_size - old_size;
+            if (LIKELY(m_cursor + needed <= m_limit)) {
+                m_cursor += needed;
+                return true;
+            }
+        }
+        return false;
+    }
     
     void reset() noexcept { m_cursor = m_buffer; }
 
@@ -164,10 +176,21 @@ public:
 
 
 
+#if defined(__GFAST_VECTOR__)
+#include "gfast_vector.hpp"
+template <typename T>
+using GVector = GFastVector<T>;
+#else
 template <typename T>
 using GVector = std::vector<T, GlobalArenaAllocator<T>>;
+#endif
 
+#if defined(__GFAST_STRING__)
+#include "gfast_string.hpp"
+using GString = GFastString;
+#else
 using GString = std::basic_string<char, std::char_traits<char>, GlobalArenaAllocator<char>>;
+#endif
 
 
 #if defined(__GFLAT_MAP__)

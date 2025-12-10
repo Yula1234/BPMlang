@@ -839,7 +839,6 @@ public:
             }
         }
 		if(auto ident = try_consume(TokenType_t::ident)) {
-			GString tname = ident.value().value.value();
 			auto expr_ident = m_allocator->emplace<NodeTermIdent>();
 			expr_ident->ident = ident.value();
 			auto term = m_allocator->emplace<NodeTerm>(expr_ident);
@@ -1469,17 +1468,17 @@ public:
 		    GString raw_fname = str_tok.value.value();
 		    GString fname = raw_fname + ".bpm";
 
-		    std::filesystem::path current_source_file = inc->file;
+		    std::filesystem::path current_source_file = inc->file.c_str();
 		    std::filesystem::path current_dir = current_source_file.parent_path();
-		    GString relative_path = GString((current_dir / fname).string().c_str());
+		    GString relative_path = GString((current_dir / fname.c_str()).string().c_str());
 		    GString path;
 
-		    if (file_exists(relative_path)) path = std::filesystem::canonical(relative_path).string();
-		    else if (file_exists(fname))    path = std::filesystem::canonical(fname).string();
+		    if (file_exists(relative_path)) path = std::filesystem::canonical(relative_path.c_str()).string();
+		    else if (file_exists(fname))    path = std::filesystem::canonical(fname.c_str()).string();
 		    else if (file_exists("lib/" + fname))
-		        path = std::filesystem::canonical("lib/" + fname).string();
+		        path = std::filesystem::canonical(std::string("lib/" + fname)).string();
 		    else if (__slashinpath && file_exists(basepath + "/" + fname))
-		        path = std::filesystem::canonical(basepath + "/" + fname).string();
+		        path = std::filesystem::canonical(std::string(basepath + "/" + fname.c_str())).string();
 		    else
 		        ParsingError("file not found at `include` - `" + fname + "`");
 
@@ -1528,7 +1527,7 @@ public:
 		}
 
 		if(auto _asm = try_consume(TokenType_t::_asm)) {
-			Token def = _asm.value();
+			//Token def = _asm.value();
 			auto stmt_asm = m_allocator->emplace<NodeStmtAsm>();
 			if(auto _expr = parse_expr()) {
 				NodeExpr* expr = _expr.value();
@@ -1551,7 +1550,7 @@ public:
 		}
 
 		if(auto _cextern = try_consume(TokenType_t::cextern)) {
-			Token def = _cextern.value();
+			//Token def = _cextern.value();
 			auto stmt_cextern = m_allocator->emplace<NodeStmtCextern>();
 			stmt_cextern->name = try_consume_err(TokenType_t::string_lit).value.value();
 			if (expect_semi) try_consume_err(TokenType_t::semi);

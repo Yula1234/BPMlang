@@ -23,9 +23,14 @@
 #include <deque>
 #include <future>
 #include <array>
+#include <iterator>
+#include <type_traits>
+#include <iosfwd>
 #include <windows.h>
 
 #define __GFLAT_MAP__
+#define __GFAST_VECTOR__
+#define __GFAST_STRING__
 
 namespace fs = std::filesystem;
 
@@ -90,7 +95,7 @@ int main(int argc, char* argv[]) {
 
     basepath = input_filename;
 
-    if (!std::filesystem::exists(input_filename)) {
+    if (!std::filesystem::exists(input_filename.c_str())) {
         std::cerr << "ERROR: file `" << input_filename << "` not found\n";
         exit(1);
     }

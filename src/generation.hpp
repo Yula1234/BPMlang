@@ -552,7 +552,7 @@ public:
                 assert(symbol.symbol != NULL);
                 gen.gen_expr(stmt_let->expr.value());
                 gen.m_builder.pop(gen.reg(Reg::EBX));
-                MemRef mem;
+                MemRef mem {};
                 if(symbol.kind == TermIdentSymbolKind::LOCAL_VAR) {
                     Variable* var = reinterpret_cast<Variable*>(symbol.symbol);
                     mem = MemRef::baseDisp(Reg::EBP, -static_cast<int32_t>(var->stack_loc));
@@ -788,7 +788,7 @@ public:
     	GStringStream result_ss;
     	AsmEmitter emitter(result_ss);
     	emitter.emit_program(main_ir);
-    	return result_ss.str();
+    	return result_ss.str().c_str();
 	}
 
     bool m_optimize = false;

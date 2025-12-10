@@ -1252,7 +1252,7 @@ private:
     
             GMap<GString, DataType> template_map;
             for (size_t i = 0; i < template_args.size(); ++i) {
-                template_map[template_procedure->templates->at(i)] = template_args[i];
+                template_map[template_procedure->templates->operator[](i)] = template_args[i];
             }
     
             NodeStmt* clonned_base_stmt = m_ast_cloner.clone_stmt(m_allocator->emplace<NodeStmt>(template_procedure->from));
