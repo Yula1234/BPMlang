@@ -578,8 +578,8 @@ public:
                 exit(EXIT_FAILURE);
             }
 
-            DataType operator()([[maybe_unused]] const NodeTermParen* term_paren) const {
-                return BaseDataTypeVoid;
+            DataType operator()(const NodeTermParen* term_paren) const {
+                return sema.analyze_expr(term_paren->expr);   
             }
 
             DataType operator()([[maybe_unused]] const NodeTermNmCall* term_call) const {
@@ -931,8 +931,6 @@ public:
                 } else {
                     assert(false);
                 }
-
-                // TODO: NodeStmtLetNoAssign can be deleted, and here expr can be optional, for reduce code size.
                 
                 if(explicit_type.has_value() && stmt_let->expr.has_value()) {
                     const DataType& explicit_type_unpacked = explicit_type.value();

@@ -219,8 +219,8 @@ public:
     
             }
 
-            void operator()([[maybe_unused]] const NodeTermParen* term_paren) const {
-
+            void operator()(const NodeTermParen* term_paren) const {
+                gen.gen_expr(term_paren->expr, lvalue);
             }
 
             void operator()([[maybe_unused]] const NodeTermNmCall* term_call) const {
