@@ -635,9 +635,9 @@ public:
                
             }
 
-            void operator()([[maybe_unused]] const NodeStmtAsm* stmt_asm) const
+            void operator()(const NodeStmtAsm* stmt_asm) const
             {
-               
+                gen.m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp(stmt_asm->code)));
             }
 
             void operator()([[maybe_unused]] const NodeStmtCextern* stmt_cextern) const

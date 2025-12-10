@@ -1008,9 +1008,9 @@ public:
 
             }
 
-            void operator()([[maybe_unused]] const NodeStmtPushOnStack* stmt_push) const
+            void operator()(const NodeStmtPushOnStack* stmt_push) const
             {
-
+                sema.analyze_expr(stmt_push->expr);
             }
 
             void operator()([[maybe_unused]] const NodeStmtIf* stmt_if) const
