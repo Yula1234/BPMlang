@@ -51,24 +51,19 @@ namespace std {
 template <class T>
 inline void hash_combine(std::size_t& seed, const T& v) {
     std::hash<T> hasher;
-    // Магические числа для смешивания битов (Golden Ratio)
-    // 0x9e3779b9 (32 bit) или более длинная константа для 64 bit
     seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 
 template<> struct hash<DataType> {
     size_t operator()(const DataType& dt) const noexcept {
         size_t seed = 0;
-        // Хешируем сам тип (enum или указатель на имя объекта)
-        // Если это объект - хешируем ID его имени (интернированный) или указатель на строку
         if (dt.is_object()) 
-             hash_combine(seed, dt.getobjectname()); // Лучше бы тут был ID, но ок
+            hash_combine(seed, dt.getobjectname());
         else 
-             hash_combine(seed, static_cast<int>(dt.root().getsimpletype()));
+            hash_combine(seed, static_cast<int>(dt.root().getsimpletype()));
 
         hash_combine(seed, dt.root().ptrlvl);
         
-        // Рекурсивно хешируем дженерики БЕЗ создания строк
         for (const auto& g : dt.node->generics) {
             hash_combine(seed, hash<DataType>{}(g));
         }
