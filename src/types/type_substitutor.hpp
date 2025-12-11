@@ -26,7 +26,15 @@ public:
 
         if(search == m_templates.end()) return result;
 
-        return search->second;
+         const DataType& template_source = search->second;
+
+        DataType replacement(template_source.root());
+        
+        replacement.node->generics = template_source.node->generics;
+
+        replacement.root().ptrlvl += result.root().ptrlvl;
+
+        return replacement;
     }
 
     void substitute_term(const NodeTerm* term)

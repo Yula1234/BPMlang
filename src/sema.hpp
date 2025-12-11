@@ -514,8 +514,10 @@ public:
         }
         if (is_template_param) {
             if (formal.root().ptrlvl > actual.root().ptrlvl) return false;
-
-            DataType deduced_type = actual;
+    
+            DataType deduced_type(actual.root());
+            deduced_type.node->generics = actual.node->generics;
+    
             deduced_type.root().ptrlvl -= formal.root().ptrlvl;
             
             const auto& it = deduced.find(formal_name);
@@ -668,8 +670,24 @@ public:
                 return term_cast->type;
             }
 
-            DataType operator()([[maybe_unused]] const NodeTermUnref* term_unref) const {
-                return BaseDataTypeVoid;
+            DataType operator()(const NodeTermUnref* term_unref) const {
+                DataType type = sema.analyze_expr(term_unref->expr);
+                if (type.root().ptrlvl == 0) {
+                     sema.m_diag_man->DiagnosticMessage(
+                         Token{}, 
+                         "error", 
+                         "cannot dereference a non-pointer type `" + type.to_string() + "`", 
+                         0
+                     );
+                     exit(EXIT_FAILURE);
+                }
+
+                DataType dereferenced_type(type.root());
+                dereferenced_type.node->generics = type.node->generics;
+
+                dereferenced_type.root().ptrlvl -= 1;
+
+                return dereferenced_type;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermCastTo* term_cast_to) const {
@@ -685,7 +703,13 @@ public:
             }
 
             DataType operator()([[maybe_unused]] const NodeTermAmpersand* term_amp) const {
-                return BaseDataTypeVoid;
+                DataType dt = sema.analyze_expr(term_amp->expr, lvalue);
+    
+                DataType ptr_type(dt.root());
+                ptr_type.node->generics = dt.node->generics;
+                
+                ptr_type.root().ptrlvl += 1;
+                return ptr_type;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermDrvalue* term_drval) const {

@@ -164,8 +164,12 @@ public:
                 gen.gen_expr(term_cast->expr, lvalue);
             }
 
-            void operator()([[maybe_unused]] const NodeTermUnref* term_unref) const {
-                
+            void operator()(const NodeTermUnref* term_unref) const {
+                gen.gen_expr(term_unref->expr);
+                if(!lvalue) {
+                    gen.pop_reg(Reg::ECX);
+                    gen.push_mem(MemRef::baseDisp(Reg::ECX, 0));
+                }
             }
 
             void operator()(const NodeTermCastTo* term_cast_to) const {
@@ -180,8 +184,8 @@ public:
 
             }
 
-            void operator()([[maybe_unused]] const NodeTermAmpersand* term_amp) const {
-
+            void operator()(const NodeTermAmpersand* term_amp) const {
+                gen.gen_expr(term_amp->expr, true);
             }
 
             void operator()([[maybe_unused]] const NodeTermDrvalue* term_drval) const {
