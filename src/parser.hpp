@@ -801,7 +801,7 @@ public:
             {
                 auto expr_call = m_allocator->emplace<NodeTermNmCall>();
                 expr_call->def  = first;
-                expr_call->nm   = nsName;  
+                expr_call->nm   = segments;  
                 expr_call->name = funcName;
 
                 if (peek().has_value() && peek().value().type == TokenType_t::less) {
@@ -1927,7 +1927,7 @@ public:
 
             auto stmt_call = m_allocator->emplace<NodeStmtNmCall>();
             stmt_call->def  = first;
-            stmt_call->nm   = nsName;   
+            stmt_call->nm   = segments;   
             stmt_call->name = funcName; 
 
             if (peek().has_value() && peek().value().type == TokenType_t::less) {

@@ -35,9 +35,10 @@ struct NodeTermCall {
 struct NodeTermNmCall {
 	Token def; 
 	GString name;
-	GString nm;
+	GVector<GString> nm;
 	std::optional<NodeExpr*> args;
 	GVector<DataType> targs;
+	bool as_expr = true;
 };
 
 struct NodeTermSizeof {
@@ -306,9 +307,10 @@ struct NodeStmtCall {
 struct NodeStmtNmCall {
 	Token def;
 	GString name;
-	GString nm;
+	GVector<GString> nm;
 	std::optional<NodeExpr*> args;
 	GVector<DataType> targs;
+	NodeExpr* resolved_expression = nullptr;
 };
 
 struct NodeStmtStore {

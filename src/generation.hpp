@@ -108,6 +108,14 @@ public:
         m_diag_man->DiagnosticMessage(tok, "warning", msg, 0);
     }
 
+    void append_cextern(const GString& name) {
+        if (std::find(m_cexterns.begin(), m_cexterns.end(), name) !=
+            m_cexterns.end()) {
+            return;
+        }
+        m_cexterns.push_back(name);
+    }
+
     void gen_term(const NodeTerm* term, bool lvalue = false)
     {
         struct TermVisitor {
@@ -227,8 +235,19 @@ public:
                 gen.gen_expr(term_paren->expr, lvalue);
             }
 
-            void operator()([[maybe_unused]] const NodeTermNmCall* term_call) const {
+            void operator()(NodeTermNmCall* term_call) const {
+                const auto& search = gen.m_sema->m_sym_table.m_mapped_nm_calls_symbols.find(term_call);
+                assert(search != gen.m_sema->m_sym_table.m_mapped_nm_calls_symbols.end());
+                Procedure* procedure = search->second;
+                assert(procedure != nullptr);
 
+                if(term_call->args.has_value()) gen.gen_expr(term_call->args.value());
+
+                gen.m_builder.call(gen.sym(procedure->mangled_symbol));
+
+                if(term_call->args.has_value()) gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(procedure->params.size() * 4));
+
+                if(term_call->as_expr) gen.m_builder.push(gen.reg(Reg::EAX));
             }
 
             void operator()(NodeTermCall* term_call) const {
@@ -508,7 +527,7 @@ public:
                 if(stmt_proc->prototype) {
                     bool cimport = std::find(stmt_proc->attrs.begin(), stmt_proc->attrs.end(), ProcAttr::cimport) != stmt_proc->attrs.end();
                     if(cimport) {
-                        gen.m_cexterns.push_back(stmt_proc->name);
+                        gen.append_cextern(stmt_proc->name);
                     }
                     return;
                 }
@@ -682,9 +701,9 @@ public:
                 gen.m_builder.emit(IRInstr(IROp::InlineAsm, Operand::symbolOp(stmt_asm->code)));
             }
 
-            void operator()([[maybe_unused]] const NodeStmtCextern* stmt_cextern) const
+            void operator()(const NodeStmtCextern* stmt_cextern) const
             {
-              
+                gen.append_cextern(stmt_cextern->name);
             }
 
             void operator()([[maybe_unused]] const NodeStmtStruct* stmt_struct) const
@@ -727,9 +746,10 @@ public:
                 
             }
 
-            void operator()([[maybe_unused]] const NodeStmtNmCall* stmt_call) const
+            void operator()(const NodeStmtNmCall* stmt_call) const
             {
-               
+                assert(stmt_call->resolved_expression != nullptr);
+                gen.gen_expr(stmt_call->resolved_expression);
             }
 
             void operator()([[maybe_unused]] const NodeStmtMtCall* stmt_call) const

@@ -169,6 +169,7 @@ public:
     GMap<NodeStmtReturn*, Procedure*> m_mapped_return_symbols;
     GMap<NodeTermIdent*, TermIdentSymbol> m_mapped_ident_symbols;
     GMap<NodeTermCall*, Procedure*> m_mapped_calls_symbols;
+    GMap<NodeTermNmCall*, Procedure*> m_mapped_nm_calls_symbols;
     GMap<NodeStmtLet*, TermIdentSymbol> m_mapped_let_symbols;
 
 	SemanticSymbolTable() = default;
@@ -619,6 +620,39 @@ public:
         }
     }
 
+    Procedure* resolve_call(Procedure* proc, const GVector<NodeExpr*>& args, GVector<DataType>& targs, const Token& def) {
+        GVector<DataType> args_types;
+        for(size_t i = 0;i < args.size();i++) {
+            args_types.push_back(analyze_expr(args[i]));
+        }
+
+        if (proc->templates != NULL && targs.empty() && proc->overloads.empty()) {
+            GMap<GString, DataType> deduced = template_deduction(args_types, proc->params, proc->templates, def, proc);
+            
+            if (!deduced.empty()) {
+                for (const GString& t_name : *proc->templates) {
+                    targs.push_back(deduced[t_name]);
+                }
+            }
+        }
+
+        if(proc->templates != NULL && proc->overloads.empty()) {
+            proc = m_template_instantiator.instantiate_procedure(proc, targs, def);
+        }
+
+        if(!proc->overloads.empty()) {
+            proc = resolve_overloading(def, proc, args_types, targs);
+        } else {
+            std::pair<bool, size_t> typecheck_result = match_call_signature(args_types, proc->params, proc);
+            if(!typecheck_result.first) {
+                m_diag_man->DiagnosticMessage(proc->def, "error", "procedure `" + proc->name + "` expects an `" + proc->params[typecheck_result.second].second.to_string() + "` " + GString(std::to_string(typecheck_result.second + 1).c_str()) + " argument type", 0);
+                m_diag_man->DiagnosticMessage(def, "note", "but got `" + args_types[typecheck_result.second].to_string() + "`", 0);
+                exit(EXIT_FAILURE);
+            }
+        }
+        return proc;
+    }
+
     DataType analyze_term(const NodeTerm* term, NodeExpr* base_expr, bool lvalue = false)
     {
         struct TermVisitor {
@@ -759,8 +793,58 @@ public:
                 return sema.analyze_expr(term_paren->expr);   
             }
 
-            DataType operator()([[maybe_unused]] const NodeTermNmCall* term_call) const {
-                return BaseDataTypeVoid;
+            DataType operator()(NodeTermNmCall* term_call) const {
+                assert(term_call->nm.size() > 0);
+
+                std::optional<Namespace*> _namesp = sema.m_sym_table.namespace_lookup(term_call->nm[0]);
+                if(!_namesp.has_value()) {
+                    sema.m_diag_man->DiagnosticMessage(term_call->def, "error", "unkown namespace `" + term_call->nm[0] + "`", 0);
+                    exit(EXIT_FAILURE);
+                }
+
+                Namespace* current_nm = _namesp.value();
+                for(size_t i = 1;i < term_call->nm.size();i++) {
+                    std::optional<Namespace*> _nm = current_nm->scope->namespace_lookup(term_call->nm[i]);
+                    if(!_nm.has_value()) {
+                        GString errloc_namespace = term_call->nm[0];
+                        if(term_call->nm.size() > 1) errloc_namespace += "::";
+                        for(size_t j = 1;j < term_call->nm.size();j++) {
+                            errloc_namespace += term_call->nm[j];
+                            if(j != term_call->nm.size() - 1) {
+                                errloc_namespace += "::";
+                            }
+                        }
+                        sema.m_diag_man->DiagnosticMessage(term_call->def, "error", "unkown namespace `" + errloc_namespace + "`", 0);
+                        exit(EXIT_FAILURE);
+                    }
+                    current_nm = _nm.value();
+                }
+
+                assert(current_nm != nullptr);
+
+                const GString& name = term_call->name;
+
+                std::optional<Procedure*> _proc = current_nm->scope->proc_lookup(name);
+
+                if(!_proc.has_value()) {
+                    const GString& path_to_nm = current_nm->get_path();
+                    sema.m_diag_man->DiagnosticMessage(term_call->def, "error", "namespace `" + path_to_nm.substr(0, path_to_nm.length() - 2) + "` doesn't have procedure `" + name + "`", 0);
+                    exit(EXIT_FAILURE);
+                }
+
+                Procedure* proc = _proc.value();
+
+                GVector<NodeExpr*> args{};
+
+                if(term_call->args.has_value()) {
+                    args = sema.__getargs(term_call->args.value());
+                }
+
+                proc = sema.resolve_call(proc, args, term_call->targs, term_call->def);
+
+                sema.m_sym_table.m_mapped_nm_calls_symbols[term_call] = proc;
+
+                return proc->rettype;
             }
 
             DataType operator()(NodeTermCall* term_call) const {
@@ -780,35 +864,7 @@ public:
                     args = sema.__getargs(term_call->args.value());
                 }
 
-                GVector<DataType> args_types;
-                for(size_t i = 0;i < args.size();i++) {
-                    args_types.push_back(sema.analyze_expr(args[i]));
-                }
-
-                if (proc->templates != NULL && term_call->targs.empty() && proc->overloads.empty()) {
-                    GMap<GString, DataType> deduced = sema.template_deduction(args_types, proc->params, proc->templates, term_call->def, proc);
-                    
-                    if (!deduced.empty()) {
-                        for (const GString& t_name : *proc->templates) {
-                            term_call->targs.push_back(deduced[t_name]);
-                        }
-                    }
-                }
-
-                if(proc->templates != NULL && proc->overloads.empty()) {
-                    proc = sema.m_template_instantiator.instantiate_procedure(proc, term_call->targs, term_call->def);
-                }
-
-                if(!proc->overloads.empty()) {
-                    proc = sema.resolve_overloading(term_call->def, proc, args_types, term_call->targs);
-                } else {
-                    std::pair<bool, size_t> typecheck_result = sema.match_call_signature(args_types, proc->params, proc);
-                    if(!typecheck_result.first) {
-                        sema.m_diag_man->DiagnosticMessage(proc->def, "error", "procedure `" + proc->name + "` expects an `" + proc->params[typecheck_result.second].second.to_string() + "` " + GString(std::to_string(typecheck_result.second + 1).c_str()) + " argument type", 0);
-                        sema.m_diag_man->DiagnosticMessage(term_call->def, "note", "but got `" + args_types[typecheck_result.second].to_string() + "`", 0);
-                        exit(EXIT_FAILURE);
-                    }
-                }
+                proc = sema.resolve_call(proc, args, term_call->targs, term_call->def);
 
                 sema.m_sym_table.m_mapped_calls_symbols[term_call] = proc;
 
@@ -1023,7 +1079,7 @@ public:
     }
 
     void analyze_procedure(Procedure* procedure) {
-        if(procedure->nmspace != nullptr) {
+        if(procedure->nmspace != nullptr && std::find(procedure->attrs.begin(), procedure->attrs.end(), ProcAttr::cimport) == procedure->attrs.end()) {
             procedure->mangled_symbol = procedure->nmspace->get_mangle() + procedure->mangled_symbol;
             procedure->name = procedure->nmspace->get_path() + procedure->from->name;
         }
@@ -1322,9 +1378,17 @@ public:
                 
             }
 
-            void operator()([[maybe_unused]] const NodeStmtNmCall* stmt_call) const
+            void operator()(NodeStmtNmCall* stmt_call) const
             {
-                
+                NodeTermNmCall* call = sema.m_allocator->emplace<NodeTermNmCall>();
+                call->def = stmt_call->def;
+                call->nm = stmt_call->nm;
+                call->name = stmt_call->name;
+                call->args = stmt_call->args;
+                call->targs = stmt_call->targs;
+                call->as_expr = false;
+                stmt_call->resolved_expression = sema.as_expr_pointer(sema.as_term_pointer(call));
+                sema.analyze_expr(stmt_call->resolved_expression);
             }
 
             void operator()([[maybe_unused]] const NodeStmtMtCall* stmt_call) const
