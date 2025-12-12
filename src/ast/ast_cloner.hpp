@@ -372,6 +372,7 @@ public:
                 new_proc->scope = cloner.clone_scope(stmt_proc->scope);
                 new_proc->prototype = stmt_proc->prototype;
                 new_proc->templates = NULL;
+                new_proc->decorators = stmt_proc->decorators;
                 if(stmt_proc->templates != NULL) {
                     GVector<GString>* new_temps = cloner.m_allocator->emplace<GVector<GString>>();
                     for(size_t i = 0;i < stmt_proc->templates->size();i++) {

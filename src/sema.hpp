@@ -1062,24 +1062,36 @@ public:
 
         bool cimport = std::find(stmt_proc->attrs.begin(), stmt_proc->attrs.end(), ProcAttr::cimport) != stmt_proc->attrs.end();
 
-        if(cimport) {
-            cproc->mangled_symbol = stmt_proc->name;
-        }
-        else {
-            GString mangled_symbol = stmt_proc->name;
-            for(size_t i = 0ULL;i < stmt_proc->params.size();i += 1) {
-                mangled_symbol += stmt_proc->params[i].second.sign();
+        const auto& link_decorator_search = stmt_proc->decorators.find("link_name");
+
+        if(link_decorator_search == stmt_proc->decorators.end()) {
+            if(cimport) {
+                cproc->mangled_symbol = stmt_proc->name;
             }
-            mangled_symbol += "@" + std::to_string(stmt_proc->params.size());
-            cproc->mangled_symbol = mangled_symbol;
+            else {
+                GString mangled_symbol = stmt_proc->name;
+                for(size_t i = 0ULL;i < stmt_proc->params.size();i += 1) {
+                    mangled_symbol += stmt_proc->params[i].second.sign();
+                }
+                mangled_symbol += "@" + std::to_string(stmt_proc->params.size());
+                cproc->mangled_symbol = mangled_symbol;
+            }
+        } else {
+            cproc->mangled_symbol = link_decorator_search->second;
         }
 
         cproc->nmspace = m_cur_namespace;
         return cproc;
     }
 
+    bool procedure_in_namespace_need_mangle(Procedure* procedure) {
+        return procedure->nmspace != nullptr &&
+                std::find(procedure->attrs.begin(), procedure->attrs.end(), ProcAttr::cimport) == procedure->attrs.end() &&
+                procedure->from->decorators.find("link_name") == procedure->from->decorators.end();
+    }
+
     void analyze_procedure(Procedure* procedure) {
-        if(procedure->nmspace != nullptr && std::find(procedure->attrs.begin(), procedure->attrs.end(), ProcAttr::cimport) == procedure->attrs.end()) {
+        if(procedure_in_namespace_need_mangle(procedure)) {
             procedure->mangled_symbol = procedure->nmspace->get_mangle() + procedure->mangled_symbol;
             procedure->name = procedure->nmspace->get_path() + procedure->from->name;
         }

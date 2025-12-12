@@ -11,7 +11,8 @@ enum class TokenType_t {
     double_stick, hash_sign, _define, dollar, _interface, _sizeof, _typeid, oninit,
     shift_left, shift_right, pushonstack, _line, _col, _file, empty_stmt, expr_stmt,
     popfromstack, cast_to, ct_eval, _namespace, double_colon, ct_mdefined, tilda,
-    _typedef, _constexpr, impl, raise, _try, _catch, __drvalue, for_, foreach_, enum_
+    _typedef, _constexpr, impl, raise, _try, _catch, __drvalue, for_, foreach_, enum_,
+    at_sign,
 };
 
 static const char* const token_names[] = {
@@ -27,7 +28,7 @@ static const char* const token_names[] = {
     "`__LINE__`", "`__COL__`", "`__FILE__`", "`__empty_stmt`", "`__expr_stmt`",
     "`__popfromstack`", "`cast_to`", "`ct_eval`", "`namespace`", "`::`", "`ct_mdefined`",
     "`~`", "`typedef`", "`constexpr`", "`impl`", "`raise`", "`try`", "`catch`",
-    "`__disable_rvalue__`", "`for`", "`foreach`", "`enum`"
+    "`__disable_rvalue__`", "`for`", "`foreach`", "`enum`", "`@`",
 };
 
 inline GString tok_to_string(const TokenType_t type) {
@@ -161,6 +162,7 @@ public:
                 case '$': tokens->push_back({TokenType_t::dollar, line, col, {}, file, {}}); ++curr; break;
                 case '#': tokens->push_back({TokenType_t::hash_sign, line, col, {}, file, {}}); ++curr; break;
                 case '%': tokens->push_back({TokenType_t::mod, line, col, {}, file, {}}); ++curr; break;
+                case '@': tokens->push_back({TokenType_t::at_sign, line, col, {}, file, {}}); ++curr; break;
 
                 case '=':
                     if (curr + 1 < end && curr[1] == '=') {

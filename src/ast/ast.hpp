@@ -294,6 +294,7 @@ struct NodeStmtProc {
 	bool prototype = false;
 	GVector<GString>* templates;
 	GVector<TypeConstraint> constraints;
+	GMap<GString, GString> decorators;
 };
 
 struct NodeStmtCall {

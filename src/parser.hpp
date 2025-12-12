@@ -1318,6 +1318,14 @@ public:
 				}
 				try_consume_err(TokenType_t::close_bracket);
 			}
+			stmt_proc->decorators = {};
+			while(auto _at_s = try_consume(TokenType_t::at_sign)) {
+				Token decorator_name_token = try_consume_err(TokenType_t::ident);
+				try_consume_err(TokenType_t::open_paren);
+				Token string_literal_token = try_consume_err(TokenType_t::string_lit);
+				try_consume_err(TokenType_t::close_paren);
+				stmt_proc->decorators[decorator_name_token.value.value()] = string_literal_token.value.value();
+			}
 			if(peek().has_value() && peek().value().type == TokenType_t::semi) {
 				stmt_proc->scope = NULL;
 				stmt_proc->prototype = true;
