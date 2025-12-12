@@ -180,8 +180,8 @@ public:
                 
             }
 
-            void operator()([[maybe_unused]] const NodeTermStrLit* term_str_lit) const {
-
+            void operator()(const NodeTermStrLit* term_str_lit) const {
+                gen.gen_push_str(term_str_lit->str_lit);
             }
 
             void operator()(const NodeTermAmpersand* term_amp) const {
@@ -504,7 +504,14 @@ public:
 
             void operator()(NodeStmtProc* stmt_proc)
             {
-                if(stmt_proc->templates != NULL || stmt_proc->prototype) return;
+                if(stmt_proc->templates != NULL) return;
+                if(stmt_proc->prototype) {
+                    bool cimport = std::find(stmt_proc->attrs.begin(), stmt_proc->attrs.end(), ProcAttr::cimport) != stmt_proc->attrs.end();
+                    if(cimport) {
+                        gen.m_cexterns.push_back(stmt_proc->name);
+                    }
+                    return;
+                }
                 const auto& search = gen.m_sema->m_sym_table.m_mapped_procs_symbols.find(stmt_proc);
                 assert(search != gen.m_sema->m_sym_table.m_mapped_procs_symbols.end());
                 Procedure* symbol = search->second;

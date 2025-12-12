@@ -714,7 +714,9 @@ public:
             }
 
             DataType operator()([[maybe_unused]] const NodeTermStrLit* term_str_lit) const {
-                return BaseDataTypeVoid;
+                DataType dt(BaseDataTypeChar);
+                dt.root().ptrlvl++;
+                return dt;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermAmpersand* term_amp) const {
@@ -1002,12 +1004,20 @@ public:
         cproc->templates = stmt_proc->templates;
         cproc->from = stmt_proc;
 
-        GString mangled_symbol = stmt_proc->name;
-        for(size_t i = 0ULL;i < stmt_proc->params.size();i += 1) {
-            mangled_symbol += stmt_proc->params[i].second.sign();
+        bool cimport = std::find(stmt_proc->attrs.begin(), stmt_proc->attrs.end(), ProcAttr::cimport) != stmt_proc->attrs.end();
+
+        if(cimport) {
+            cproc->mangled_symbol = stmt_proc->name;
         }
-        mangled_symbol += "@" + std::to_string(stmt_proc->params.size());
-        cproc->mangled_symbol = mangled_symbol;
+        else {
+            GString mangled_symbol = stmt_proc->name;
+            for(size_t i = 0ULL;i < stmt_proc->params.size();i += 1) {
+                mangled_symbol += stmt_proc->params[i].second.sign();
+            }
+            mangled_symbol += "@" + std::to_string(stmt_proc->params.size());
+            cproc->mangled_symbol = mangled_symbol;
+        }
+
         cproc->nmspace = m_cur_namespace;
         return cproc;
     }
