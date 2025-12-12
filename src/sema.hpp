@@ -1357,12 +1357,19 @@ public:
             {
                 Namespace* old_namespace = sema.m_cur_namespace;
 
-                Namespace* current_namespace = sema.m_allocator->emplace<Namespace>();
-                current_namespace->parent = old_namespace;
-                sema.m_sym_table.last_scope()->m_namespaces[stmt_space->name] = current_namespace;
+                Namespace* current_namespace = nullptr;
 
-                current_namespace->name = stmt_space->name;
-                current_namespace->scope = sema.m_allocator->emplace<SemanticScope>();
+                auto existing = sema.m_sym_table.namespace_lookup(stmt_space->name);
+                if(!existing.has_value()) {
+                    current_namespace = sema.m_allocator->emplace<Namespace>();
+                    current_namespace->parent = old_namespace;
+                    sema.m_sym_table.last_scope()->m_namespaces[stmt_space->name] = current_namespace;
+                    current_namespace->name = stmt_space->name;
+                    current_namespace->scope = sema.m_allocator->emplace<SemanticScope>();
+                } else {
+                    current_namespace = existing.value();
+                }
+
                 sema.m_cur_namespace = current_namespace;
                 sema.m_sym_table.m_scopes.push_front(current_namespace->scope); // begin_scope()
 
