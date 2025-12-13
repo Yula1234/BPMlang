@@ -33,11 +33,13 @@ struct GlobalVariable {
 
 struct Struct {
     GString name;
-    GMap<GString, std::pair<DataType, int>> fields; // name => pair<Type, Position in Order>
+    GMap<GString, Field> fields; // name => pair<Type, Position in Order>
     size_t _typeid;
     GVector<GString> temps;
     Token def;
+    bool temp;
     std::optional<DataType> parent_type;
+    GVector<std::pair<GString, DataType>> __fields;
 };
 
 struct Interface {
@@ -1117,6 +1119,31 @@ public:
         m_cur_procedure = nullptr;
     }
 
+    GVector<DataType> get_template_args(const DataType& dt) {
+        return dt.node->generics;
+    }
+
+    using mapped_temps = GMap<GString, DataType>;
+
+    mapped_temps compute_temps(const GVector<GString>& templates, const GVector<DataType>& targs) {
+        assert(templates.size() == targs.size());
+        mapped_temps temps;
+        size_t counter{ 0 };
+        for (auto&& el : templates) {
+            temps[el] = targs[counter++];
+        }
+        return temps;
+    }
+
+    GMap<GString, Field> compute_fields(const GVector<std::pair<GString, DataType>>& fields) {
+        GMap<GString, Field> __fields;
+        size_t nth = 0ULL;
+        for (const std::pair<GString, DataType>& field : fields) {
+            __fields[field.first] = { .name = field.first, .type = field.second, .nth = nth++ };
+        }
+        return __fields;
+    }
+
     void analyze_stmt(NodeStmt* stmt)
     {
         struct StmtVisitor {
@@ -1353,9 +1380,60 @@ public:
 
             }
 
-            void operator()([[maybe_unused]] const NodeStmtStruct* stmt_struct) const
+            void operator()(NodeStmtStruct* stmt_struct) const
             {
+                std::optional<Struct*> already_declared = sema.m_sym_table.struct_lookup(stmt_struct->name);
+                if(already_declared.has_value()) {
+                    sema.m_diag_man->DiagnosticMessage(stmt_struct->def, "error", "redefenition of structure `" + stmt_struct->name + "`", 0);
+                    sema.m_diag_man->DiagnosticMessage(already_declared.value()->def, "note", "first defenition here", 0);
+                    exit(EXIT_FAILURE);
+                }
+                GVector<std::pair<GString, DataType>> final_fields;
+                std::optional<DataType> parent_dt = stmt_struct->parent;
 
+                if (parent_dt.has_value()) {
+                    GString pname = parent_dt.value().getobjectname();
+                    std::optional<Struct*> p_struct_opt = sema.m_sym_table.struct_lookup(pname);
+                    
+                    if (!p_struct_opt.has_value()) {
+                        sema.m_diag_man->DiagnosticMessage(stmt_struct->def, "error", "parent struct `" + pname + "` not found", 0);
+                        exit(EXIT_FAILURE);
+                    }
+                    
+                    Struct* p_struct = p_struct_opt.value();
+                    
+                    final_fields = p_struct->__fields;
+                    
+                    if (p_struct->temp) {
+                        GVector<DataType> targs = sema.get_template_args(parent_dt.value());
+                        
+                        if (targs.size() != p_struct->temps.size()) {
+                            sema.m_diag_man->DiagnosticMessage(stmt_struct->def, "error", "parent struct template args mismatch", 0);
+                            exit(EXIT_FAILURE);
+                        }
+
+                        GMap<GString, DataType> temps = sema.compute_temps(p_struct->temps, targs);
+
+                        TypeSubstitutor substitutor(temps);
+                        
+                        for(auto& f : final_fields) {
+                            f.second = substitutor.substitute_type(f.second);
+                        }
+                    }
+                }
+                
+                final_fields.insert(final_fields.end(), stmt_struct->fields.begin(), stmt_struct->fields.end());
+
+                Struct* to_insert = sema.m_allocator->emplace<Struct>();
+                to_insert->name = stmt_struct->name;
+                to_insert->fields = sema.compute_fields(final_fields);
+                to_insert->temps = stmt_struct->temps;
+                to_insert->temp = stmt_struct->temp;
+                to_insert->def = stmt_struct->def;
+                to_insert->__fields = final_fields;
+                to_insert->parent_type = stmt_struct->parent;
+
+                sema.m_sym_table.last_scope()->m_structs[stmt_struct->name] = to_insert;
             }
 
             void operator()([[maybe_unused]] const NodeStmtInterface* stmt_inter) const
