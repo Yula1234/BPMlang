@@ -621,9 +621,16 @@ public:
                 );
             }
 
-            void operator()([[maybe_unused]] const NodeStmtIncBy* stmt_assign) const
+            void operator()(const NodeStmtIncBy* stmt_assign) const
             {
-                
+                gen.gen_expr(stmt_assign->lvalue, true);
+                gen.gen_expr(stmt_assign->expr);
+                gen.pop_reg(Reg::ECX);
+                gen.pop_reg(Reg::EDX);
+                gen.m_builder.add(
+                    gen.mem(MemRef::baseDisp(Reg::EDX, 0)),
+                    gen.reg(Reg::ECX)
+                );
             }
 
             void operator()([[maybe_unused]] const NodeStmtDecBy* stmt_assign) const
@@ -676,14 +683,30 @@ public:
                 }
             }
 
-            void operator()([[maybe_unused]] const NodeStmtWhile* stmt_while) const
+            void operator()(NodeStmtWhile* stmt_while) const
             {
-                
+                auto preiflab = gen.create_label();
+                auto blocklab = gen.create_label();
+                auto endlab   = gen.create_label();
+                stmt_while->break_label = endlab;
+
+                gen.m_builder.label(preiflab);
+                gen.gen_expr(stmt_while->expr);
+                gen.pop_reg(Reg::EAX);
+                gen.m_builder.emit(IRInstr(IROp::Test, gen.reg(Reg::EAX), gen.reg(Reg::EAX)));
+                gen.m_builder.jz(gen.label(endlab));
+
+                gen.m_builder.label(blocklab);
+                gen.gen_scope(stmt_while->scope);
+                gen.m_builder.jmp(gen.label(preiflab));
+
+                gen.m_builder.label(endlab);
             }
 
-            void operator()([[maybe_unused]] const NodeStmtBreak* stmt_break) const
+            void operator()(const NodeStmtBreak* stmt_break) const
             {
-               
+                assert(stmt_break->from != nullptr);
+                gen.m_builder.jmp(gen.label(stmt_break->from->break_label));
             }
 
             void operator()([[maybe_unused]] const NodeStmtStore* stmt_store) const

@@ -227,6 +227,7 @@ public:
 
     Namespace* m_cur_namespace = nullptr;
     Procedure* m_cur_procedure = nullptr;
+    NodeStmtWhile* m_cur_while = nullptr;
 
     Procedure* m_entry_point = nullptr;
 
@@ -1260,7 +1261,12 @@ public:
 
             void operator()([[maybe_unused]] const NodeStmtIncBy* stmt_assign) const
             {
-
+                DataType lvalue_type = sema.analyze_expr(stmt_assign->lvalue, true);
+                DataType rvalue_type = sema.analyze_expr(stmt_assign->expr);
+                if(lvalue_type != rvalue_type) {
+                    sema.m_diag_man->DiagnosticMessage(stmt_assign->def, "error", "the increment expected an type `" + lvalue_type.to_string() + "`, but got a type `" + rvalue_type.to_string() + "`", 0);
+                    exit(EXIT_FAILURE);
+                }
             }
 
             void operator()([[maybe_unused]] const NodeStmtDecBy* stmt_assign) const
@@ -1309,14 +1315,22 @@ public:
                 if(stmt_if->pred.has_value()) sema.analyze_if_pred(stmt_if->pred.value());
             }
 
-            void operator()([[maybe_unused]] const NodeStmtWhile* stmt_while) const
+            void operator()(NodeStmtWhile* stmt_while) const
             {
-
+                sema.analyze_expr(stmt_while->expr);
+                NodeStmtWhile* old_while = sema.m_cur_while;
+                sema.m_cur_while = stmt_while;
+                sema.analyze_scope(stmt_while->scope);
+                sema.m_cur_while = old_while;
             }
 
-            void operator()([[maybe_unused]] const NodeStmtBreak* stmt_break) const
+            void operator()(NodeStmtBreak* stmt_break) const
             {
-
+                if(sema.m_cur_while == nullptr) {
+                    sema.m_diag_man->DiagnosticMessage(stmt_break->def, "error", "break without while", 0);
+                    exit(EXIT_FAILURE);
+                }
+                stmt_break->from = sema.m_cur_while;
             }
 
             void operator()([[maybe_unused]] const NodeStmtStore* stmt_store) const

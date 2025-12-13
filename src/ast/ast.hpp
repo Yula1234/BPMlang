@@ -277,6 +277,7 @@ struct NodeStmtAssign {
 struct NodeStmtWhile {
 	NodeScope* scope {};
 	NodeExpr* expr {};
+	GString break_label;
 };
 
 struct TypeConstraint {
@@ -372,6 +373,7 @@ struct NodeStmtDelete {
 
 struct NodeStmtBreak {
 	Token def;
+	NodeStmtWhile* from = nullptr;
 };
 
 struct NodeStmtIncBy {
