@@ -704,7 +704,7 @@ public:
             }
 
             DataType operator()([[maybe_unused]] const NodeTermCtMdefined* term_mdef) const {
-                return BaseDataTypeVoid;
+                return BaseDataTypeInt;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermSizeof* term_sizeof) const {

@@ -156,8 +156,8 @@ public:
 
             }
 
-            void operator()([[maybe_unused]] const NodeTermCtMdefined* term_mdef) const {
-
+            void operator()(const NodeTermCtMdefined* term_mdef) const {
+                gen.push_imm(static_cast<int32_t>(term_mdef->value));
             }
 
             void operator()([[maybe_unused]] const NodeTermSizeof* term_sizeof) const {
