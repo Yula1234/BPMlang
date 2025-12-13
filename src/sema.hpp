@@ -1078,6 +1078,10 @@ public:
             }
         } else {
             cproc->mangled_symbol = link_decorator_search->second;
+            if(stmt_proc->templates != NULL) {
+                m_diag_man->DiagnosticMessage(stmt_proc->def, "error", "a template procedure cannot have a specified linking name", 0);
+                exit(EXIT_FAILURE);
+            }
         }
 
         cproc->nmspace = m_cur_namespace;
