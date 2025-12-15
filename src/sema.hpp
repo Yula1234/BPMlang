@@ -6,7 +6,8 @@ struct Procedure {
 	GString name;
 	GVector<std::pair<GString, DataType>> params;
 	DataType rettype;
-	size_t stack_allign;
+	size_t stack_allign = 0;
+    size_t max_stack_allign = 0;
 	GVector<ProcAttr> attrs;
 	Token def;
 	bool prototype;
@@ -758,6 +759,32 @@ public:
         return search->second.type;
     }
 
+    void define_namespace_and_analyze_scope(const GString& name, NodeScope* scope, SemanticScope* where) {
+        Namespace* old_namespace = m_cur_namespace;
+
+        Namespace* current_namespace = nullptr;
+
+        auto existing = m_sym_table.namespace_lookup(name);
+        if(!existing.has_value()) {
+            current_namespace = m_allocator->emplace<Namespace>();
+            current_namespace->parent = old_namespace;
+            where->m_namespaces[name] = current_namespace;
+            current_namespace->name = name;
+            current_namespace->scope = m_allocator->emplace<SemanticScope>();
+        } else {
+            current_namespace = existing.value();
+        }
+
+        m_cur_namespace = current_namespace;
+        m_sym_table.m_scopes.push_front(current_namespace->scope); // begin_scope()
+
+        analyze_scope(scope);
+
+        m_sym_table.end_scope();
+
+        m_cur_namespace = old_namespace;
+    }
+
     DataType analyze_term(const NodeTerm* term, NodeExpr* base_expr, bool lvalue = false)
     {
         struct TermVisitor {
@@ -983,8 +1010,20 @@ public:
                 return proc->rettype;
             }
 
-            DataType operator()([[maybe_unused]] const NodeTermMtCall* term_call) const {
-                return BaseDataTypeVoid;
+            DataType operator()(const NodeTermMtCall* term_call) const {
+                DataType object_type = sema.analyze_expr(term_call->mt);
+                assert(object_type.is_object());
+
+                NodeTermNmCall* nm_call = sema.m_allocator->emplace<NodeTermNmCall>();
+                nm_call->def = term_call->def;
+                nm_call->name = term_call->name;
+                nm_call->nm = { object_type.getobjectname() };
+                nm_call->args = term_call->args;
+                nm_call->targs = term_call->targs;
+                nm_call->as_expr = true;
+
+                base_expr->var = sema.as_expr_pointer(sema.as_term_pointer(nm_call))->var;
+                return sema.analyze_expr(base_expr);
             }
             DataType operator()([[maybe_unused]] const NodeTermNmIdent* nm_ident) const {
                 return BaseDataTypeVoid;
@@ -1067,6 +1106,19 @@ public:
                     if(std::holds_alternative<NodeTermIdent*>(rhs_as_term->var)) {
                         return sema.analyze_field_access(dot, object_type, std::get<NodeTermIdent*>(rhs_as_term->var), base->def);
                     }
+
+                    if(std::holds_alternative<NodeTermCall*>(rhs_as_term->var)) {
+                        NodeTermCall* as_term_call = std::get<NodeTermCall*>(rhs_as_term->var);
+
+                        GVector<NodeExpr*> args;
+                        if(as_term_call->args.has_value()) args = sema.__getargs(as_term_call->args.value());
+                        args.insert(args.begin(), dot->lhs);
+
+                        NodeExpr* call_expr = sema.construct_method_call(base->def, dot->lhs, as_term_call->name, 
+                                                                    args, as_term_call->targs);
+                        base_expr->var = call_expr->var;
+                        return sema.analyze_expr(base_expr);
+                    }
                 }
 
                 sema.m_diag_man->DiagnosticMessage(base->def, "error", "after . excepted field name or a method call.", 0);
@@ -1142,6 +1194,7 @@ public:
         }
 
         if (m_cur_procedure) {
+            if(m_cur_procedure->stack_allign > m_cur_procedure->max_stack_allign) m_cur_procedure->max_stack_allign = m_cur_procedure->stack_allign;
             m_cur_procedure->stack_allign = saved_stack_align;
         }
     }
@@ -1560,34 +1613,36 @@ public:
 
             void operator()(const NodeStmtNamespace* stmt_space) const
             {
-                Namespace* old_namespace = sema.m_cur_namespace;
-
-                Namespace* current_namespace = nullptr;
-
-                auto existing = sema.m_sym_table.namespace_lookup(stmt_space->name);
-                if(!existing.has_value()) {
-                    current_namespace = sema.m_allocator->emplace<Namespace>();
-                    current_namespace->parent = old_namespace;
-                    sema.m_sym_table.last_scope()->m_namespaces[stmt_space->name] = current_namespace;
-                    current_namespace->name = stmt_space->name;
-                    current_namespace->scope = sema.m_allocator->emplace<SemanticScope>();
-                } else {
-                    current_namespace = existing.value();
-                }
-
-                sema.m_cur_namespace = current_namespace;
-                sema.m_sym_table.m_scopes.push_front(current_namespace->scope); // begin_scope()
-
-                sema.analyze_scope(stmt_space->scope);
-
-                sema.m_sym_table.end_scope();
-
-                sema.m_cur_namespace = old_namespace;
+                sema.define_namespace_and_analyze_scope(stmt_space->name, stmt_space->scope, sema.m_sym_table.last_scope());
             }
 
-            void operator()([[maybe_unused]] const NodeStmtImpl* stmt_impl) const
+            void operator()(const NodeStmtImpl* stmt_impl) const
             {
-                
+                const GString& implementation_name = stmt_impl->name;
+
+                std::optional<Struct*> maybe_existing_structure = sema.m_sym_table.struct_lookup(implementation_name);
+                if(!maybe_existing_structure.has_value()) {
+                    sema.m_diag_man->DiagnosticMessage(stmt_impl->def, "error", "undefined structure `" + implementation_name + "`.", 0);
+                    exit(EXIT_FAILURE);
+                }
+
+                if(!stmt_impl->temps.empty()) {
+                    for(NodeStmt* stmt : stmt_impl->scope->stmts) {
+                        if(std::holds_alternative<NodeStmtProc*>(stmt->var)) {
+                            NodeStmtProc* procedure_definition = std::get<NodeStmtProc*>(stmt->var);
+                            const GString& procedure_name = procedure_definition->name;
+                            if(stmt_impl->inst.find(procedure_name) == stmt_impl->inst.end()) {
+                                if(procedure_definition->templates == NULL) {
+                                    procedure_definition->templates = sema.m_allocator->emplace<GVector<GString>>();
+                                }
+                                procedure_definition->templates->insert(procedure_definition->templates->begin(),
+                                                                stmt_impl->temps.begin(), stmt_impl->temps.end());
+                            }
+                        }
+                    }
+                }
+
+                sema.define_namespace_and_analyze_scope(implementation_name, stmt_impl->scope, sema.m_sym_table.last_scope());
             }
 
             void operator()(NodeStmtNmCall* stmt_call) const

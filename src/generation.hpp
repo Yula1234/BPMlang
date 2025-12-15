@@ -576,7 +576,7 @@ public:
                 if(!noprolog) {
                     gen.m_builder.push(gen.reg(Reg::EBP));
                     gen.m_builder.mov(gen.reg(Reg::EBP), gen.reg(Reg::ESP));
-                    if(symbol->stack_allign > 0) gen.m_builder.sub(gen.reg(Reg::ESP), gen.imm(symbol->stack_allign));
+                    if(symbol->max_stack_allign > 0) gen.m_builder.sub(gen.reg(Reg::ESP), gen.imm(symbol->max_stack_allign));
                     gen.gen_push_str(symbol->name);
                     gen.m_builder.call(gen.sym("__bpm_proc_enter"));
                     gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(4));
@@ -800,9 +800,9 @@ public:
                 gen.gen_scope(stmt_space->scope);
             }
 
-            void operator()([[maybe_unused]] const NodeStmtImpl* stmt_impl) const
+            void operator()(const NodeStmtImpl* stmt_impl) const
             {
-                
+                gen.gen_scope(stmt_impl->scope);
             }
 
             void operator()(const NodeStmtNmCall* stmt_call) const

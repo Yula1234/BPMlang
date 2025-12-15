@@ -1994,7 +1994,7 @@ public:
 			}
 			if(auto bracket = try_consume(TokenType_t::open_bracket)) {
 				while(peek().has_value() && peek().value().type != TokenType_t::close_bracket) {
-					stmt_impl->inst.push_back(try_consume_err(TokenType_t::ident).value.value());
+					stmt_impl->inst.insert(try_consume_err(TokenType_t::ident).value.value());
 					if(peek().has_value() && peek().value().type != TokenType_t::close_bracket) {
 						try_consume_err(TokenType_t::comma);
 					}

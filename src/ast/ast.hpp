@@ -437,7 +437,7 @@ struct NodeStmtImpl {
 	GString name;
 	NodeScope* scope;
 	GVector<GString> temps;
-	GVector<GString> inst;
+	GSet<GString> inst;
 };
 
 struct NodeStmtMtCall {
