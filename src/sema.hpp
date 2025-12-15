@@ -33,7 +33,7 @@ struct GlobalVariable {
 
 struct Struct {
     GString name;
-    GMap<GString, Field> fields; // name => pair<Type, Position in Order>
+    GMap<GString, Field> fields;
     size_t _typeid;
     GVector<GString> temps;
     Token def;
@@ -170,7 +170,7 @@ public:
     GMap<NodeStmtProc*, Procedure*> m_mapped_procs_symbols;
     GMap<NodeStmtReturn*, Procedure*> m_mapped_return_symbols;
     GMap<NodeTermIdent*, TermIdentSymbol> m_mapped_ident_symbols;
-    GMap<NodeTermCall*, Procedure*> m_mapped_calls_symbols;
+    GMap<NodeTermCall*, std::variant<Procedure*, Struct*>> m_mapped_calls_symbols;
     GMap<NodeTermNmCall*, Procedure*> m_mapped_nm_calls_symbols;
     GMap<NodeStmtLet*, TermIdentSymbol> m_mapped_let_symbols;
 
@@ -591,7 +591,7 @@ public:
         for (const GString& t_name : *templates) {
             if (deduced_map.find(t_name) == deduced_map.end()) {
                 m_diag_man->DiagnosticMessage(def, "error", "could not deduce template parameter `" + t_name + "`", 0);
-                m_diag_man->DiagnosticMessage(proc->from->def, "note", "template procedure defined here", 0);
+                if(proc != nullptr) m_diag_man->DiagnosticMessage(proc->from->def, "note", "template procedure defined here", 0);
                 exit(EXIT_FAILURE);
             }
         }
@@ -648,12 +648,39 @@ public:
         } else {
             std::pair<bool, size_t> typecheck_result = match_call_signature(args_types, proc->params, proc);
             if(!typecheck_result.first) {
-                m_diag_man->DiagnosticMessage(proc->def, "error", "procedure `" + proc->name + "` expects an `" + proc->params[typecheck_result.second].second.to_string() + "` " + GString(std::to_string(typecheck_result.second + 1).c_str()) + " argument type", 0);
+                m_diag_man->DiagnosticMessage(proc->def, "error", "procedure `" + proc->name + "` expects an `" + proc->params[typecheck_result.second].second.to_string() + "` " + GString(std::to_string(typecheck_result.second + 1).c_str()) + " argument type.", 0);
                 m_diag_man->DiagnosticMessage(def, "note", "but got `" + args_types[typecheck_result.second].to_string() + "`", 0);
                 exit(EXIT_FAILURE);
             }
         }
         return proc;
+    }
+
+    DataType analyze_object_creation(NodeTermCall* term_call, Struct* structure) {
+        if(structure->temp && structure->temps.size() != term_call->targs.size()) {
+            m_diag_man->DiagnosticMessage(term_call->def, "error", "structure `" + structure->name + "` excepts " + GString(std::to_string(structure->temps.size()).c_str()) + " template arguments, but got " + GString(std::to_string(term_call->targs.size())) + ".", 0);
+            exit(EXIT_FAILURE);
+        }
+        DataType result_type(BaseDataType(structure->name));
+
+        if(structure->temp) {
+            size_t i = 0ULL;
+            for([[maybe_unused]] auto&& temp : structure->temps) {
+                result_type.node->generics.push_back(term_call->targs[i++]);
+            }
+        }
+        GVector<NodeExpr*> args;
+
+        if(term_call->args.has_value()) {
+            args = __getargs(term_call->args.value());
+        }
+
+        if(args.size() != 0ULL && args.size() != structure->fields.size()) {
+            m_diag_man->DiagnosticMessage(term_call->def, "error", "incorrect number of arguments for initializing an object of type `" + result_type.to_string() + "`, expected " + GString(std::to_string(structure->fields.size()).c_str()) + ", received " + GString(std::to_string(args.size()).c_str()) + ".", 0);
+            exit(EXIT_FAILURE);
+        }
+
+        return result_type;
     }
 
     DataType analyze_term(const NodeTerm* term, NodeExpr* base_expr, bool lvalue = false)
@@ -855,6 +882,13 @@ public:
                 std::optional<Procedure*> _procedure = sema.m_sym_table.proc_lookup(name);
 
                 if(!_procedure.has_value()) {
+
+                    std::optional<Struct*> maybe_existing_structure = sema.m_sym_table.struct_lookup(name);
+                    if(maybe_existing_structure.has_value()) {
+                        sema.m_sym_table.m_mapped_calls_symbols[term_call] = maybe_existing_structure.value();
+                        return sema.analyze_object_creation(term_call, maybe_existing_structure.value());
+                    }
+
                     sema.m_diag_man->DiagnosticMessage(term_call->def, "error", "undefined procedure `" + name + "`", 0);
                     exit(EXIT_FAILURE);
                 }

@@ -253,16 +253,41 @@ public:
             void operator()(NodeTermCall* term_call) const {
                 const auto& search = gen.m_sema->m_sym_table.m_mapped_calls_symbols.find(term_call);
                 assert(search != gen.m_sema->m_sym_table.m_mapped_calls_symbols.end());
-                Procedure* procedure = search->second;
-                assert(procedure != nullptr);
+                if(std::holds_alternative<Procedure*>(search->second)) {
+                    Procedure* procedure = std::get<Procedure*>(search->second);
+                    assert(procedure != nullptr);
+                    if(term_call->args.has_value()) gen.gen_expr(term_call->args.value());
+                    gen.m_builder.call(gen.sym(procedure->mangled_symbol));
+                    if(term_call->args.has_value()) gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(procedure->params.size() * 4));
+                    if(term_call->as_expr) gen.m_builder.push(gen.reg(Reg::EAX));
+                    return;
+                }
+                if(std::holds_alternative<Struct*>(search->second)) {
+                    Struct* structure = std::get<Struct*>(search->second);
+                    assert(structure != nullptr);
+                    size_t size_of_structure = structure->fields.size() * 4ULL;
 
-                if(term_call->args.has_value()) gen.gen_expr(term_call->args.value());
+                    bool has_arguments = term_call->args.has_value();
+                    size_t args_len = 0ULL;
+                    if(has_arguments) {
+                        GVector<NodeExpr*> args_exprs = gen.m_sema->__getargs(term_call->args.value());
+                        gen.gen_expr(term_call->args.value());
+                        args_len = args_exprs.size();
+                    }
 
-                gen.m_builder.call(gen.sym(procedure->mangled_symbol));
-
-                if(term_call->args.has_value()) gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(procedure->params.size() * 4));
-
-                if(term_call->as_expr) gen.m_builder.push(gen.reg(Reg::EAX));
+                    gen.push_imm(size_of_structure);
+                    gen.m_builder.call(gen.sym("memalloc"));
+                    gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(4));
+                    if(has_arguments) {
+                        for(size_t i = 0;i < args_len; ++i) {
+                            gen.pop_reg(Reg::EDX);
+                            gen.m_builder.mov(gen.mem(MemRef::baseDisp(Reg::EAX, i * 4)), gen.reg(Reg::EDX));
+                        }
+                    }
+                    gen.push_reg(Reg::EAX);
+                    return;
+                }
+                assert(false);
             }
 
             void operator()([[maybe_unused]] const NodeTermMtCall* term_call) const {
@@ -891,6 +916,8 @@ private:
         "gc_set_stack_base",
         "__bpm_proc_enter",
         "__bpm_proc_leave",
+        "memalloc",
+        "memfree",
     };
 
     GMap<GString, String> m_strings {};
