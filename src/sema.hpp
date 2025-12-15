@@ -40,6 +40,7 @@ struct Struct {
     bool temp;
     std::optional<DataType> parent_type;
     GVector<std::pair<GString, DataType>> __fields;
+    GMap<GVector<DataType>, Struct*> specializations;
 };
 
 struct Interface {
@@ -72,6 +73,19 @@ template<> struct hash<DataType> {
         return seed;
     }
 };
+
+template<> struct hash<GVector<DataType>> {
+    size_t operator()(const GVector<DataType>& type_vector) const noexcept {
+        size_t seed = 0;
+
+        for (const auto& t : type_vector) {
+            hash_combine(seed, hash<DataType>{}(t));
+        }
+
+        return seed;
+    }
+};
+
 }
 
 class SemanticScope;
@@ -656,6 +670,30 @@ public:
         return proc;
     }
 
+    void specialize_structure_with_templates(const GVector<DataType>& template_args, Struct* structure) {
+        const auto& search = structure->specializations.find(template_args);
+        if(search != structure->specializations.end()) return;
+
+        Struct* new_speacialization = m_allocator->emplace<Struct>();
+        new_speacialization->name = structure->name;
+        new_speacialization->temps = {};
+        new_speacialization->def = structure->def;
+        new_speacialization->temp = false;
+        new_speacialization->parent_type = structure->parent_type;
+        new_speacialization->specializations = {};
+
+        GMap<GString, DataType> mapped_templates;
+        for(size_t i = 0;i < template_args.size(); ++i) {
+            mapped_templates[structure->temps[i]] = template_args[i];
+        }
+
+        new_speacialization->__fields = structure->__fields;
+        apply_template_substitution(new_speacialization->__fields, mapped_templates);
+        new_speacialization->fields = compute_fields(new_speacialization->__fields);
+
+        structure->specializations[template_args] = new_speacialization;
+    }
+
     DataType analyze_object_creation(NodeTermCall* term_call, Struct* structure) {
         if(structure->temp && structure->temps.size() != term_call->targs.size()) {
             m_diag_man->DiagnosticMessage(term_call->def, "error", "structure `" + structure->name + "` excepts " + GString(std::to_string(structure->temps.size()).c_str()) + " template arguments, but got " + GString(std::to_string(term_call->targs.size())) + ".", 0);
@@ -668,6 +706,7 @@ public:
             for([[maybe_unused]] auto&& temp : structure->temps) {
                 result_type.node->generics.push_back(term_call->targs[i++]);
             }
+            specialize_structure_with_templates(term_call->targs, structure);
         }
         GVector<NodeExpr*> args;
 
@@ -681,6 +720,42 @@ public:
         }
 
         return result_type;
+    }
+
+    DataType analyze_field_access(NodeBinExprDot* dot, DataType object_type,
+                                NodeTermIdent* ident, const Token& def)
+    {
+        const GString& field_name = ident->ident.value.value();
+
+        if(!object_type.is_object()) {
+            m_diag_man->DiagnosticMessage(def, "error", "you cannot get the `" + field_name + "` field from a non-object type `" + object_type.to_string() + "`.", 0);
+            exit(EXIT_FAILURE);
+        }
+
+        const GString& object_name = object_type.getobjectname();
+
+        std::optional<Struct*> maybe_existing_structure = m_sym_table.struct_lookup(object_name);
+
+        assert(maybe_existing_structure.has_value());
+
+        Struct* existing_structure = maybe_existing_structure.value();
+
+        if(existing_structure->temp) {
+            const auto& specialization_search = existing_structure->specializations.find(object_type.node->generics);
+            assert(specialization_search != existing_structure->specializations.end());
+            existing_structure = specialization_search->second;
+            assert(existing_structure != nullptr);
+        }
+
+        const auto& search = existing_structure->fields.find(field_name);
+        if(search == existing_structure->fields.end()) {
+            m_diag_man->DiagnosticMessage(def, "error", "a `" + object_name + "` object does not have a field `" + field_name + "`.", 0);
+            exit(EXIT_FAILURE);
+        }
+
+        dot->resolved_field = &(search->second);
+
+        return search->second.type;
     }
 
     DataType analyze_term(const NodeTerm* term, NodeExpr* base_expr, bool lvalue = false)
@@ -982,32 +1057,20 @@ public:
                 return sema.analyze_default_bin_expr(above, SemanticContext::DefBinaryOpKind::ABOVE, base, base_expr, BaseDataTypeInt);
             }
 
-            DataType operator()(const NodeBinExprDot* dot) const {
+            DataType operator()(NodeBinExprDot* dot) const {
                 DataType object_type = sema.analyze_expr(dot->lhs);
 
-                if(!std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
-                    sema.m_diag_man->DiagnosticMessage(base->def, "error", "after `.` except identificator", 0);
-                    exit(EXIT_FAILURE);
+                if(std::holds_alternative<NodeTerm*>(dot->rhs->var)) {
+
+                    NodeTerm* rhs_as_term = std::get<NodeTerm*>(dot->rhs->var);
+
+                    if(std::holds_alternative<NodeTermIdent*>(rhs_as_term->var)) {
+                        return sema.analyze_field_access(dot, object_type, std::get<NodeTermIdent*>(rhs_as_term->var), base->def);
+                    }
                 }
 
-                NodeTerm* term = std::get<NodeTerm*>(dot->rhs->var);
-
-                if(!std::holds_alternative<NodeTermCall*>(term->var)) {
-                    sema.m_diag_man->DiagnosticMessage(base->def, "error", "after `.` except identificator", 0);
-                    exit(EXIT_FAILURE);
-                }
-
-                NodeTermCall* call = std::get<NodeTermCall*>(term->var);
-
-                const GString& method_name = call->name;
-
-                if(!object_type.is_object()) sema.m_diag_man->DiagnosticMessage(base->def, "error", "you cannot call the `" + method_name + "` method on a non-object type `" + object_type.to_string() + "`.", 0);
-            
-                NodeTermMtCall* method_call = sema.m_allocator->emplace<NodeTermMtCall>();
-                method_call->def = call->def;
-                method_call->mt = dot->lhs;
-                method_call->name = method_name;
-                return BaseDataTypeVoid;
+                sema.m_diag_man->DiagnosticMessage(base->def, "error", "after . excepted field name or a method call.", 0);
+                exit(EXIT_FAILURE);
             }
 
             DataType operator()([[maybe_unused]] const NodeBinExprArgs* args) const {

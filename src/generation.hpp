@@ -459,8 +459,19 @@ public:
                 gen.push_reg(Reg::EDX);
             }
 
-            void operator()([[maybe_unused]] const NodeBinExprDot* dot) const {
-                
+            void operator()(const NodeBinExprDot* dot) const {
+                assert(dot->resolved_field != nullptr); // semantic analyze must resolve this field access
+
+                gen.gen_expr(dot->lhs);
+                gen.pop_reg(Reg::EBX);
+                size_t field_offset = dot->resolved_field->nth * 4;
+                if(lvalue) {
+                    if(field_offset > 0) gen.m_builder.add(gen.reg(Reg::EBX), gen.imm(field_offset));
+                    gen.push_reg(Reg::EBX);
+                }
+                else {
+                    gen.push_mem(MemRef::baseDisp(Reg::EBX, field_offset));
+                }
             }
 
             void operator()(const NodeBinExprArgs* args) const {

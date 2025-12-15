@@ -200,9 +200,12 @@ struct NodeBinExprArgs {
 	GVector<NodeExpr*> args;
 };
 
+
+struct Field;
 struct NodeBinExprDot {
 	NodeExpr* lhs; // object
-	NodeExpr* rhs; // field (must be a NodeTermIdent*)
+	NodeExpr* rhs; // field | method
+	Field* resolved_field = nullptr; // resolving at semantic analyze
 };
 
 struct NodeBinExprIndex {
