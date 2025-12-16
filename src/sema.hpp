@@ -367,7 +367,8 @@ public:
             base_expr->var = method_call->var;
             return analyze_expr(method_call);
         }
-        if(!types_equ(lhs_type, rhs_type)) {
+        bool types_equals = types_equ(lhs_type, rhs_type) || (lhs_type.root().ptrlvl != 0 && rhs_type == BaseDataTypeInt);
+        if(!types_equals) {
             char tmp_buffer[256];
 
             const std::pair<const char*, bool>& err_message = m_error_message_by_binop_kind[kind];
@@ -849,6 +850,7 @@ public:
             }
 
             DataType operator()(const NodeTermCast* term_cast) const {
+                sema.analyze_expr(term_cast->expr);
                 sema.check_type_is_valid(term_cast->def, term_cast->type);
                 return term_cast->type;
             }

@@ -227,7 +227,10 @@ public:
 
             void operator()(NodeTermIdent* term_ident) const {
                 const auto& search = gen.m_sema->m_sym_table.m_mapped_ident_symbols.find(term_ident);
-                assert(search != gen.m_sema->m_sym_table.m_mapped_ident_symbols.end());
+                if(search == gen.m_sema->m_sym_table.m_mapped_ident_symbols.end()) {
+                    gen.m_diag_man->DiagnosticMessage(term_ident->ident, "error", "unresolved symbol `" + term_ident->ident.value.value() + "` here.", 0);
+                    exit(EXIT_FAILURE);
+                }
                 TermIdentSymbol symbol = search->second;
                 assert(symbol.symbol != NULL);
                 if(symbol.kind == TermIdentSymbolKind::LOCAL_VAR) {
