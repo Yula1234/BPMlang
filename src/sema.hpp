@@ -843,8 +843,9 @@ public:
                 return BaseDataTypeVoid;
             }
 
-            DataType operator()([[maybe_unused]] const NodeTermRd* term_rd) const {
-                return BaseDataTypeVoid;
+            DataType operator()(const NodeTermRd* term_rd) const {
+                sema.analyze_expr(term_rd->expr);
+                return BaseDataTypeInt;
             }
 
             DataType operator()(const NodeTermCast* term_cast) const {
@@ -872,12 +873,13 @@ public:
                 return dereferenced_type;
             }
 
-            DataType operator()([[maybe_unused]] const NodeTermCastTo* term_cast_to) const {
-                return BaseDataTypeVoid;
+            DataType operator()(const NodeTermCastTo* term_cast_to) const {
+                sema.analyze_expr(term_cast_to->expr);
+                return sema.analyze_expr(term_cast_to->to);
             }
 
             DataType operator()([[maybe_unused]] const NodeTermTypeid* term_typeid) const {
-                return BaseDataTypeVoid;
+                return BaseDataTypeInt;
             }
 
             DataType operator()([[maybe_unused]] const NodeTermStrLit* term_str_lit) const {

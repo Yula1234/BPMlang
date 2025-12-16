@@ -165,7 +165,32 @@ public:
             }
 
             void operator()([[maybe_unused]] const NodeTermRd* term_rd) const {
-
+                gen.gen_expr(term_rd->expr);
+                gen.pop_reg(Reg::EDX);
+                switch (term_rd->size) {
+                case 8: {
+                    Operand dst = gen.reg(Reg::ECX);
+                    Operand m   = gen.mem(MemRef::baseDisp(Reg::EDX, 0));
+                    gen.m_builder.emit(IRInstr(IROp::Load8, dst, m));
+                    gen.push_reg(Reg::ECX);
+                    break;
+                }
+                case 16: {
+                    Operand dst = gen.reg(Reg::ECX);
+                    Operand m   = gen.mem(MemRef::baseDisp(Reg::EDX, 0));
+                    gen.m_builder.emit(IRInstr(IROp::Load16, dst, m));
+                    gen.push_reg(Reg::ECX);
+                    break;
+                }
+                case 32: {
+                    Operand m = gen.mem(MemRef::baseDisp(Reg::EDX, 0));
+                    gen.m_builder.mov(gen.reg(Reg::ECX), m);
+                    gen.push_reg(Reg::ECX);
+                    break;
+                }
+                default:
+                    assert(false);
+                }
             }
 
             void operator()(const NodeTermCast* term_cast) const {
