@@ -467,11 +467,15 @@ public:
             void operator()(const NodeBinExprDot* dot) const {
                 assert(dot->resolved_field != nullptr); // semantic analyze must resolve this field access
 
-                gen.gen_expr(dot->lhs);
-                gen.pop_reg(Reg::EBX);
                 size_t field_offset = dot->resolved_field->nth * 4;
+
+                gen.gen_expr(dot->lhs); // object
+                if(lvalue && field_offset < 1) return; // pushing address of local variable (offset to first field)
+
+                gen.pop_reg(Reg::EBX);
+
                 if(lvalue) {
-                    if(field_offset > 0) gen.m_builder.add(gen.reg(Reg::EBX), gen.imm(field_offset));
+                    gen.m_builder.add(gen.reg(Reg::EBX), gen.imm(field_offset));
                     gen.push_reg(Reg::EBX);
                 }
                 else {
