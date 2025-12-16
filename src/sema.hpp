@@ -1658,9 +1658,20 @@ public:
                 sema.analyze_expr(stmt_call->resolved_expression);
             }
 
-            void operator()([[maybe_unused]] const NodeStmtMtCall* stmt_call) const
+            void operator()(const NodeStmtMtCall* stmt_call) const
             {
-                
+                DataType object_type = sema.analyze_expr(stmt_call->mt);
+                assert(object_type.is_object());
+
+                NodeStmtNmCall* nm_call = sema.m_allocator->emplace<NodeStmtNmCall>();
+                nm_call->def = stmt_call->def;
+                nm_call->name = stmt_call->name;
+                nm_call->nm = { object_type.getobjectname() };
+                nm_call->args = stmt_call->args;
+                nm_call->targs = stmt_call->targs;
+
+                base_stmt->var = nm_call;
+                sema.analyze_stmt(base_stmt);  
             }
 
             void operator()([[maybe_unused]] const NodeStmtConst* stmt_const) const
