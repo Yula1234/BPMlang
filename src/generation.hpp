@@ -231,10 +231,9 @@ public:
                     gen.m_diag_man->DiagnosticMessage(term_ident->ident, "error", "unresolved symbol `" + term_ident->ident.value.value() + "` here.", 0);
                     exit(EXIT_FAILURE);
                 }
-                TermIdentSymbol symbol = search->second;
-                assert(symbol.symbol != NULL);
-                if(symbol.kind == TermIdentSymbolKind::LOCAL_VAR) {
-                    Variable* var = reinterpret_cast<Variable*>(symbol.symbol);
+                std::variant<Variable*, GlobalVariable*> symbol = search->second;
+                if(std::holds_alternative<Variable*>(symbol)) {
+                    Variable* var = std::get<Variable*>(symbol);
                     if (lvalue) {
                         gen.m_builder.mov(gen.reg(Reg::EDX), gen.reg(Reg::EBP));
                         gen.m_builder.sub(gen.reg(Reg::EDX), gen.imm(static_cast<int32_t>(var->stack_loc)));
@@ -244,8 +243,8 @@ public:
                     }
                     return;
                 }
-                if(symbol.kind == TermIdentSymbolKind::GLOBAL_VAR) {
-                    GlobalVariable* var = reinterpret_cast<GlobalVariable*>(symbol.symbol);
+                if(std::holds_alternative<GlobalVariable*>(symbol)) {
+                    GlobalVariable* var = std::get<GlobalVariable*>(symbol);
                     if (lvalue) {
                         gen.push_sym(var->mangled_symbol);
                     } else {
@@ -661,20 +660,19 @@ public:
                 if(!stmt_let->expr.has_value()) return;
                 const auto& search = gen.m_sema->m_sym_table.m_mapped_let_symbols.find(stmt_let);
                 assert(search != gen.m_sema->m_sym_table.m_mapped_let_symbols.end());
-                TermIdentSymbol symbol = search->second;
+                Symbols_Type symbol = search->second;
                 
-                if(symbol.kind == TermIdentSymbolKind::GLOBAL_VAR) {
-                    GlobalVariable* var = reinterpret_cast<GlobalVariable*>(symbol.symbol);
+                if(std::holds_alternative<GlobalVariable*>(symbol)) {
+                    GlobalVariable* var = std::get<GlobalVariable*>(symbol);
                     gen.m_init_globals.push_back({var, stmt_let->expr.value()});
                     return;
                 }
 
-                assert(symbol.symbol != NULL);
                 gen.gen_expr(stmt_let->expr.value());
                 gen.m_builder.pop(gen.reg(Reg::EBX));
                 MemRef mem {};
-                if(symbol.kind == TermIdentSymbolKind::LOCAL_VAR) {
-                    Variable* var = reinterpret_cast<Variable*>(symbol.symbol);
+                if(std::holds_alternative<Variable*>(symbol)) {
+                    Variable* var = std::get<Variable*>(symbol);
                     mem = MemRef::baseDisp(Reg::EBP, -static_cast<int32_t>(var->stack_loc));
                 }
                 gen.m_builder.mov(gen.mem(mem), gen.reg(Reg::EBX));

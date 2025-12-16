@@ -125,6 +125,7 @@ public:
     GMap<GString, Variable*> m_vars;
     GMap<GString, Namespace*> m_namespaces;
     GMap<GString, GlobalVariable*> m_gvars;
+    GMap<GString, Constant*> m_consts;
 
     std::optional<Procedure*> proc_lookup(const GString& name) const {
         const auto& search = m_procs.find(name);
@@ -151,6 +152,11 @@ public:
         if(search != m_gvars.end()) return search->second;
         return std::nullopt;
     }
+    std::optional<Constant*> const_lookup(const GString& name) const {
+        const auto& search = m_consts.find(name);
+        if(search != m_consts.end()) return search->second;
+        return std::nullopt;
+    }
 };
 
 
@@ -162,17 +168,7 @@ public:
 #define TYPEID_PROCPTR 5
 
 
-enum class TermIdentSymbolKind {
-    GLOBAL_VAR,
-    LOCAL_VAR,
-};
-
-struct TermIdentSymbol {
-    TermIdentSymbolKind kind;
-    void* symbol;
-};
-
-
+using Symbols_Type = std::variant<Variable*, GlobalVariable*>;
 
 class SemanticSymbolTable {
 public:
@@ -184,10 +180,10 @@ public:
 
     GMap<NodeStmtProc*, Procedure*> m_mapped_procs_symbols;
     GMap<NodeStmtReturn*, Procedure*> m_mapped_return_symbols;
-    GMap<NodeTermIdent*, TermIdentSymbol> m_mapped_ident_symbols;
+    GMap<NodeTermIdent*, Symbols_Type> m_mapped_ident_symbols;
     GMap<NodeTermCall*, std::variant<Procedure*, Struct*>> m_mapped_calls_symbols;
     GMap<NodeTermNmCall*, Procedure*> m_mapped_nm_calls_symbols;
-    GMap<NodeStmtLet*, TermIdentSymbol> m_mapped_let_symbols;
+    GMap<NodeStmtLet*, Symbols_Type> m_mapped_let_symbols;
     GMap<NodeTermNmIdent*, GlobalVariable*> m_mapped_nmident_symbols;
 
 	SemanticSymbolTable() = default;
@@ -251,6 +247,8 @@ public:
 
     DiagnosticManager* m_diag_man;
     ArenaAllocator* m_allocator;
+
+    size_t CTX_IOTA = 0;
 
 	explicit SemanticContext(NodeProg* prog, DiagnosticManager* dman, ArenaAllocator* arena) : m_template_instantiator(arena, dman, *this) {
 		m_diag_man = dman;
@@ -787,6 +785,238 @@ public:
         m_cur_namespace = old_namespace;
     }
 
+    class Executor {
+    public:
+        class ReturnException {
+        public:
+            ReturnException(const int _value) : value(_value) {}
+            int get_value() { return value; }
+        private:
+            int value;
+        };
+
+        Executor() = delete;
+        Executor(SemanticContext& _sema, Token& _where) : sema(_sema) {
+            where = _where;
+        }
+
+        int execute_expr(const NodeExpr* expr) {
+            return sema.eval(expr, where);
+        }
+
+        void execute_stmt(const NodeStmt* stmt) {
+            if (std::holds_alternative<NodeStmtReturn*>(stmt->var)) {
+                auto ret = std::get<NodeStmtReturn*>(stmt->var);
+                if (!ret->expr.has_value()) {
+                    sema.m_diag_man->DiagnosticMessage(ret->def, "error", "return without value in compile-time execution.", 0);
+                    exit(EXIT_FAILURE);
+                }
+                throw ReturnException(execute_expr(ret->expr.value()));
+            } else {
+                sema.m_diag_man->DiagnosticMessage(where, "error", "procedure is not constant-evaluatable.", 0);
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        void execute(Procedure& proc) {
+            try {
+                for (NodeStmt* stmt : proc.from->scope->stmts) {
+                    execute_stmt(stmt);
+                }
+            } catch (...) {
+                throw;
+            }
+        }
+    private:
+        Token where;
+        SemanticContext& sema;
+    };
+
+    void SemanticError(const Token& def, const GString& message) {
+        m_diag_man->DiagnosticMessage(def, "error", message, 0);
+        exit(EXIT_FAILURE);
+    }
+
+    std::optional<int> __eval_ctcall(const NodeTermCall* call, const Token& def) {
+        const GString& name = call->name;
+        if (name == "is_same_t") {
+            if (!call->args.has_value()) {
+                SemanticError(def, "is_same_t excepts 2 args");
+            }
+            GVector<NodeExpr*> args = __getargs(call->args.value());
+            if (args.size() != 2) {
+                SemanticError(def, "is_same_t excepts 2 args");
+            }
+            std::optional<NodeTermType*> type_1 = ptools::get::type(args[0]);
+            std::optional<NodeTermType*> type_2 = ptools::get::type(args[1]);
+            DataType one;
+            DataType two;
+            if (type_1.has_value()) one = type_1.value()->type;
+            else                    one = analyze_expr(args[0]);
+            if (type_2.has_value()) two = type_2.value()->type;
+            else                    two = analyze_expr(args[1]);
+            return static_cast<int>(one == two);
+        }
+        if (name == "is_object_t") {
+            if (!call->args.has_value()) {
+                SemanticError(def, "is_object_t excepts 1 args");
+            }
+            GVector<NodeExpr*> args = __getargs(call->args.value());
+            if (args.size() != 1) {
+                SemanticError(def, "is_object_t excepts 1 args");
+            }
+            std::optional<NodeTermType*> type = ptools::get::type(args[0]);
+            DataType tp;
+            if (type.has_value()) tp = type.value()->type;
+            else                  tp = analyze_expr(args[0]);
+            return static_cast<int>(tp.root().is_object);
+        }
+        if (name == "ct_not") {
+            if (!call->args.has_value()) {
+                SemanticError(def, "ct_not excepts 1 args");
+            }
+            GVector<NodeExpr*> args = __getargs(call->args.value());
+            if (args.size() != 1) {
+                SemanticError(def, "ct_not excepts 1 args");
+            }
+            return static_cast<int>(!(static_cast<bool>(eval(args[0], def))));
+        }
+        //if (name == "is_implements_t") {
+        //    if (!call->args.has_value()) SemanticError(def, "is_implements_t excepts 2 args");
+        //    GVector<NodeExpr*> args = __getargs(call->args.value());
+        //    if (args.size() != 2) SemanticError(def, "is_implements_t excepts 2 args");
+//
+        //    std::optional<NodeTermType*> type_1 = ptools::get::type(args[0]);
+        //    std::optional<NodeTermType*> type_2 = ptools::get::type(args[1]);
+        //    
+        //    DataType ty;
+        //    if (type_1.has_value()) ty = type_1.value()->type;
+        //    else                    ty = type_of_expr(args[0]);
+        //    
+        //    DataType iface;
+        //    if (type_2.has_value()) iface = type_2.value()->type;
+        //    else                    iface = type_of_expr(args[1]);
+//
+//
+        //    bool result = check_implements_quiet(ty, iface);
+        //    return static_cast<int>(result);
+        //}
+        return std::nullopt;
+    }
+    Namespace* get_namespace_from_segments(const GVector<GString>& nm, const Token& def) {
+
+        std::optional<Namespace*> _namesp = m_sym_table.namespace_lookup(nm[0]);
+        if(!_namesp.has_value()) {
+            m_diag_man->DiagnosticMessage(def, "error", "unkown namespace `" + nm[0] + "`", 0);
+            exit(EXIT_FAILURE);
+        }
+
+        Namespace* current_nm = _namesp.value();
+        for(size_t i = 1;i < nm.size();i++) {
+            std::optional<Namespace*> _nm = current_nm->scope->namespace_lookup(nm[i]);
+            if(!_nm.has_value()) {
+                GString errloc_namespace = nm[0];
+                if(nm.size() > 1) errloc_namespace += "::";
+                for(size_t j = 1;j < nm.size();j++) {
+                    errloc_namespace += nm[j];
+                    if(j != nm.size() - 1) {
+                        errloc_namespace += "::";
+                    }
+                }
+                m_diag_man->DiagnosticMessage(def, "error", "unkown namespace `" + errloc_namespace + "`", 0);
+                exit(EXIT_FAILURE);
+            }
+            current_nm = _nm.value();
+        }
+
+        return current_nm;
+    }
+
+    int eval(const NodeExpr* expr, const Token& def) {
+        int result = 0;
+        if (std::holds_alternative<NodeTerm*>(expr->var)) {
+            NodeTerm* nterm = std::get<NodeTerm*>(expr->var);
+            if (std::holds_alternative<NodeTermIntLit*>(nterm->var)) {
+                return std::stoul(std::get<NodeTermIntLit*>(nterm->var)->int_lit.value.value().c_str());
+            }
+            if (std::holds_alternative<NodeTermCtMdefined*>(nterm->var)) {
+                return static_cast<int>(std::get<NodeTermCtMdefined*>(nterm->var)->value);
+            }
+            if (std::holds_alternative<NodeTermIdent*>(nterm->var)) {
+                const GString& cname = std::get<NodeTermIdent*>(nterm->var)->ident.value.value();
+                if (cname == "iota") return CTX_IOTA++;
+                if (cname == "reset") {
+                    int old = CTX_IOTA;
+                    CTX_IOTA = 0;
+                    return old;
+                }
+                if (cname == "true")  return 1;
+                if (cname == "false") return 0;
+                std::optional<Constant*> cns = m_sym_table.last_scope()->const_lookup(cname);
+                if (cns.has_value()) return cns.value()->value;
+            }
+            if (std::holds_alternative<NodeTermNmIdent*>(nterm->var)) {
+                NodeTermNmIdent* nm = std::get<NodeTermNmIdent*>(nterm->var);
+                Namespace* nms = get_namespace_from_segments(nm->nm, nm->def);
+                auto it = nms->scope->m_consts.find(nm->name);
+                if (it != nms->scope->m_consts.end()) return it->second->value;
+                SemanticError(nm->def, "unkown constant");
+            }
+            if (std::holds_alternative<NodeTermCall*>(nterm->var)) {
+                NodeTermCall* call = std::get<NodeTermCall*>(nterm->var);
+                if (auto vl = __eval_ctcall(call, def)) return vl.value();
+                m_diag_man->DiagnosticMessage(def, "error", "unkown compile-time procedure `" + call->name + "`", 0);
+                exit(EXIT_FAILURE);
+            }
+        }
+        if (std::holds_alternative<NodeBinExpr*>(expr->var)) {
+            NodeBinExpr* nbin = std::get<NodeBinExpr*>(expr->var);
+            if (std::holds_alternative<NodeBinExprAdd*>(nbin->var)) {
+                NodeBinExprAdd* nadd = std::get<NodeBinExprAdd*>(nbin->var);
+                return eval(nadd->lhs, def) + eval(nadd->rhs, def);
+            }
+            if (std::holds_alternative<NodeBinExprSub*>(nbin->var)) {
+                NodeBinExprSub* nsub = std::get<NodeBinExprSub*>(nbin->var);
+                return eval(nsub->lhs, def) - eval(nsub->rhs, def);
+            }
+            if (std::holds_alternative<NodeBinExprMulti*>(nbin->var)) {
+                NodeBinExprMulti* nmul = std::get<NodeBinExprMulti*>(nbin->var);
+                return eval(nmul->lhs, def) * eval(nmul->rhs, def);
+            }
+            if (std::holds_alternative<NodeBinExprDiv*>(nbin->var)) {
+                NodeBinExprDiv* ndiv = std::get<NodeBinExprDiv*>(nbin->var);
+                return eval(ndiv->lhs, def) / eval(ndiv->rhs, def);
+            }
+            if (std::holds_alternative<NodeBinExprEqEq*>(nbin->var)) {
+                NodeBinExprEqEq* neqeq = std::get<NodeBinExprEqEq*>(nbin->var);
+                return eval(neqeq->lhs, def) == eval(neqeq->rhs, def);
+            }
+            if (std::holds_alternative<NodeBinExprNotEq*>(nbin->var)) {
+                NodeBinExprNotEq* nnoteq = std::get<NodeBinExprNotEq*>(nbin->var);
+                return eval(nnoteq->lhs, def) != eval(nnoteq->rhs, def);
+            }
+            if (std::holds_alternative<NodeBinExprLess*>(nbin->var)) {
+                NodeBinExprLess* nless = std::get<NodeBinExprLess*>(nbin->var);
+                return eval(nless->lhs, def) < eval(nless->rhs, def);
+            }
+            if (std::holds_alternative<NodeBinExprAbove*>(nbin->var)) {
+                NodeBinExprAbove* nabove = std::get<NodeBinExprAbove*>(nbin->var);
+                return eval(nabove->lhs, def) > eval(nabove->rhs, def);
+            }
+            if (std::holds_alternative<NodeBinExprAnd*>(nbin->var)) {
+                NodeBinExprAnd* nand = std::get<NodeBinExprAnd*>(nbin->var);
+                return eval(nand->lhs, def) && eval(nand->rhs, def);
+            }
+            if (std::holds_alternative<NodeBinExprOr*>(nbin->var)) {
+                NodeBinExprOr* nor = std::get<NodeBinExprOr*>(nbin->var);
+                return eval(nor->lhs, def) || eval(nor->rhs, def);
+            }
+        }
+        m_diag_man->DiagnosticMessage(def, "error", "the expression cannot be evaluated at compile time.", 0);
+        exit(EXIT_FAILURE);
+        return result;
+    }
+
     DataType analyze_term(const NodeTerm* term, NodeExpr* base_expr, bool lvalue = false)
     {
         struct TermVisitor {
@@ -909,16 +1139,12 @@ public:
 
                 std::optional<Variable*> variable = sema.m_sym_table.var_lookup(name);
                 if(variable.has_value()) {
-                    sema.m_sym_table.m_mapped_ident_symbols[term_ident] = TermIdentSymbol {
-                        TermIdentSymbolKind::LOCAL_VAR, reinterpret_cast<void*>(variable.value())
-                    };
+                    sema.m_sym_table.m_mapped_ident_symbols[term_ident] = variable.value();
                     return variable.value()->type;
                 }
                 std::optional<GlobalVariable*> global_variable = sema.m_sym_table.gvar_lookup(name);
                 if(global_variable.has_value()) {
-                    sema.m_sym_table.m_mapped_ident_symbols[term_ident] = TermIdentSymbol {
-                        TermIdentSymbolKind::GLOBAL_VAR, reinterpret_cast<void*>(global_variable.value())
-                    };
+                    sema.m_sym_table.m_mapped_ident_symbols[term_ident] = global_variable.value();
                     return global_variable.value()->type;
                 }
 
@@ -933,31 +1159,7 @@ public:
             DataType operator()(NodeTermNmCall* term_call) const {
                 assert(term_call->nm.size() > 0);
 
-                std::optional<Namespace*> _namesp = sema.m_sym_table.namespace_lookup(term_call->nm[0]);
-                if(!_namesp.has_value()) {
-                    sema.m_diag_man->DiagnosticMessage(term_call->def, "error", "unkown namespace `" + term_call->nm[0] + "`", 0);
-                    exit(EXIT_FAILURE);
-                }
-
-                Namespace* current_nm = _namesp.value();
-                for(size_t i = 1;i < term_call->nm.size();i++) {
-                    std::optional<Namespace*> _nm = current_nm->scope->namespace_lookup(term_call->nm[i]);
-                    if(!_nm.has_value()) {
-                        GString errloc_namespace = term_call->nm[0];
-                        if(term_call->nm.size() > 1) errloc_namespace += "::";
-                        for(size_t j = 1;j < term_call->nm.size();j++) {
-                            errloc_namespace += term_call->nm[j];
-                            if(j != term_call->nm.size() - 1) {
-                                errloc_namespace += "::";
-                            }
-                        }
-                        sema.m_diag_man->DiagnosticMessage(term_call->def, "error", "unkown namespace `" + errloc_namespace + "`", 0);
-                        exit(EXIT_FAILURE);
-                    }
-                    current_nm = _nm.value();
-                }
-
-                assert(current_nm != nullptr);
+                Namespace* current_nm = sema.get_namespace_from_segments(term_call->nm, term_call->def);
 
                 const GString& name = term_call->name;
 
@@ -1033,29 +1235,7 @@ public:
             DataType operator()(NodeTermNmIdent* nm_ident) const {
                 assert(nm_ident->nm.size() > 0);
 
-                std::optional<Namespace*> _namesp = sema.m_sym_table.namespace_lookup(nm_ident->nm[0]);
-                if(!_namesp.has_value()) {
-                    sema.m_diag_man->DiagnosticMessage(nm_ident->def, "error", "unkown namespace `" + nm_ident->nm[0] + "`", 0);
-                    exit(EXIT_FAILURE);
-                }
-
-                Namespace* current_nm = _namesp.value();
-                for(size_t i = 1;i < nm_ident->nm.size();i++) {
-                    std::optional<Namespace*> _nm = current_nm->scope->namespace_lookup(nm_ident->nm[i]);
-                    if(!_nm.has_value()) {
-                        GString errloc_namespace = nm_ident->nm[0];
-                        if(nm_ident->nm.size() > 1) errloc_namespace += "::";
-                        for(size_t j = 1;j < nm_ident->nm.size();j++) {
-                            errloc_namespace += nm_ident->nm[j];
-                            if(j != nm_ident->nm.size() - 1) {
-                                errloc_namespace += "::";
-                            }
-                        }
-                        sema.m_diag_man->DiagnosticMessage(nm_ident->def, "error", "unkown namespace `" + errloc_namespace + "`", 0);
-                        exit(EXIT_FAILURE);
-                    }
-                    current_nm = _nm.value();
-                }
+                Namespace* current_nm = sema.get_namespace_from_segments(nm_ident->nm, nm_ident->def);
 
                 const GString& variable_name = nm_ident->name;
 
@@ -1445,9 +1625,7 @@ public:
                     to_insert->mangled_symbol = "_v_" + name;
                     sema.m_sym_table.m_gvars[name] = to_insert;
 
-                    sema.m_sym_table.m_mapped_let_symbols[stmt_let] = TermIdentSymbol {
-                        TermIdentSymbolKind::GLOBAL_VAR, reinterpret_cast<void*>(to_insert)
-                    };
+                    sema.m_sym_table.m_mapped_let_symbols[stmt_let] = to_insert;
                 } else {
                     if(sema.m_cur_namespace != nullptr && sema.m_cur_procedure == nullptr) {
                         GlobalVariable* to_insert = sema.m_allocator->emplace<GlobalVariable>();
@@ -1456,13 +1634,9 @@ public:
                         to_insert->mangled_symbol = "_v@" + sema.m_cur_namespace->get_mangle() + name;
                         sema.m_cur_namespace->scope->m_gvars[name] = to_insert;
                         sema.m_sym_table.m_gvars[to_insert->mangled_symbol] = to_insert;
-                        sema.m_sym_table.m_mapped_let_symbols[stmt_let] = TermIdentSymbol {
-                            TermIdentSymbolKind::GLOBAL_VAR, reinterpret_cast<void*>(to_insert)
-                        };
+                        sema.m_sym_table.m_mapped_let_symbols[stmt_let] = to_insert;
                     } else {
-                        sema.m_sym_table.m_mapped_let_symbols[stmt_let] = TermIdentSymbol {
-                            TermIdentSymbolKind::LOCAL_VAR, reinterpret_cast<void*>(sema.define_local_variable(name, expression_type))
-                        };
+                        sema.m_sym_table.m_mapped_let_symbols[stmt_let] = sema.define_local_variable(name, expression_type);
                     }
                 }
             }
@@ -1719,9 +1893,9 @@ public:
                 sema.analyze_stmt(base_stmt);  
             }
 
-            void operator()([[maybe_unused]] const NodeStmtConst* stmt_const) const
+            void operator()(const NodeStmtConst* stmt_const) const
             {
-                
+                sema.m_sym_table.last_scope()->m_consts[stmt_const->name] = sema.m_allocator->emplace<Constant>(stmt_const->name, sema.eval(stmt_const->expr, stmt_const->def));
             }
 
             void operator()([[maybe_unused]] const NodeStmtTypedef* stmt_tdef) const
