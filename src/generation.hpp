@@ -250,7 +250,7 @@ public:
 
                 gen.m_builder.call(gen.sym(procedure->mangled_symbol));
 
-                if(term_call->args.has_value()) gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(procedure->params.size() * 4));
+                if(term_call->args.has_value()) gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(gen.m_sema->__getargs(term_call->args.value()).size() * 4));
 
                 if(term_call->as_expr) gen.m_builder.push(gen.reg(Reg::EAX));
             }
@@ -263,7 +263,7 @@ public:
                     assert(procedure != nullptr);
                     if(term_call->args.has_value()) gen.gen_expr(term_call->args.value());
                     gen.m_builder.call(gen.sym(procedure->mangled_symbol));
-                    if(term_call->args.has_value()) gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(procedure->params.size() * 4));
+                    if(term_call->args.has_value()) gen.m_builder.add(gen.reg(Reg::ESP), gen.imm(gen.m_sema->__getargs(term_call->args.value()).size() * 4));
                     if(term_call->as_expr) gen.m_builder.push(gen.reg(Reg::EAX));
                     return;
                 }
