@@ -831,7 +831,7 @@ public:
             else {
                 auto term_nm = m_allocator->emplace<NodeTermNmIdent>();
                 term_nm->def = first;
-                term_nm->nm = nsName;
+                term_nm->nm = segments;
                 term_nm->name = funcName;
                 
                 auto term = m_allocator->emplace<NodeTerm>(term_nm);

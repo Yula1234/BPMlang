@@ -127,7 +127,7 @@ struct NodeTermMtCall {
 
 struct NodeTermNmIdent {
     Token def;
-    GString nm;
+    GVector<GString> nm;
     GString name;
 };
 

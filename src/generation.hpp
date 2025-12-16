@@ -227,8 +227,12 @@ public:
                 }
             }
 
-            void operator()([[maybe_unused]] const NodeTermNmIdent* term_ident) const {
-    
+            void operator()(NodeTermNmIdent* term_ident) const {
+                const auto& search = gen.m_sema->m_sym_table.m_mapped_nmident_symbols.find(term_ident);
+                assert(search != gen.m_sema->m_sym_table.m_mapped_nmident_symbols.end());
+                GlobalVariable* var = search->second;
+                assert(var != nullptr);
+                gen.push_mem(gen.global_mem(var->mangled_symbol));
             }
 
             void operator()(const NodeTermParen* term_paren) const {
@@ -625,6 +629,13 @@ public:
                 const auto& search = gen.m_sema->m_sym_table.m_mapped_let_symbols.find(stmt_let);
                 assert(search != gen.m_sema->m_sym_table.m_mapped_let_symbols.end());
                 TermIdentSymbol symbol = search->second;
+                
+                if(symbol.kind == TermIdentSymbolKind::GLOBAL_VAR) {
+                    GlobalVariable* var = reinterpret_cast<GlobalVariable*>(symbol.symbol);
+                    gen.m_init_globals.push_back({var, stmt_let->expr.value()});
+                    return;
+                }
+
                 assert(symbol.symbol != NULL);
                 gen.gen_expr(stmt_let->expr.value());
                 gen.m_builder.pop(gen.reg(Reg::EBX));
@@ -632,10 +643,6 @@ public:
                 if(symbol.kind == TermIdentSymbolKind::LOCAL_VAR) {
                     Variable* var = reinterpret_cast<Variable*>(symbol.symbol);
                     mem = MemRef::baseDisp(Reg::EBP, -static_cast<int32_t>(var->stack_loc));
-                }
-                if(symbol.kind == TermIdentSymbolKind::GLOBAL_VAR) {
-                    GlobalVariable* var = reinterpret_cast<GlobalVariable*>(symbol.symbol);
-                    mem = gen.global_mem(var->mangled_symbol);
                 }
                 gen.m_builder.mov(gen.mem(mem), gen.reg(Reg::EBX));
             }
@@ -863,6 +870,21 @@ public:
 	        gen_stmt(stmt);
 	    }
 
+        m_builder.label("_BPM_init_");
+        m_builder.push( Operand::regOp(Reg::EBP) );
+        m_builder.mov(
+            Operand::regOp(Reg::EBP),
+            Operand::regOp(Reg::ESP)
+        );
+
+        for(auto&& p : m_init_globals) {
+            gen_expr(p.second);
+            pop_reg(Reg::EDX);
+            m_builder.mov(mem(global_mem(p.first->mangled_symbol)), reg(Reg::EDX));
+        }
+        m_builder.leave();
+        m_builder.ret();
+
 	    m_builder.label("main");
         m_builder.push( Operand::regOp(Reg::EBP) );
 
@@ -873,6 +895,8 @@ public:
 
         m_builder.push( Operand::memOp( MemRef::baseDisp(Reg::EBP, 12) ) );
         m_builder.push( Operand::memOp( MemRef::baseDisp(Reg::EBP, 8) ) );
+
+        m_builder.call(sym("_BPM_init_"));
 
 	    m_builder.call(sym("__bpm_set_sigsegv_handler"));
 	    m_builder.push(reg(Reg::EBP));
@@ -930,6 +954,8 @@ private:
         "memalloc",
         "memfree",
     };
+
+    GVector<std::pair<GlobalVariable*, NodeExpr*>> m_init_globals {};
 
     GMap<GString, String> m_strings {};
 

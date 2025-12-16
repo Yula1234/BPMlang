@@ -188,6 +188,7 @@ public:
     GMap<NodeTermCall*, std::variant<Procedure*, Struct*>> m_mapped_calls_symbols;
     GMap<NodeTermNmCall*, Procedure*> m_mapped_nm_calls_symbols;
     GMap<NodeStmtLet*, TermIdentSymbol> m_mapped_let_symbols;
+    GMap<NodeTermNmIdent*, GlobalVariable*> m_mapped_nmident_symbols;
 
 	SemanticSymbolTable() = default;
 
@@ -1025,8 +1026,47 @@ public:
                 base_expr->var = sema.as_expr_pointer(sema.as_term_pointer(nm_call))->var;
                 return sema.analyze_expr(base_expr);
             }
-            DataType operator()([[maybe_unused]] const NodeTermNmIdent* nm_ident) const {
-                return BaseDataTypeVoid;
+            DataType operator()(NodeTermNmIdent* nm_ident) const {
+                assert(nm_ident->nm.size() > 0);
+
+                std::optional<Namespace*> _namesp = sema.m_sym_table.namespace_lookup(nm_ident->nm[0]);
+                if(!_namesp.has_value()) {
+                    sema.m_diag_man->DiagnosticMessage(nm_ident->def, "error", "unkown namespace `" + nm_ident->nm[0] + "`", 0);
+                    exit(EXIT_FAILURE);
+                }
+
+                Namespace* current_nm = _namesp.value();
+                for(size_t i = 1;i < nm_ident->nm.size();i++) {
+                    std::optional<Namespace*> _nm = current_nm->scope->namespace_lookup(nm_ident->nm[i]);
+                    if(!_nm.has_value()) {
+                        GString errloc_namespace = nm_ident->nm[0];
+                        if(nm_ident->nm.size() > 1) errloc_namespace += "::";
+                        for(size_t j = 1;j < nm_ident->nm.size();j++) {
+                            errloc_namespace += nm_ident->nm[j];
+                            if(j != nm_ident->nm.size() - 1) {
+                                errloc_namespace += "::";
+                            }
+                        }
+                        sema.m_diag_man->DiagnosticMessage(nm_ident->def, "error", "unkown namespace `" + errloc_namespace + "`", 0);
+                        exit(EXIT_FAILURE);
+                    }
+                    current_nm = _nm.value();
+                }
+
+                const GString& variable_name = nm_ident->name;
+
+                std::optional<GlobalVariable*> maybe_existing_global_variable = current_nm->scope->gvar_lookup(variable_name);
+                if(!maybe_existing_global_variable.has_value()) {
+                    sema.m_diag_man->DiagnosticMessage(nm_ident->def, "error", "could not find the symbol `" + current_nm->get_path() + variable_name + "`.", 0);
+                }
+
+                GlobalVariable* var = maybe_existing_global_variable.value();
+
+                sema.m_sym_table.m_mapped_nmident_symbols[nm_ident] = var;
+
+                return var->type;
+
+
             }
         };
 
@@ -1409,8 +1449,9 @@ public:
                         GlobalVariable* to_insert = sema.m_allocator->emplace<GlobalVariable>();
                         to_insert->name = name;
                         to_insert->type = expression_type;
-                        to_insert->mangled_symbol = sema.m_cur_namespace->get_mangle() + "_v@" + name;
+                        to_insert->mangled_symbol = "_v@" + sema.m_cur_namespace->get_mangle() + name;
                         sema.m_cur_namespace->scope->m_gvars[name] = to_insert;
+                        sema.m_sym_table.m_gvars[to_insert->mangled_symbol] = to_insert;
                         sema.m_sym_table.m_mapped_let_symbols[stmt_let] = TermIdentSymbol {
                             TermIdentSymbolKind::GLOBAL_VAR, reinterpret_cast<void*>(to_insert)
                         };
