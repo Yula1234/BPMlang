@@ -232,7 +232,8 @@ public:
                 assert(search != gen.m_sema->m_sym_table.m_mapped_nmident_symbols.end());
                 GlobalVariable* var = search->second;
                 assert(var != nullptr);
-                gen.push_mem(gen.global_mem(var->mangled_symbol));
+                if(lvalue) gen.push_sym(var->mangled_symbol);
+                else gen.push_mem(gen.global_mem(var->mangled_symbol));
             }
 
             void operator()(const NodeTermParen* term_paren) const {
