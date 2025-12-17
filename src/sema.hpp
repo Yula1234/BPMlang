@@ -400,25 +400,17 @@ public:
 
     bool types_equ(const DataType& one, const DataType& two) {
         bool result = one.is_compatible_with(two);
-        if(!result && ((one.root().ptrlvl > 0 || two.root().ptrlvl > 0) && (one == BaseDataTypePtr || two == BaseDataTypePtr))) {
-            result = true;
-        }
         return result;
     }
 
-    bool procs_same_signature(const GVector<std::pair<GString, DataType>>& one,
-                                const GVector<std::pair<GString, DataType>>& two,
-                                const DataType& one_rettype, const DataType& two_rettype)
+    bool procs_same_signature(Procedure* one, NodeStmtProc* two)
     {
-        if(one_rettype != two_rettype) return false;
-        if(one.size() != two.size()) return false;
-
-        int size = static_cast<int>(one.size());
-
-        for(int i = 0; i < size; i++) {
-            if(!types_equ(one[i].second, two[i].second)) {
-                return false;
-            }
+        if (one->params.size() != two->params.size()) return false;
+        if (one->rettype != two->rettype) return false;
+        if (one->params != two->params)   return false;
+        if ((one->templates == NULL) != (two->templates == NULL)) return false;
+        if (one->templates && two->templates) {
+            if (*one->templates != *two->templates) return false;
         }
         return true;
     }
@@ -520,12 +512,12 @@ public:
         exit(EXIT_FAILURE);
     }
 
-    Variable* define_local_variable(const GString& name, const DataType& type) {
+    Variable* define_local_variable(const GString& name, const DataType& type, const size_t size_of = 4ULL) {
         assert(m_cur_procedure != nullptr);
         Variable* to_insert = m_allocator->alloc<Variable>();
         to_insert->name = name;
         to_insert->type = type;
-        m_cur_procedure->stack_allign += 4;
+        m_cur_procedure->stack_allign += size_of;
         to_insert->stack_loc = m_cur_procedure->stack_allign;
         m_sym_table.last_scope()->m_vars[name] = to_insert;
         return to_insert;
@@ -963,7 +955,7 @@ public:
                 }
                 if (cname == "true")  return 1;
                 if (cname == "false") return 0;
-                std::optional<Constant*> cns = m_sym_table.last_scope()->const_lookup(cname);
+                std::optional<Constant*> cns = m_sym_table.const_lookup(cname);
                 if (cns.has_value()) return cns.value()->value;
             }
             if (std::holds_alternative<NodeTermNmIdent*>(nterm->var)) {
@@ -1568,7 +1560,7 @@ public:
 
                 if(existing_procedure.has_value()) {
                     Procedure* existing_proc = existing_procedure.value();
-                    bool signature_equals = sema.procs_same_signature(existing_proc->params, stmt_proc->params, existing_proc->rettype, stmt_proc->rettype);
+                    bool signature_equals = sema.procs_same_signature(existing_procedure.value(), stmt_proc);
                     if(signature_equals && !stmt_proc->prototype) {
                         sema.m_diag_man->DiagnosticMessage(stmt_proc->def, "error", "precedure `" + name + "` redefenition", 0);
                         sema.m_diag_man->DiagnosticMessage(existing_proc->def, "note", "first defenition here.", 0);
@@ -1751,9 +1743,13 @@ public:
 
             }
 
-            void operator()([[maybe_unused]] const NodeStmtBuffer* stmt_buf) const
+            void operator()(const NodeStmtBuffer* stmt_buf) const
             {
-
+                int size = sema.eval(stmt_buf->size, stmt_buf->def);
+                if (size % 2 != 0) {
+                    sema.SemanticError(stmt_buf->def, "size of buffer must be a even number");
+                }
+                sema.define_local_variable(stmt_buf->name, BaseDataTypeChar, size);
             }
 
             void operator()([[maybe_unused]] const NodeStmtAsm* stmt_asm) const
