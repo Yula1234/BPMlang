@@ -801,7 +801,7 @@ public:
             {
                 auto expr_call = m_allocator->emplace<NodeTermNmCall>();
                 expr_call->def  = first;
-                expr_call->nm   = segments;  
+                expr_call->nm   = nsName;  
                 expr_call->name = funcName;
 
                 if (peek().has_value() && peek().value().type == TokenType_t::less) {
@@ -831,7 +831,7 @@ public:
             else {
                 auto term_nm = m_allocator->emplace<NodeTermNmIdent>();
                 term_nm->def = first;
-                term_nm->nm = segments;
+                term_nm->nm = nsName;
                 term_nm->name = funcName;
                 
                 auto term = m_allocator->emplace<NodeTerm>(term_nm);
@@ -1936,7 +1936,7 @@ public:
 
             auto stmt_call = m_allocator->emplace<NodeStmtNmCall>();
             stmt_call->def  = first;
-            stmt_call->nm   = segments;   
+            stmt_call->nm   = nsName;   
             stmt_call->name = funcName; 
 
             if (peek().has_value() && peek().value().type == TokenType_t::less) {

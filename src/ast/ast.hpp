@@ -35,7 +35,7 @@ struct NodeTermCall {
 struct NodeTermNmCall {
 	Token def; 
 	GString name;
-	GVector<GString> nm;
+	GString nm;
 	std::optional<NodeExpr*> args;
 	GVector<DataType> targs;
 	bool as_expr = true;
@@ -127,7 +127,7 @@ struct NodeTermMtCall {
 
 struct NodeTermNmIdent {
     Token def;
-    GVector<GString> nm;
+    GString nm;
     GString name;
 };
 
@@ -312,7 +312,7 @@ struct NodeStmtCall {
 struct NodeStmtNmCall {
 	Token def;
 	GString name;
-	GVector<GString> nm;
+	GString nm;
 	std::optional<NodeExpr*> args;
 	GVector<DataType> targs;
 	NodeExpr* resolved_expression = nullptr;

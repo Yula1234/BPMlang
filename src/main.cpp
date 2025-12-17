@@ -68,8 +68,6 @@ bool __slashinpath;
 #include "parser.hpp"
 #include "types/type_substitutor.hpp"
 
-#include "sema.hpp"
-
 #include "IR/ir.hpp"
 #include "IR/ir_opt.hpp"
 
@@ -139,10 +137,7 @@ int main(int argc, char* argv[]) {
 
     auto start_generation = std::chrono::system_clock::now();
 
-    SemanticContext sema(prog.value(), &dmanager, global_allocator);
-    sema.analyze_prog();
-
-    Generator generator(prog.value(), &dmanager, global_allocator, &sema);
+    Generator generator(prog.value(), &dmanager, global_allocator);
     if(auto _f_opt = argparser.find_flag(FlagType::optimize)) {
         generator.m_optimize = true;
     }
