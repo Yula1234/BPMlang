@@ -168,7 +168,7 @@ public:
 #define TYPEID_PROCPTR 5
 
 
-using Symbols_Type = std::variant<Variable*, GlobalVariable*>;
+using Symbols_Type = std::variant<Variable*, GlobalVariable*, Constant*>;
 
 class SemanticSymbolTable {
 public:
@@ -219,6 +219,13 @@ public:
     std::optional<GlobalVariable*> gvar_lookup(const GString& name) {
         const auto& search = m_gvars.find(name);
         if(search != m_gvars.end()) return search->second;
+        return std::nullopt;
+    }
+    std::optional<Constant*> const_lookup(const GString& name) {
+        for(const SemanticScope* scope : m_scopes) {
+            std::optional<Constant*> res = scope->const_lookup(name);
+            if(res.has_value()) return res;
+        }
         return std::nullopt;
     }
     inline SemanticScope* last_scope() {
@@ -392,7 +399,11 @@ public:
     }
 
     bool types_equ(const DataType& one, const DataType& two) {
-        return one.is_compatible_with(two);
+        bool result = one.is_compatible_with(two);
+        if(!result && ((one.root().ptrlvl > 0 || two.root().ptrlvl > 0) && (one == BaseDataTypePtr || two == BaseDataTypePtr))) {
+            result = true;
+        }
+        return result;
     }
 
     bool procs_same_signature(const GVector<std::pair<GString, DataType>>& one,
@@ -1146,6 +1157,12 @@ public:
                 if(global_variable.has_value()) {
                     sema.m_sym_table.m_mapped_ident_symbols[term_ident] = global_variable.value();
                     return global_variable.value()->type;
+                }
+
+                std::optional<Constant*> constant = sema.m_sym_table.const_lookup(name);
+                if(constant.has_value()) {
+                    sema.m_sym_table.m_mapped_ident_symbols[term_ident] = constant.value();
+                    return BaseDataTypeInt;
                 }
 
                 sema.m_diag_man->DiagnosticMessage(term_ident->ident, "error", "undefined symbol `" + name + "`", 0);

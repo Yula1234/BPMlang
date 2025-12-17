@@ -2,8 +2,8 @@
 
 
 namespace INTERNAL_CODE {
-    GString IMPLEMENTATION = R"(struct exception { __message: char*, __bstub1: int, __bstub2: int }
-impl exception { proc what(exception self) -> char* { return self.__message; } }
+    GString IMPLEMENTATION = R"(struct bpmexception { __message: char*, __bstub1: int, __bstub2: int }
+impl bpmexception { proc what(bpmexception self) -> char* { return self.__message; } }
 struct __DoubleFreeException { __addr: ptr, __bstub1: int, __bstub2: int }
 impl __DoubleFreeException { proc what(__DoubleFreeException self) -> char* {
         __pushonstack(self.__addr);
@@ -29,7 +29,7 @@ impl __SigSegvException { proc what(__SigSegvException self) -> char* {
         let __fst = __popfromstack();
         return cast(char*, __fst); } }
 __oninit { __pushonstack(typeid(__SigSegvException)); asm "pop edx"; asm "mov dword [__BpmSigSegvExceptionTypeId], edx"; }
-namespace std { proc exception(char* mess_) -> exception = return exception(mess_, 0, 0); }
+namespace std { proc exception(char* mess_) -> bpmexception = return bpmexception(mess_, 0, 0); }
 interface __ObjectTypeI {}
 interface __SimpleTypeI {}
 interface __PointerTypeI {}
@@ -231,7 +231,7 @@ public:
                     gen.m_diag_man->DiagnosticMessage(term_ident->ident, "error", "unresolved symbol `" + term_ident->ident.value.value() + "` here.", 0);
                     exit(EXIT_FAILURE);
                 }
-                std::variant<Variable*, GlobalVariable*> symbol = search->second;
+                Symbols_Type symbol = search->second;
                 if(std::holds_alternative<Variable*>(symbol)) {
                     Variable* var = std::get<Variable*>(symbol);
                     if (lvalue) {
@@ -250,6 +250,11 @@ public:
                     } else {
                         gen.push_mem(gen.global_mem(var->mangled_symbol));
                     }
+                    return;
+                }
+                if(std::holds_alternative<Constant*>(symbol)) {
+                    Constant* constant = std::get<Constant*>(symbol);
+                    gen.push_imm(constant->value);
                     return;
                 }
             }
