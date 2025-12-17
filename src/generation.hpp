@@ -5597,7 +5597,7 @@ private:
     };
 
     GVector<GString> m_cexterns{
-        "ExitProcess@4",
+        "ExitProcess",
         "malloc",
         "free",
         "memcpy",
